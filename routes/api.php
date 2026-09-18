@@ -1,11 +1,21 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountAddressController;
+use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\AccountTypeController;
+use App\Http\Controllers\Api\V1\AddressTypeController;
 use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\DcrController;
+use App\Http\Controllers\Api\V1\DcrExpenseController;
+use App\Http\Controllers\Api\V1\ExpenseTypeController;
 use App\Http\Controllers\Api\V1\GpsPointController;
+use App\Http\Controllers\Api\V1\ItemController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\PinCodeController;
 use App\Http\Controllers\Api\V1\TodaysTourController;
 use App\Http\Controllers\Api\V1\VisitController;
+use App\Http\Controllers\Api\V1\VisitSgipController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -21,10 +31,42 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('todays-tour', TodaysTourController::class);
 
+        Route::get('dcrs/today', [DcrController::class, 'today']);
+        Route::get('dcrs/{dcr}', [DcrController::class, 'show']);
+        Route::post('dcrs/{dcr}/submit', [DcrController::class, 'submit']);
+
+        Route::get('dcrs/{dcr}/expenses', [DcrExpenseController::class, 'index']);
+        Route::post('dcrs/{dcr}/expenses', [DcrExpenseController::class, 'store']);
+        Route::patch('dcrs/{dcr}/expenses/{expense}', [DcrExpenseController::class, 'update']);
+        Route::delete('dcrs/{dcr}/expenses/{expense}', [DcrExpenseController::class, 'destroy']);
+        Route::post('dcrs/{dcr}/expenses/auto-calculate', [DcrExpenseController::class, 'autoCalculate']);
+
+        Route::get('expense-types', ExpenseTypeController::class);
+        Route::get('items', ItemController::class);
+
+        Route::get('account-types', AccountTypeController::class);
+        Route::get('address-types', AddressTypeController::class);
+        Route::get('pin-codes', PinCodeController::class);
+
+        Route::get('accounts', [AccountController::class, 'index']);
+        Route::post('accounts', [AccountController::class, 'store']);
+        Route::get('accounts/{account}', [AccountController::class, 'show']);
+        Route::patch('accounts/{account}', [AccountController::class, 'update']);
+
+        Route::get('accounts/{account}/addresses', [AccountAddressController::class, 'index']);
+        Route::post('accounts/{account}/addresses', [AccountAddressController::class, 'store']);
+        Route::get('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'show']);
+        Route::patch('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'update']);
+        Route::delete('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'destroy']);
+
         Route::get('visits/{visit}', [VisitController::class, 'show']);
         Route::post('visits/{visit}/check-in', [VisitController::class, 'checkIn']);
         Route::post('visits/{visit}/check-out', [VisitController::class, 'checkOut']);
         Route::post('visits/{visit}/photos', [VisitController::class, 'storePhoto']);
+
+        Route::get('visits/{visit}/sgip', [VisitSgipController::class, 'show']);
+        Route::put('visits/{visit}/sgip', [VisitSgipController::class, 'upsert']);
+        Route::post('visits/{visit}/sgip/submit', [VisitSgipController::class, 'submit']);
 
         Route::post('gps-points', [GpsPointController::class, 'store']);
     });

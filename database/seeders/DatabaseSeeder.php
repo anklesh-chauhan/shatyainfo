@@ -81,6 +81,7 @@ class DatabaseSeeder extends Seeder
             LeaveRuleSeeder::class,
             LeaveDemoDataSeeder::class,
             HolidaySeeder::class,
+            ShiftMasterSeeder::class,
             JobRoleSeeder::class,
             PositionSeeder::class,
             PositionEmployeeMapperSeeder::class,

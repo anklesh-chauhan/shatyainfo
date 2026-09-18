@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
 class ShiftMaster extends BaseModel
 {
     protected $table = 'shift_masters';
@@ -29,6 +27,7 @@ class ShiftMaster extends BaseModel
 
         'overtime_start_minutes',
 
+        'is_first_in_last_out_punch',
         'is_night_shift',
         'is_flexible',
         'is_system',
@@ -69,6 +68,7 @@ class ShiftMaster extends BaseModel
         'break_start_time' => 'datetime:H:i',
         'break_end_time' => 'datetime:H:i',
 
+        'is_first_in_last_out_punch' => 'boolean',
         'is_night_shift' => 'boolean',
         'is_flexible' => 'boolean',
         'is_system' => 'boolean',
@@ -82,16 +82,18 @@ class ShiftMaster extends BaseModel
      * Constants for enums (recommended)
      */
     public const SHIFT_TYPE_FIXED = 'fixed';
+
     public const SHIFT_TYPE_ROTATIONAL = 'rotational';
 
     public const WEEK_OFF_FIXED = 'fixed';
+
     public const WEEK_OFF_ROTATIONAL = 'rotational';
+
     public const WEEK_OFF_NONE = 'none';
 
     /**
      * Relationships
      */
-
     public function employees()
     {
         return $this->hasMany(Employee::class, 'shift_master_id');
@@ -109,22 +111,22 @@ class ShiftMaster extends BaseModel
 
     public function lateMarkSetup()
     {
-        return $this->hasOne(\App\Models\ShiftLateMarkSetup::class);
+        return $this->hasOne(ShiftLateMarkSetup::class);
     }
 
     public function dayWorkSetup()
     {
-        return $this->hasOne(\App\Models\ShiftDayWorkSetup::class);
+        return $this->hasOne(ShiftDayWorkSetup::class);
     }
 
     public function overTimeSetup()
     {
-        return $this->hasOne(\App\Models\ShiftOverTimeSetup::class);
+        return $this->hasOne(ShiftOverTimeSetup::class);
     }
 
     public function compOffSetup()
     {
-        return $this->hasOne(\App\Models\ShiftCompOffSetup::class);
+        return $this->hasOne(ShiftCompOffSetup::class);
     }
 
     protected static function booted()
@@ -137,5 +139,4 @@ class ShiftMaster extends BaseModel
             $shift->compOffSetup()->create();
         });
     }
-
 }

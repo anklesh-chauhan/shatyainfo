@@ -22,6 +22,7 @@ class VisitResource extends JsonResource
             'employee_id' => $this->employee_id,
             'territory_id' => $this->territory_id,
             'patch_id' => $this->patch_id,
+            'sales_dcr_id' => $this->sales_dcr_id,
             'sales_tour_plan_detail_id' => $this->sales_tour_plan_detail_id,
             'visit_date' => optional($this->visit_date)?->toDateString(),
             'start_time' => optional($this->start_time)?->toIso8601String(),
@@ -52,6 +53,23 @@ class VisitResource extends JsonResource
                     return [
                         'id' => $company->id,
                         'name' => $company->name,
+                    ];
+                },
+            ),
+            'sgip' => $this->when(
+                $this->relationLoaded('sgipDistribution'),
+                function (): ?array {
+                    $sgip = $this->sgipDistribution;
+
+                    if (! $sgip) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $sgip->id,
+                        'approval_status' => $sgip->approval_status,
+                        'total_value' => $sgip->total_value !== null ? (float) $sgip->total_value : 0.0,
+                        'items_count' => $sgip->relationLoaded('items') ? $sgip->items->count() : null,
                     ];
                 },
             ),

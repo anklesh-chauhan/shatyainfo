@@ -16,6 +16,8 @@ use App\Models\ShiftMaster;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
+use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /*
@@ -203,4 +205,14 @@ function reportingAssignShift(User $user, ShiftMaster $shift): void
 function reportingApiToken(User $user, string $name = 'field-api'): string
 {
     return $user->createToken($name)->plainTextToken;
+}
+
+function fieldSalesUser(string $name): User
+{
+    test()->seed(ConfigDrivenShieldPermissionSeeder::class);
+
+    $user = reportingUser($name);
+    $user->assignRole(Role::findByName('sales_user', 'web'));
+
+    return $user;
 }
