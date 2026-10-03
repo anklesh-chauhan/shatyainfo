@@ -2,23 +2,18 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasCustomerInteractionFields;
 use Exception;
 use Filament\Notifications\Notification;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Traits\HasCustomerInteractionFields;
-use App\Models\NumberSeries;
-use App\Models\DealStage;
 use Illuminate\Support\Facades\DB;
-
-use App\Traits\HasApprovalWorkflow;
 
 class Lead extends BaseModel
 {
-    use HasFactory, HasCustomerInteractionFields, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasCustomerInteractionFields, HasFactory;
 
     protected $fillable = [
         'owner_id',
@@ -40,12 +35,12 @@ class Lead extends BaseModel
 
     public function scopeApplyOwnVisibility(Builder $query, $user): Builder
     {
-        return $query->where('employee_id', $user->employee->id);
+        return $query->where($query->getModel()->getTable().'.owner_id', $user->id);
     }
 
     public function scopeApplyTerritoryVisibility(Builder $query, array $territoryIds): Builder
     {
-        return $query->whereIn('territory_id', $territoryIds);
+        return $query->whereIn($query->getModel()->getTable().'.territory_id', $territoryIds);
     }
 
     public function convertToDeal(bool $createCompanyMaster = false, bool $createAccountMaster = false)
@@ -98,13 +93,11 @@ class Lead extends BaseModel
 
                 DB::commit();
 
-
             } catch (Exception $e) {
                 DB::rollBack();
 
                 throw new Exception('Failed to convert lead to customer.', 0, $e);
             }
-
 
             Notification::make()
                 ->title('Account Master Created')
@@ -218,13 +211,13 @@ class Lead extends BaseModel
         } elseif ($this->contactDetail) {
             return $this->contactDetail->full_name; // Otherwise, show contact name
         }
+
         return 'N/A'; // Default if neither is available
     }
 
     protected $casts = [
         'custom_fields' => 'array',
     ];
-
 
     protected static function boot()
     {

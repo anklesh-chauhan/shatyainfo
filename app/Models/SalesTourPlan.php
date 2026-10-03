@@ -2,20 +2,15 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use App\Traits\HasApprovalWorkflow;
-use App\Enums\TourPurpose;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Log;
 
 class SalesTourPlan extends BaseModel
 {
-    use HasFactory, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasFactory;
 
     protected $fillable = [
         'user_id',
@@ -48,7 +43,6 @@ class SalesTourPlan extends BaseModel
     /**
      * The details of the tour plan.
      */
-
     public function details(): HasMany
     {
         return $this->hasMany(SalesTourPlanDetail::class, 'sales_tour_plan_id');
@@ -107,6 +101,11 @@ class SalesTourPlan extends BaseModel
         return $this->approval_status === 'submitted';
     }
 
+    public function scopeApplyOwnVisibility(Builder $query, $user): Builder
+    {
+        return $query->where($query->getModel()->getTable().'.user_id', $user->id);
+    }
+
     public function scopeApplyTerritoryVisibility(
         Builder $query,
         array $territoryIds
@@ -115,5 +114,4 @@ class SalesTourPlan extends BaseModel
             $q->whereIn('territory_id', $territoryIds);
         });
     }
-
 }

@@ -24,9 +24,14 @@ class SgipLimitResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'SgipLimit';
+    protected static ?string $recordTitleAttribute = 'item_type';
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['item_type', 'applies_to', 'period'];
+    }
 
     public static function form(Schema $schema): Schema
     {

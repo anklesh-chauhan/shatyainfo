@@ -17,6 +17,7 @@ class UpsertVisitSgipRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'expected_updated_at' => ['sometimes', 'nullable', 'date'],
             'sample_issue_id' => ['nullable', 'integer', 'exists:sample_issues,id'],
             'marketing_campaign_id' => ['nullable', 'integer', 'exists:marketing_campaigns,id'],
             'items' => ['required', 'array', 'min:1'],

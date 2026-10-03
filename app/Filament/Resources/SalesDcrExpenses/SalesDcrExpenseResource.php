@@ -8,6 +8,7 @@ use App\Filament\Resources\SalesDcrExpenses\Pages\ListSalesDcrExpenses;
 use App\Filament\Resources\SalesDcrExpenses\Schemas\SalesDcrExpenseForm;
 use App\Filament\Resources\SalesDcrExpenses\Tables\SalesDcrExpensesTable;
 use App\Models\SalesDcrExpense;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -18,11 +19,18 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrExpenseResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = SalesDcrExpense::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'SalesDcrExpense';
+    protected static ?string $recordTitleAttribute = 'remarks';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'remarks',
+        'expenseType.name',
+    ];
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

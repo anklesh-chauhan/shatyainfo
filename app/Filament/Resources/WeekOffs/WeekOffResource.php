@@ -11,6 +11,7 @@ use App\Filament\Resources\WeekOffs\Schemas\WeekOffForm;
 use App\Filament\Resources\WeekOffs\Schemas\WeekOffInfolist;
 use App\Filament\Resources\WeekOffs\Tables\WeekOffsTable;
 use App\Models\WeekOff;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -21,11 +22,20 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class WeekOffResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = WeekOff::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'WeekOff';
+    protected static ?string $recordTitleAttribute = 'day_of_week';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'day_of_week',
+    ];
 
     protected static ?string $cluster = ShiftAndCalanderCluster::class;
 

@@ -40,27 +40,27 @@ class VisitPreferenceSeeder extends Seeder
                  =============================== */
                 'field_rules' => [
                     'purpose' => [
-                        'visible'  => true,
+                        'visible' => true,
                         'required' => true,
                         'editable' => true,
                     ],
                     'outcome' => [
-                        'visible'  => true,
+                        'visible' => true,
                         'required' => false,
                         'editable' => true,
                     ],
                     'notes' => [
-                        'visible'  => true,
+                        'visible' => true,
                         'required' => false,
                         'editable' => true,
                     ],
                     'next_follow_up_date' => [
-                        'visible'  => true,
+                        'visible' => true,
                         'required' => false,
                         'editable' => true,
                     ],
                     'competitor_info' => [
-                        'visible'  => false,
+                        'visible' => false,
                         'required' => false,
                         'editable' => false,
                     ],
@@ -72,6 +72,8 @@ class VisitPreferenceSeeder extends Seeder
                 'allow_rescheduling' => true,
                 'allow_cancellation' => true,
                 'require_visit_outcome' => false,
+                'allow_backdated_dcr' => true,
+                'dcr_backdate_days' => 3,
             ]
         );
     }

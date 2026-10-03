@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveLapseRecords\Pages\ListLeaveLapseRecords;
 use App\Filament\Resources\LeaveLapseRecords\Schemas\LeaveLapseRecordForm;
 use App\Filament\Resources\LeaveLapseRecords\Tables\LeaveLapseRecordsTable;
 use App\Models\LeaveLapseRecord;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,11 +20,21 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveLapseRecordResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = LeaveLapseRecord::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveLapseRecord';
+    protected static ?string $recordTitleAttribute = 'reason';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+        'reason',
+    ];
 
     protected static bool $shouldRegisterNavigation = false;
 

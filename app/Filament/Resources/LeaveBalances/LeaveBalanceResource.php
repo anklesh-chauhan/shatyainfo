@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveBalances\Pages\ListLeaveBalances;
 use App\Filament\Resources\LeaveBalances\Schemas\LeaveBalanceForm;
 use App\Filament\Resources\LeaveBalances\Tables\LeaveBalancesTable;
 use App\Models\LeaveBalance;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveBalanceResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = LeaveBalance::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
@@ -27,7 +30,14 @@ class LeaveBalanceResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
-    protected static ?string $recordTitleAttribute = 'LeaveBalance';
+    protected static ?string $recordTitleAttribute = null;
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+    ];
 
     protected static ?string $navigationLabel = 'Balances';
 

@@ -6,11 +6,9 @@ use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Visits\Pages\CreateVisit;
 use App\Filament\Resources\Visits\Pages\EditVisit;
 use App\Filament\Resources\Visits\Pages\ListVisits;
-use App\Filament\Resources\Visits\RelationManagers\VisitDocumentLinksRelationManager;
 use App\Filament\Resources\Visits\Schemas\VisitForm;
 use App\Filament\Resources\Visits\Tables\VisitsTable;
 use App\Models\Visit;
-use App\Models\VisitPreference;
 use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,11 +22,11 @@ class VisitResource extends BaseResource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     protected static ?string $navigationLabel = 'Visits';
 
-    protected static ?string $recordTitleAttribute = 'Visit';
+    protected static ?string $recordTitleAttribute = 'document_number';
 
     public static function form(Schema $schema): Schema
     {

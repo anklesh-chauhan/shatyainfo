@@ -2,6 +2,11 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Leads\LeadResource;
+use App\Filament\Resources\Organizations\OrganizationResource;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -9,34 +14,16 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
+use Filament\Support\Enums\Platform;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
-use App\Filament\Pages\Dashboard;
-use App\Filament\Resources\Deals\DealResource;
-use App\Filament\Resources\Users\UserResource;
-use App\Filament\Resources\Roles\RoleResource;
-use App\Filament\Resources\Permissions\PermissionResource;
-use App\Providers\Filament\GlobalSearch\ResourceShortcutSearch;
-use Filament\Support\Assets\Css;
-use Filament\Support\Assets\Js;
-use Filament\Support\Facades\FilamentAsset;
-use App\Filament\Resources\GlobalSearchResource;
-use App\Filament\Resources\Leads\LeadResource;
-use App\Models\Lead;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Route;
-use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
-use Filament\Actions\Action;
-use App\Filament\Resources\Organizations\OrganizationResource;
 use Illuminate\Support\Facades\Blade;
-use Filament\Support\Facades\FilamentView;
-use Filament\View\PanelsRenderHook;
-
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class SalesPanelProvider extends PanelProvider
 {
@@ -47,6 +34,9 @@ class SalesPanelProvider extends PanelProvider
             ->path('sales')
             ->globalSearch(true)
             ->topbar(false)
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
+            ->globalSearchFieldSuffix(fn (): string => Platform::detect() === Platform::Mac ? '⌘K' : 'Ctrl+K')
+            ->globalSearchDebounce(500)
             ->login()
             ->colors([
                 'primary' => Color::Amber,

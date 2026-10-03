@@ -17,6 +17,7 @@ class VisitCheckInRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'recorded_at' => ['nullable', 'date_format:Y-m-d\TH:i:sP'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
         ];

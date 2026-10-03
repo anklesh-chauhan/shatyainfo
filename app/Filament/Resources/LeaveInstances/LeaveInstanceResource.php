@@ -11,6 +11,7 @@ use App\Filament\Resources\LeaveInstances\Schemas\LeaveInstanceForm;
 use App\Filament\Resources\LeaveInstances\Schemas\LeaveInstanceInfolist;
 use App\Filament\Resources\LeaveInstances\Tables\LeaveInstancesTable;
 use App\Models\LeaveInstance;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -21,11 +22,21 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveInstanceResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = LeaveInstance::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveInstance';
+    protected static ?string $recordTitleAttribute = 'approval_status';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+        'approval_status',
+    ];
 
     protected static bool $shouldRegisterNavigation = false;
 

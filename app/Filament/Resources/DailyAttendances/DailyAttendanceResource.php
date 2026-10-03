@@ -3,22 +3,20 @@
 namespace App\Filament\Resources\DailyAttendances;
 
 use App\Filament\Clusters\HR\AttendanceCluster;
-use App\Traits\HasSafeGlobalSearch;
-
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\DailyAttendances\Pages\CreateDailyAttendance;
 use App\Filament\Resources\DailyAttendances\Pages\EditDailyAttendance;
 use App\Filament\Resources\DailyAttendances\Pages\ListDailyAttendances;
 use App\Filament\Resources\DailyAttendances\Schemas\DailyAttendanceForm;
 use App\Filament\Resources\DailyAttendances\Tables\DailyAttendancesTable;
 use App\Models\DailyAttendance;
+use App\Traits\HasSafeGlobalSearch;
 use BackedEnum;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use Filament\Facades\Filament;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Facades\Filament;
 
 class DailyAttendanceResource extends BaseResource
 {
@@ -28,7 +26,7 @@ class DailyAttendanceResource extends BaseResource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'DailyAttendance';
+    protected static ?string $recordTitleAttribute = null;
 
     protected static ?string $cluster = AttendanceCluster::class;
 

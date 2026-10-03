@@ -2,13 +2,23 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Organizations\OrganizationResource;
+use App\Http\Middleware\RedirectMarketingToPunchIn;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Css;
+use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
+use Filament\Support\Enums\Platform;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -16,27 +26,6 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use App\Filament\Pages\Dashboard;
-use App\Filament\Resources\Users\UserResource;
-use App\Filament\Resources\Roles\RoleResource;
-use App\Filament\Resources\Permissions\PermissionResource;
-use App\Providers\Filament\GlobalSearch\ResourceShortcutSearch;
-use Filament\Support\Assets\Css;
-use Filament\Support\Assets\Js;
-use Filament\Support\Facades\FilamentAsset;
-use App\Filament\Resources\GlobalSearchResource;
-use App\Filament\Resources\Leads\LeadResource;
-use App\Models\Lead;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Route;
-use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
-use Filament\Actions\Action;
-use App\Filament\Resources\Organizations\OrganizationResource;
-use Illuminate\Support\Facades\Blade;
-use Filament\Support\Facades\FilamentView;
-use Filament\View\PanelsRenderHook;
-use App\Http\Middleware\RedirectMarketingToPunchIn;
-use App\Filament\Resources\Employees\EmployeeResource;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -51,8 +40,9 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->globalSearch(true)
             ->topbar(false)
-            ->globalSearchKeyBindings(['command + k', 'ctrl + k'])
-            ->globalSearchDebounce(500) // ✅ Debounce search requests
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
+            ->globalSearchFieldSuffix(fn (): string => Platform::detect() === Platform::Mac ? '⌘K' : 'Ctrl+K')
+            ->globalSearchDebounce(500)
             ->id('admin')
             ->path('admin')
             ->login()
@@ -61,19 +51,19 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->userMenuItems([
-                    'profile' => Action::make('profile')
-                        ->label(fn () => auth()->user()->employee?->full_name ?? auth()->user()->name)
-                        ->icon('heroicon-o-user-circle')
-                        ->url(fn () => auth()->user()->employee
-                            ? EmployeeResource::getUrl('edit', ['record' => auth()->user()->employee->id])
-                            : '#'),
+                'profile' => Action::make('profile')
+                    ->label(fn () => auth()->user()->employee?->full_name ?? auth()->user()->name)
+                    ->icon('heroicon-o-user-circle')
+                    ->url(fn () => auth()->user()->employee
+                        ? EmployeeResource::getUrl('edit', ['record' => auth()->user()->employee->id])
+                        : '#'),
 
-                    'organization-profile' => Action::make('organization-profile')
-                        ->label('Organization Profile')
-                        ->url(fn (): string => OrganizationResource::getUrl('edit', ['record' => 1]))
-                        ->icon('heroicon-o-building-office')
-                        ->visible(fn () => OrganizationResource::canViewAny()),
-                ])
+                'organization-profile' => Action::make('organization-profile')
+                    ->label('Organization Profile')
+                    ->url(fn (): string => OrganizationResource::getUrl('edit', ['record' => 1]))
+                    ->icon('heroicon-o-building-office')
+                    ->visible(fn () => OrganizationResource::canViewAny()),
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -110,6 +100,4 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarWidth('15rem')
             ->authGuard('web');
     }
-
-
 }

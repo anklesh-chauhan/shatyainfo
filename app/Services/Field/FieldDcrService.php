@@ -4,6 +4,7 @@ namespace App\Services\Field;
 
 use App\Models\SalesDcr;
 use App\Models\User;
+use App\Models\VisitPreference;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -60,11 +61,25 @@ class FieldDcrService
                 'dcr' => 'Only draft DCRs can be modified.',
             ]);
         }
+
+        VisitPreference::current()->assertDcrDateIsReportable($dcr->dcr_date, 'dcr');
     }
 
     private function getOrCreateForUser(User $user, Carbon|string $date): SalesDcr
     {
-        $dcrDate = $date instanceof Carbon ? $date->toDateString() : $date;
+        $dcrDate = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
+        $preference = VisitPreference::current();
+
+        $existing = SalesDcr::query()
+            ->where('user_id', $user->id)
+            ->whereDate('dcr_date', $dcrDate)
+            ->first();
+
+        if ($existing) {
+            return $existing->load($this->defaultRelations());
+        }
+
+        $preference->assertDcrDateIsReportable($dcrDate);
 
         $dcr = SalesDcr::query()->firstOrCreate(
             [

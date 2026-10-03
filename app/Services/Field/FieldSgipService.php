@@ -8,6 +8,7 @@ use App\Models\SgipDistributionItem;
 use App\Models\User;
 use App\Models\Visit;
 use App\Services\SGIPComplianceService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -50,6 +51,14 @@ class FieldSgipService
         }
 
         return DB::transaction(function () use ($user, $visit, $account, $employeeId, $data): SgipDistribution {
+            if (array_key_exists('expected_updated_at', $data)) {
+                $existing = SgipDistribution::query()->where('visit_id', $visit->id)->lockForUpdate()->first();
+                $expected = $data['expected_updated_at'];
+                $matches = $existing
+                    ? ($expected !== null && $existing->updated_at->equalTo(CarbonImmutable::parse($expected)))
+                    : $expected === null;
+                abort_unless($matches, 409, 'SGIP changed on the server. Refresh and review before saving.');
+            }
             $distribution = SgipDistribution::query()->firstOrCreate(
                 ['visit_id' => $visit->id],
                 [

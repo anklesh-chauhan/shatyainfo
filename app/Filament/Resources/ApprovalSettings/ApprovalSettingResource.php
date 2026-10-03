@@ -3,16 +3,15 @@
 namespace App\Filament\Resources\ApprovalSettings;
 
 use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
-use App\Traits\HasSafeGlobalSearch;
 use App\Filament\Resources\ApprovalSettings\Pages\CreateApprovalSetting;
 use App\Filament\Resources\ApprovalSettings\Pages\EditApprovalSetting;
 use App\Filament\Resources\ApprovalSettings\Pages\ListApprovalSettings;
 use App\Filament\Resources\ApprovalSettings\Schemas\ApprovalSettingForm;
 use App\Filament\Resources\ApprovalSettings\Tables\ApprovalSettingsTable;
-use App\Models\ApprovalSetting;
-use BackedEnum;
-use Filament\Resources\Resource;
 use App\Filament\Resources\BaseResource;
+use App\Models\ApprovalSetting;
+use App\Traits\HasSafeGlobalSearch;
+use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -20,13 +19,16 @@ use Filament\Tables\Table;
 class ApprovalSettingResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = ApprovalSetting::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 
-    protected static ?string $recordTitleAttribute = 'ApprovalSettingResource';
+    protected static bool $isGloballySearchable = false;
+
+    protected static ?string $recordTitleAttribute = null;
 
     protected static ?int $navigationSort = 20;
 

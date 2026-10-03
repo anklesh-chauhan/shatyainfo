@@ -10,6 +10,7 @@ use App\Filament\Resources\Approvals\Schemas\ApprovalForm;
 use App\Filament\Resources\Approvals\Schemas\ApprovalInfolist;
 use App\Filament\Resources\Approvals\Tables\ApprovalsTable;
 use App\Models\Approval;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -20,11 +21,20 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ApprovalResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = Approval::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'Approval';
+    protected static ?string $recordTitleAttribute = 'module';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'module',
+        'approval_status',
+        'requester.name',
+        'requester.email',
+    ];
 
     protected static ?string $navigationParentItem = 'My Approvals';
 

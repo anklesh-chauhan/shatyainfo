@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\JobRoles;
 
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
 use App\Filament\Resources\JobRoles\Pages\CreateJobRole;
 use App\Filament\Resources\JobRoles\Pages\EditJobRole;
 use App\Filament\Resources\JobRoles\Pages\ListJobRoles;
@@ -15,7 +16,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
 
 class JobRoleResource extends Resource
 {
@@ -23,7 +23,12 @@ class JobRoleResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'JobRole';
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'code'];
+    }
 
     protected static ?string $cluster = EmployeeManagementCluster::class;
 

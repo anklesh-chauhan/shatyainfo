@@ -8,6 +8,8 @@ use App\Models\DailyAttendance;
 use App\Models\Employee;
 use App\Models\EmployeeAttendanceStatus;
 use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,11 +22,12 @@ class FieldAttendanceService
     {
         $employee = $this->requireEmployee($user);
         $this->requireCoordinates($data);
+        $recordedAt = FieldRecordedAt::resolve($data);
 
-        return DB::transaction(function () use ($user, $employee, $data): DailyAttendance {
+        return DB::transaction(function () use ($user, $employee, $data, $recordedAt): DailyAttendance {
             $existing = DailyAttendance::query()
                 ->where('employee_id', $employee->id)
-                ->whereDate('attendance_date', today())
+                ->whereDate('attendance_date', $recordedAt->startOfDay())
                 ->first();
 
             if ($existing) {
@@ -33,7 +36,7 @@ class FieldAttendanceService
                 ]);
             }
 
-            $shift = $employee->currentShiftForDate(today());
+            $shift = $employee->currentShiftForDate($recordedAt->startOfDay());
 
             if (! $shift) {
                 throw ValidationException::withMessages([
@@ -41,24 +44,26 @@ class FieldAttendanceService
                 ]);
             }
 
-            $firstPunchIn = now()->format('H:i');
+            $firstPunchIn = $recordedAt->format('H:i');
 
             $attendance = DailyAttendance::query()->create([
                 'employee_id' => $employee->id,
                 'shift_master_id' => $shift->id,
-                'attendance_date' => today(),
+                'attendance_date' => $recordedAt->startOfDay(),
                 'first_punch_in' => $firstPunchIn,
                 'status_id' => $this->singlePunchStatusId(),
             ]);
 
             AttendancePunch::query()->create([
                 'employee_id' => $employee->id,
-                'punch_date' => today(),
+                'punch_date' => $recordedAt->startOfDay(),
                 'punch_time' => $firstPunchIn,
                 'punch_type' => 'in',
                 'source' => $data['source'] ?? 'field-api',
                 'device_id' => $data['device_id'] ?? null,
                 'raw_payload' => [
+                    'recorded_at' => $recordedAt->toIso8601String(),
+                    'received_at' => now()->toIso8601String(),
                     'user_id' => $user->id,
                     'latitude' => (float) $data['latitude'],
                     'longitude' => (float) $data['longitude'],
@@ -76,11 +81,12 @@ class FieldAttendanceService
     {
         $employee = $this->requireEmployee($user);
         $this->requireCoordinates($data);
+        $recordedAt = FieldRecordedAt::resolve($data);
 
-        return DB::transaction(function () use ($user, $employee, $data): DailyAttendance {
+        return DB::transaction(function () use ($user, $employee, $data, $recordedAt): DailyAttendance {
             $attendance = DailyAttendance::query()
                 ->where('employee_id', $employee->id)
-                ->whereDate('attendance_date', today())
+                ->whereDate('attendance_date', $recordedAt->startOfDay())
                 ->first();
 
             if (! $attendance) {
@@ -93,6 +99,10 @@ class FieldAttendanceService
                 ->where('punch_type', 'out')
                 ->exists();
 
+            if ($attendance->first_punch_in && $recordedAt->format('H:i') < $attendance->first_punch_in->format('H:i')) {
+                throw ValidationException::withMessages(['recorded_at' => 'Punch-out cannot be before punch-in.']);
+            }
+
             if ($alreadyOut) {
                 throw ValidationException::withMessages([
                     'attendance' => 'Already punched out for today.',
@@ -101,12 +111,14 @@ class FieldAttendanceService
 
             AttendancePunch::query()->create([
                 'employee_id' => $employee->id,
-                'punch_date' => today(),
-                'punch_time' => now()->format('H:i'),
+                'punch_date' => $recordedAt->startOfDay(),
+                'punch_time' => $recordedAt->format('H:i'),
                 'punch_type' => 'out',
                 'source' => $data['source'] ?? 'field-api',
                 'device_id' => $data['device_id'] ?? null,
                 'raw_payload' => [
+                    'recorded_at' => $recordedAt->toIso8601String(),
+                    'received_at' => now()->toIso8601String(),
                     'user_id' => $user->id,
                     'latitude' => (float) $data['latitude'],
                     'longitude' => (float) $data['longitude'],
@@ -139,6 +151,28 @@ class FieldAttendanceService
             ->where('employee_id', $employee->id)
             ->whereDate('attendance_date', today())
             ->first();
+    }
+
+    /**
+     * @return Collection<int, DailyAttendance>
+     */
+    public function forMonth(User $user, string $month): Collection
+    {
+        $employee = $user->employee;
+
+        if (! $employee) {
+            return collect();
+        }
+
+        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+
+        return DailyAttendance::query()
+            ->with(['status', 'shift'])
+            ->where('employee_id', $employee->id)
+            ->whereDate('attendance_date', '>=', $start->toDateString())
+            ->whereDate('attendance_date', '<=', $start->copy()->endOfMonth()->toDateString())
+            ->orderBy('attendance_date')
+            ->get();
     }
 
     private function requireEmployee(User $user): Employee

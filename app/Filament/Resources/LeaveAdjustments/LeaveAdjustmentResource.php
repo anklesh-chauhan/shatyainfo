@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveAdjustments\Pages\ListLeaveAdjustments;
 use App\Filament\Resources\LeaveAdjustments\Schemas\LeaveAdjustmentForm;
 use App\Filament\Resources\LeaveAdjustments\Tables\LeaveAdjustmentsTable;
 use App\Models\LeaveAdjustment;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -16,15 +17,25 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Clusters\LeaveSettings\LeaveSettingsCluster;
 
 class LeaveAdjustmentResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = LeaveAdjustment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveAdjustment';
+    protected static ?string $recordTitleAttribute = 'reason';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+        'reason',
+        'type',
+    ];
 
     protected static ?string $cluster = LeaveManagementCluster::class;
 

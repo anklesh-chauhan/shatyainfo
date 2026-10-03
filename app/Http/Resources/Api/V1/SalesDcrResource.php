@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\SalesDcr;
+use App\Models\VisitPreference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -23,6 +24,7 @@ class SalesDcrResource extends JsonResource
             'user_id' => $this->user_id,
             'territory_id' => $this->territory_id,
             'approval_status' => $this->approval_status,
+            'reportable' => $this->dcr_date !== null && VisitPreference::current()->allowsDcrDate($this->dcr_date),
             'visits_count' => (int) ($this->visits_count ?? 0),
             'total_expense' => $this->total_expense !== null ? (float) $this->total_expense : 0.0,
             'distance_covered' => $this->distance_covered !== null ? (float) $this->distance_covered : null,
@@ -42,6 +44,16 @@ class SalesDcrResource extends JsonResource
                 'territory_id' => $visit->territory_id,
                 'patch_id' => $visit->patch_id,
             ])->values()),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function with(Request $request): array
+    {
+        return [
+            'reporting' => VisitPreference::current()->dcrReportingWindow(),
         ];
     }
 

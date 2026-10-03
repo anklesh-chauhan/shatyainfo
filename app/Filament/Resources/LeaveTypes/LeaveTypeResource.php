@@ -23,9 +23,14 @@ class LeaveTypeResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveType';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?string $cluster = LeaveManagementCluster::class;
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'code'];
+    }
 
     protected static ?int $navigationSort = 20;
 

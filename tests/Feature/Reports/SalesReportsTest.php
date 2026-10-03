@@ -6,15 +6,21 @@ use App\Filament\Pages\Reports\OverdueFollowUps;
 use App\Filament\Pages\Reports\ReportsOverview;
 use App\Filament\Pages\Reports\SalesDocumentRegister;
 use App\Models\Deal;
+use App\Models\EmploymentDetail;
 use App\Models\FollowUp;
 use App\Models\FollowUpStatus;
+use App\Models\JobRole;
 use App\Models\Lead;
+use App\Models\OrganizationalUnit;
+use App\Models\Position;
 use App\Models\Quote;
 use App\Models\SalesOrder;
+use App\Models\TypeMaster;
 use App\Services\Reports\LeadPipelineQuery;
 use App\Services\Reports\OverdueFollowUpQuery;
 use App\Services\Reports\SalesDocumentRegisterQuery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 
 use function Pest\Livewire\livewire;
 
@@ -62,6 +68,80 @@ it('lists visible leads on the pipeline', function () {
         ->assertSee('Visible Pipeline Account')
         ->assertSee($status->name)
         ->assertDontSee('Hidden Pipeline Account');
+});
+
+it('includes owned leads when territory and ou visibility add an exists clause', function () {
+    $rep = reportingUser('OwnedLeadRep');
+    $other = reportingUser('OtherLeadOwner');
+    $status = reportingLeadStatus('Open');
+
+    foreach (['ViewOwn:Lead', 'ViewOwnTerritory:Lead', 'ViewOwnOU:Lead'] as $permission) {
+        $rep->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    $type = TypeMaster::query()->create([
+        'name' => 'Organisation Unit',
+        'description' => 'Lead visibility OU',
+    ]);
+
+    $ou = OrganizationalUnit::query()->create([
+        'name' => 'Lead Division',
+        'code' => 'LEAD-DIV',
+        'type_master_id' => $type->id,
+        'is_active' => true,
+    ]);
+
+    $employment = EmploymentDetail::query()->create([
+        'employee_id' => $rep->employee->id,
+    ]);
+    $employment->organizationalUnits()->attach($ou->id, ['is_primary' => true]);
+
+    $territory = reportingTerritory('Owned Lead Territory');
+    $territory->update(['division_ou_id' => $ou->id]);
+
+    $role = JobRole::query()->create(['name' => 'Representative', 'code' => 'LDR', 'level' => 1]);
+    $position = Position::query()->create([
+        'name' => 'Lead Rep Position',
+        'code' => 'LDRPOS',
+        'job_role_id' => $role->id,
+    ]);
+    $position->territories()->attach($territory->id);
+    $rep->employee->positions()->attach($position->id, ['is_primary' => true]);
+
+    $ownedAccount = reportingDoctor($rep, 'Owned Pipeline Account');
+    $hiddenAccount = reportingDoctor($other, 'Unrelated Pipeline Account');
+
+    $this->actingAs($rep->fresh());
+
+    Lead::forceCreate([
+        'owner_id' => $rep->id,
+        'transaction_date' => today(),
+        'territory_id' => $territory->id,
+        'account_master_id' => $ownedAccount->id,
+        'annual_revenue' => 41000,
+        'status_id' => $status->id,
+        'status_type' => $status::class,
+        'created_by' => $other->id,
+        'updated_by' => $other->id,
+    ]);
+
+    Lead::forceCreate([
+        'owner_id' => $other->id,
+        'transaction_date' => today(),
+        'account_master_id' => $hiddenAccount->id,
+        'annual_revenue' => 900,
+        'status_id' => $status->id,
+        'status_type' => $status::class,
+        'created_by' => $other->id,
+        'updated_by' => $other->id,
+    ]);
+
+    expect(app(LeadPipelineQuery::class)->builder()->applyVisibility('Lead')->count())->toBe(1);
+
+    livewire(LeadPipeline::class)
+        ->assertSuccessful()
+        ->assertSee('Owned Pipeline Account')
+        ->assertDontSee('Unrelated Pipeline Account');
 });
 
 it('lists visible deals on the pipeline', function () {

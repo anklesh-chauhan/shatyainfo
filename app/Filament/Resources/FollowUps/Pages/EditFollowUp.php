@@ -2,16 +2,27 @@
 
 namespace App\Filament\Resources\FollowUps\Pages;
 
-use Filament\Actions\DeleteAction;
 use App\Filament\Resources\FollowUps\FollowUpResource;
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
-use Filament\Actions\Action;
 use App\Models\FollowUp;
+use App\Services\SalespersonAi\FollowUpScriptService;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Resources\Pages\EditRecord;
 
 class EditFollowUp extends EditRecord
 {
     protected static string $resource = FollowUpResource::class;
+
+    public function getSubheading(): ?string
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof FollowUp) {
+            return null;
+        }
+
+        return app(FollowUpScriptService::class)->forFollowUp($record)['summary'];
+    }
 
     protected function getHeaderActions(): array
     {
@@ -28,13 +39,13 @@ class EditFollowUp extends EditRecord
                 ->url(fn () => $this->getNextRecordUrl())
                 ->disabled(is_null($this->getNextRecordId())),
 
-                DeleteAction::make(),
+            DeleteAction::make(),
         ];
     }
 
     private function getPreviousRecordId(): ?int
     {
-        if (!$this->record) {
+        if (! $this->record) {
             return null;
         }
 
@@ -45,7 +56,7 @@ class EditFollowUp extends EditRecord
 
     private function getNextRecordId(): ?int
     {
-        if (!$this->record) {
+        if (! $this->record) {
             return null;
         }
 
@@ -53,7 +64,6 @@ class EditFollowUp extends EditRecord
             ->orderBy('id')
             ->value('id');
     }
-
 
     private function getPreviousRecordUrl(): ?string
     {

@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveEncashments\Pages\ListLeaveEncashments;
 use App\Filament\Resources\LeaveEncashments\Schemas\LeaveEncashmentForm;
 use App\Filament\Resources\LeaveEncashments\Tables\LeaveEncashmentsTable;
 use App\Models\LeaveEncashment;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,11 +20,21 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveEncashmentResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = LeaveEncashment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveEncashment';
+    protected static ?string $recordTitleAttribute = 'payroll_month';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+        'payroll_month',
+    ];
 
     protected static bool $shouldRegisterNavigation = false;
 

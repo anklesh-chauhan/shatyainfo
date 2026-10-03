@@ -47,9 +47,13 @@ class FieldVisitService
         $longitude = isset($data['longitude']) ? (float) $data['longitude'] : null;
 
         $this->enforcement->validateCheckIn($latitude, $longitude);
+        $recordedAt = FieldRecordedAt::resolve($data);
+        if (isset($data['recorded_at']) && $visit->visit_date?->toDateString() !== $recordedAt->toDateString()) {
+            throw ValidationException::withMessages(['recorded_at' => 'Capture date must match the visit date.']);
+        }
 
         $visit->update([
-            'start_time' => now(),
+            'start_time' => $recordedAt,
             'checkin_latitude' => $latitude,
             'checkin_longitude' => $longitude,
             'visit_status' => 'started',
@@ -75,10 +79,14 @@ class FieldVisitService
         $latitude = isset($data['latitude']) ? (float) $data['latitude'] : null;
         $longitude = isset($data['longitude']) ? (float) $data['longitude'] : null;
 
-        $this->enforcement->validateCheckOut($visit, $latitude, $longitude);
+        $recordedAt = FieldRecordedAt::resolve($data);
+        if ($visit->start_time && $recordedAt->lessThan($visit->start_time)) {
+            throw ValidationException::withMessages(['recorded_at' => 'Check-out cannot be before check-in.']);
+        }
+        $this->enforcement->validateCheckOut($visit, $latitude, $longitude, $recordedAt);
 
         $visit->update([
-            'end_time' => now(),
+            'end_time' => $recordedAt,
             'checkout_latitude' => $latitude,
             'checkout_longitude' => $longitude,
             'visit_status' => 'checked_out_pending',

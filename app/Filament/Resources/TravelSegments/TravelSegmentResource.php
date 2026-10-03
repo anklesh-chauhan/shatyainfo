@@ -8,6 +8,7 @@ use App\Filament\Resources\TravelSegments\Pages\ListTravelSegments;
 use App\Filament\Resources\TravelSegments\Schemas\TravelSegmentForm;
 use App\Filament\Resources\TravelSegments\Tables\TravelSegmentsTable;
 use App\Models\TravelSegment;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -18,11 +19,18 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TravelSegmentResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = TravelSegment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'TravelSegment';
+    protected static ?string $recordTitleAttribute = null;
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'fromAccount.name',
+        'toAccount.name',
+    ];
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

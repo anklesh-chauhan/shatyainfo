@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DcrForDateRequest;
 use App\Http\Resources\Api\V1\SalesDcrResource;
 use App\Services\Field\FieldDcrService;
 use Illuminate\Http\Request;
@@ -13,16 +14,11 @@ class DcrController extends Controller
         private FieldDcrService $dcrService,
     ) {}
 
-    public function today(Request $request): SalesDcrResource
+    public function today(DcrForDateRequest $request): SalesDcrResource
     {
-        $date = $request->query('date');
-
-        $dcr = $this->dcrService->forDate(
-            $request->user(),
-            is_string($date) && $date !== '' ? $date : null,
+        return new SalesDcrResource(
+            $this->dcrService->forDate($request->user(), $request->onDate()),
         );
-
-        return new SalesDcrResource($dcr);
     }
 
     public function show(Request $request, int $dcr): SalesDcrResource

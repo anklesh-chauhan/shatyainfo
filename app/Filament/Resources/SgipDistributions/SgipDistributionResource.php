@@ -8,6 +8,7 @@ use App\Filament\Resources\SgipDistributions\Pages\ListSgipDistributions;
 use App\Filament\Resources\SgipDistributions\Schemas\SgipDistributionForm;
 use App\Filament\Resources\SgipDistributions\Tables\SgipDistributionsTable;
 use App\Models\SgipDistribution;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -18,13 +19,24 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SgipDistributionResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = SgipDistribution::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'SgipDistribution';
+    protected static ?string $recordTitleAttribute = 'approval_status';
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'user.name',
+        'user.email',
+        'approval_status',
+    ];
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     public static function form(Schema $schema): Schema
     {

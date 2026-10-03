@@ -25,7 +25,7 @@ class LeaveRuleResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveRule';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?string $cluster = LeaveManagementCluster::class;
 

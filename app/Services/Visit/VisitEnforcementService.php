@@ -4,7 +4,7 @@ namespace App\Services\Visit;
 
 use App\Models\Visit;
 use App\Models\VisitPreference;
-use Filament\Notifications\Notification;
+use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
 class VisitEnforcementService
@@ -50,14 +50,13 @@ class VisitEnforcementService
         }
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | CHECK OUT
     |--------------------------------------------------------------------------
     */
 
-    public function validateCheckOut(Visit $visit, ?float $latitude, ?float $longitude): void
+    public function validateCheckOut(Visit $visit, ?float $latitude, ?float $longitude, ?CarbonInterface $recordedAt = null): void
     {
         if (! $this->prefs->enable_check_out) {
             throw ValidationException::withMessages([
@@ -78,7 +77,7 @@ class VisitEnforcementService
         }
 
         if ($this->prefs->enforce_minimum_duration && $visit->start_time) {
-            $minutes = $visit->start_time->diffInMinutes(now());
+            $minutes = $visit->start_time->diffInMinutes($recordedAt ?? now());
 
             if ($minutes < $this->prefs->minimum_duration_minutes) {
                 throw ValidationException::withMessages([
@@ -107,7 +106,7 @@ class VisitEnforcementService
 
         if (! empty($missing)) {
             throw ValidationException::withMessages([
-                $errorKey => 'Please complete the following: ' . implode(', ', $missing),
+                $errorKey => 'Please complete the following: '.implode(', ', $missing),
             ]);
         }
     }
@@ -124,7 +123,6 @@ class VisitEnforcementService
             ]);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -152,7 +150,6 @@ class VisitEnforcementService
             $this->validateGeneralVisitImage($visit);
         }
     }
-
 
     /*
     |--------------------------------------------------------------------------

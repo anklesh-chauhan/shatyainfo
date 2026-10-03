@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LeaveRuleCategories;
 
+use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Resources\LeaveRuleCategories\Pages\CreateLeaveRuleCategory;
 use App\Filament\Resources\LeaveRuleCategories\Pages\EditLeaveRuleCategory;
 use App\Filament\Resources\LeaveRuleCategories\Pages\ListLeaveRuleCategories;
@@ -15,7 +16,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Clusters\HR\LeaveManagementCluster;
 
 class LeaveRuleCategoryResource extends Resource
 {
@@ -23,7 +23,7 @@ class LeaveRuleCategoryResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'LeaveRuleCategory';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?string $cluster = LeaveManagementCluster::class;
 

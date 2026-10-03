@@ -4,21 +4,23 @@ namespace App\Filament\Resources\Visits\Pages;
 
 use App\Filament\Resources\Visits\VisitResource;
 use App\Filament\Widgets\VisitMobileActionBar as WidgetsVisitMobileActionBar;
-use App\Livewire\VisitMobileActionBar;
+use App\Filament\Widgets\VisitPreCallBriefingWidget;
+use App\Models\User;
 use App\Models\Visit;
-use App\Models\VisitFeedbackQuestion;
 use App\Models\VisitPreference;
+use App\Services\SalespersonAi\VisitVoiceNoteService;
+use App\Services\Visit\VisitEnforcementService;
 use App\Traits\HasVisitManagement;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ForceDeleteAction;
-use Filament\Actions\RestoreAction;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Livewire\Attributes\On;
-use App\Services\Visit\VisitEnforcementService;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\On;
 
 class EditVisit extends EditRecord
 {
@@ -29,6 +31,20 @@ class EditVisit extends EditRecord
     protected function prefs(): VisitPreference
     {
         return VisitPreference::current();
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            VisitPreCallBriefingWidget::make([
+                'visitId' => $this->getRecord()->getKey(),
+            ]),
+        ];
+    }
+
+    public function getHeaderWidgetsColumns(): int|array
+    {
+        return 1;
     }
 
     public function getTitle(): string
@@ -52,11 +68,11 @@ class EditVisit extends EditRecord
         }
 
         if ($this->record->start_time && ! $this->record->end_time) {
-            return 'Visit started on ' . $this->record->start_time->format('M d, Y \a\t H:i');
+            return 'Visit started on '.$this->record->start_time->format('M d, Y \a\t H:i');
         }
 
         if ($this->record->end_time) {
-            return "Checked out: " . $this->record->end_time->format('H:i');
+            return 'Checked out: '.$this->record->end_time->format('H:i');
         }
 
         return null;
@@ -67,29 +83,64 @@ class EditVisit extends EditRecord
         $account = $this->record->primaryCompany();
 
         return [
+            Action::make('voice_note')
+                ->label('Voice note')
+                ->icon(Heroicon::OutlinedMicrophone)
+                ->modalHeading('Call note')
+                ->modalDescription('Nothing is saved until you apply this note.')
+                ->modalSubmitActionLabel('Apply note')
+                ->schema([
+                    Textarea::make('transcript')
+                        ->label('What happened on this call')
+                        ->helperText('Type the note, or paste text from phone dictation. Say tomorrow, next week, in 3 days, or a YYYY-MM-DD date when a follow-up is needed.')
+                        ->required()
+                        ->rows(4),
+                    Toggle::make('schedule_follow_up')
+                        ->label('Also schedule the suggested follow-up')
+                        ->default(false),
+                ])
+                ->action(function (array $data): void {
+                    $user = Auth::user();
+                    $record = $this->getRecord();
+                    abort_unless($user instanceof User && $record instanceof Visit, 403);
+
+                    $result = app(VisitVoiceNoteService::class)->apply(
+                        $user,
+                        $record,
+                        $data['transcript'],
+                        (bool) ($data['schedule_follow_up'] ?? false),
+                    );
+
+                    $this->record->refresh();
+                    $this->fillForm();
+
+                    Notification::make()
+                        ->title($result['follow_up_id'] ? 'Call note saved and follow-up scheduled' : 'Call note saved')
+                        ->body($result['draft']['summary'])
+                        ->success()
+                        ->send();
+                }),
 
             Action::make('check_in')
                 ->icon('heroicon-m-arrow-left-on-rectangle') // 👈 Adds the Check-In icon
                 ->label('') // 👈 Removes the text label
                 ->tooltip('Check In') // 👈 Shows a clean tooltip on hover
-                ->visible(fn () =>
-                    $this->prefs()->enable_check_in
+                ->visible(fn () => $this->prefs()->enable_check_in
                     && ! $this->record->start_time
                 )
                 ->action(fn () => $this->dispatch('trigger-punch-in', [
-                    'componentId' => $this->getId() // 👈 Pass current component ID
+                    'componentId' => $this->getId(), // 👈 Pass current component ID
                 ])),
 
             Action::make('check_out')
                 ->icon('heroicon-m-arrow-right-on-rectangle') // 👈 Adds the Check-Out icon
                 ->label('') // 👈 Removes the text label
                 ->tooltip('Check Out') // 👈 Shows a clean tooltip on hover
-                ->visible(fn () =>
-                    $this->prefs()->enable_check_out
+                ->visible(fn () => $this->prefs()->enable_check_out
                     && ! $this->record->end_time
                 )
                 ->action(fn () => $this->dispatch('trigger-punch-out', [
-                    'componentId' => $this->getId()
+                    'componentId' => $this->getId(),
                 ])),
 
             // 📞 Call Action
@@ -113,7 +164,7 @@ class EditVisit extends EditRecord
                 ->modalHeading('Upload Check-In Image')
                 ->modalSubmitActionLabel('Upload')
                 ->form([
-                    \Filament\Forms\Components\FileUpload::make('checkin_image')
+                    FileUpload::make('checkin_image')
                         ->image()
                         ->required()
                         ->directory('visits/photos')
@@ -137,7 +188,7 @@ class EditVisit extends EditRecord
                 ->modalHeading('Upload Check-Out Image')
                 ->modalSubmitActionLabel('Upload')
                 ->form([
-                    \Filament\Forms\Components\FileUpload::make('checkout_image')
+                    FileUpload::make('checkout_image')
                         ->image()
                         ->required()
                         ->directory('visits/photos')
@@ -163,7 +214,7 @@ class EditVisit extends EditRecord
                 ->modalHeading('Upload General Visit Image')
                 ->modalSubmitActionLabel('Upload')
                 ->form([
-                    \Filament\Forms\Components\FileUpload::make('general_visit')
+                    FileUpload::make('general_visit')
                         ->image()
                         ->required()
                         ->directory('visits/photos')
@@ -248,6 +299,7 @@ class EditVisit extends EditRecord
             if (array_key_exists('checkout_image_required', $e->errors())) {
                 $this->mountAction('uploadCheckOutImage');
                 $this->halt();
+
                 return;
             }
 
@@ -255,6 +307,7 @@ class EditVisit extends EditRecord
             if (array_key_exists('checkin_image_required', $e->errors())) {
                 $this->mountAction('uploadCheckInImage');
                 $this->halt();
+
                 return;
             }
 
@@ -262,6 +315,7 @@ class EditVisit extends EditRecord
             if (array_key_exists('require_general_visit_image', $e->errors())) {
                 $this->mountAction('uploadGeneralVisitImage');
                 $this->halt();
+
                 return;
             }
 
@@ -274,7 +328,6 @@ class EditVisit extends EditRecord
             $this->halt();
         }
     }
-
 
     public function doPunchIn($latitude, $longitude)
     {
@@ -327,6 +380,7 @@ class EditVisit extends EditRecord
             // 🔥 If image required → ask now
             if ($service->needsCheckOutImage($this->record)) {
                 $this->mountAction('uploadCheckOutImage');
+
                 return;
             }
 
@@ -342,7 +396,6 @@ class EditVisit extends EditRecord
         }
     }
 
-
     protected function finalizeCheckout(): void
     {
         $this->record->update([
@@ -357,7 +410,6 @@ class EditVisit extends EditRecord
         redirect()->route('filament.admin.pages.todays-tour');
     }
 
-
     #[On('open-upload-checkin-modal')]
     public function openCheckInModal(): void
     {
@@ -369,6 +421,4 @@ class EditVisit extends EditRecord
     {
         $this->mountAction('uploadCheckOutImage');
     }
-
-
 }

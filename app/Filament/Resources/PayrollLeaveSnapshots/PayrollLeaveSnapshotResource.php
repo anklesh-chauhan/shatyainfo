@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\PayrollLeaveSnapshots;
 
-use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Resources\PayrollLeaveSnapshots\Pages\CreatePayrollLeaveSnapshot;
 use App\Filament\Resources\PayrollLeaveSnapshots\Pages\EditPayrollLeaveSnapshot;
 use App\Filament\Resources\PayrollLeaveSnapshots\Pages\ListPayrollLeaveSnapshots;
 use App\Filament\Resources\PayrollLeaveSnapshots\Schemas\PayrollLeaveSnapshotForm;
 use App\Filament\Resources\PayrollLeaveSnapshots\Tables\PayrollLeaveSnapshotsTable;
 use App\Models\PayrollLeaveSnapshot;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,11 +19,20 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PayrollLeaveSnapshotResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = PayrollLeaveSnapshot::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'PayrollLeaveSnapshot';
+    protected static ?string $recordTitleAttribute = null;
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'employee.first_name',
+        'employee.last_name',
+        'employee.employee_id',
+        'leaveType.name',
+    ];
 
     protected static bool $shouldRegisterNavigation = false;
 

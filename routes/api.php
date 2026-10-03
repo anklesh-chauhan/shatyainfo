@@ -11,25 +11,44 @@ use App\Http\Controllers\Api\V1\DcrExpenseController;
 use App\Http\Controllers\Api\V1\ExpenseTypeController;
 use App\Http\Controllers\Api\V1\GpsPointController;
 use App\Http\Controllers\Api\V1\ItemController;
+use App\Http\Controllers\Api\V1\LeaveController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\MonthlyTourPlanController;
 use App\Http\Controllers\Api\V1\PinCodeController;
+use App\Http\Controllers\Api\V1\SalespersonAiController;
 use App\Http\Controllers\Api\V1\TodaysTourController;
 use App\Http\Controllers\Api\V1\VisitController;
 use App\Http\Controllers\Api\V1\VisitSgipController;
+use App\Http\Middleware\FieldIdempotency;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', FieldIdempotency::class])->group(function (): void {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', MeController::class);
 
         Route::get('attendance/today', [AttendanceController::class, 'today']);
+        Route::get('attendance', [AttendanceController::class, 'index']);
         Route::post('attendance/punch-in', [AttendanceController::class, 'punchIn']);
         Route::post('attendance/punch-out', [AttendanceController::class, 'punchOut']);
 
+        Route::get('leave-types', [LeaveController::class, 'types']);
+        Route::get('leave-applications', [LeaveController::class, 'index']);
+        Route::post('leave-applications', [LeaveController::class, 'store']);
+        Route::post('leave-applications/{application}/cancel', [LeaveController::class, 'cancel'])->whereNumber('application');
+
         Route::get('todays-tour', TodaysTourController::class);
+        Route::get('monthly-tour-plans/options', [MonthlyTourPlanController::class, 'options']);
+        Route::get('monthly-tour-plans/inbox', [MonthlyTourPlanController::class, 'inbox']);
+        Route::get('monthly-tour-plans', [MonthlyTourPlanController::class, 'index']);
+        Route::post('monthly-tour-plans', [MonthlyTourPlanController::class, 'store']);
+        Route::get('monthly-tour-plans/{plan}', [MonthlyTourPlanController::class, 'show'])->whereNumber('plan');
+        Route::put('monthly-tour-plans/{plan}', [MonthlyTourPlanController::class, 'update'])->whereNumber('plan');
+        Route::post('monthly-tour-plans/{plan}/submit', [MonthlyTourPlanController::class, 'submit'])->whereNumber('plan');
+        Route::post('monthly-tour-plans/{plan}/approve', [MonthlyTourPlanController::class, 'approve'])->whereNumber('plan');
+        Route::post('monthly-tour-plans/{plan}/reject', [MonthlyTourPlanController::class, 'reject'])->whereNumber('plan');
 
         Route::get('dcrs/today', [DcrController::class, 'today']);
         Route::get('dcrs/{dcr}', [DcrController::class, 'show']);
@@ -67,6 +86,18 @@ Route::prefix('v1')->group(function (): void {
         Route::get('visits/{visit}/sgip', [VisitSgipController::class, 'show']);
         Route::put('visits/{visit}/sgip', [VisitSgipController::class, 'upsert']);
         Route::post('visits/{visit}/sgip/submit', [VisitSgipController::class, 'submit']);
+
+        Route::get('salesperson-ai/roadmap', [SalespersonAiController::class, 'roadmap']);
+        Route::get('todays-priorities', [SalespersonAiController::class, 'priorities']);
+        Route::get('tour-plan-draft', [SalespersonAiController::class, 'tourPlanDraft']);
+        Route::get('day-route', [SalespersonAiController::class, 'dayRoute']);
+        Route::get('visits/{visit}/briefing', [SalespersonAiController::class, 'briefing'])->whereNumber('visit');
+        Route::post('visits/{visit}/voice-note', [SalespersonAiController::class, 'voiceNote'])->whereNumber('visit');
+        Route::post('visits/{visit}/voice-note/apply', [SalespersonAiController::class, 'applyVoiceNote'])->whereNumber('visit');
+        Route::get('visits/{visit}/sgip/suggestions', [SalespersonAiController::class, 'sgipSuggestions'])->whereNumber('visit');
+        Route::get('follow-ups/{followUp}/script', [SalespersonAiController::class, 'followUpScript'])->whereNumber('followUp');
+        Route::get('leads/{lead}/next-action', [SalespersonAiController::class, 'leadNextAction'])->whereNumber('lead');
+        Route::get('deals/{deal}/next-action', [SalespersonAiController::class, 'dealNextAction'])->whereNumber('deal');
 
         Route::post('gps-points', [GpsPointController::class, 'store']);
     });

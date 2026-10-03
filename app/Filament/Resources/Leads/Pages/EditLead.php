@@ -2,20 +2,30 @@
 
 namespace App\Filament\Resources\Leads\Pages;
 
-use Filament\Actions\DeleteAction;
-use App\Filament\Resources\Leads\LeadResource;
 use App\Filament\Resources\Deals\DealResource;
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
-use Filament\Actions\Action;
+use App\Filament\Resources\Leads\LeadResource;
 use App\Models\Lead;
+use App\Services\SalespersonAi\NextActionService;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\Checkbox;
 use Filament\Notifications\Notification;
-use Filament\Forms\Components\Checkbox; // Import Checkbox component
-use Filament\Forms\Components\Select;
+use Filament\Resources\Pages\EditRecord; // Import Checkbox component
 
 class EditLead extends EditRecord
 {
     protected static string $resource = LeadResource::class;
+
+    public function getSubheading(): ?string
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof Lead) {
+            return null;
+        }
+
+        return app(NextActionService::class)->forLead($record)['summary'];
+    }
 
     protected function getHeaderActions(): array
     {
@@ -86,10 +96,9 @@ class EditLead extends EditRecord
         return $data;
     }
 
-
     private function getPreviousRecordId(): ?int
     {
-        if (!$this->record) {
+        if (! $this->record) {
             return null;
         }
 
@@ -100,7 +109,7 @@ class EditLead extends EditRecord
 
     private function getNextRecordId(): ?int
     {
-        if (!$this->record) {
+        if (! $this->record) {
             return null;
         }
 
@@ -108,7 +117,6 @@ class EditLead extends EditRecord
             ->orderBy('id')
             ->value('id');
     }
-
 
     private function getPreviousRecordUrl(): ?string
     {
@@ -127,5 +135,4 @@ class EditLead extends EditRecord
 
         return null;
     }
-
 }

@@ -63,6 +63,38 @@ class VisitPreferences extends Page implements HasForms
     {
         return $schema
             ->schema([
+                Section::make('Sales Tour Plan')
+                    ->schema([
+                        Forms\Components\TextInput::make('tour_plan_future_months')
+                            ->label('Months a salesperson can plan ahead')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->maxValue(24)
+                            ->required()
+                            ->default(12)
+                            ->helperText('Includes the current month. 3 allows this month and the next two.'),
+                    ]),
+
+                Section::make('DCR reporting')
+                    ->description('How far back a salesperson can still open, edit, and submit a daily call report.')
+                    ->schema([
+                        Toggle::make('allow_backdated_dcr')
+                            ->label('Allow backdated DCR')
+                            ->live()
+                            ->helperText('Today stays open either way. Turn this on to accept earlier days.'),
+                        Forms\Components\TextInput::make('dcr_backdate_days')
+                            ->label('Days back')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->maxValue(31)
+                            ->required(fn ($get): bool => (bool) $get('allow_backdated_dcr'))
+                            ->visible(fn ($get): bool => (bool) $get('allow_backdated_dcr'))
+                            ->helperText('3 allows today and the previous three days.'),
+                    ])
+                    ->columns(2),
+
                 Section::make('Visit Flow')
                     ->schema([
                         Toggle::make('enable_check_in')
@@ -331,6 +363,8 @@ class VisitPreferences extends Page implements HasForms
                 'allow_rescheduling' => false,
                 'allow_cancellation' => false,
                 'require_visit_outcome' => true,
+                'allow_backdated_dcr' => true,
+                'dcr_backdate_days' => 3,
 
                 'field_rules' => [
                     'purpose' => ['visible' => true, 'required' => true, 'editable' => true],
@@ -361,6 +395,8 @@ class VisitPreferences extends Page implements HasForms
                 'allow_rescheduling' => true,
                 'allow_cancellation' => true,
                 'require_visit_outcome' => false,
+                'allow_backdated_dcr' => true,
+                'dcr_backdate_days' => 1,
 
                 'field_rules' => [
                     'purpose' => ['visible' => true, 'required' => false, 'editable' => true],
@@ -390,6 +426,8 @@ class VisitPreferences extends Page implements HasForms
                 'allow_rescheduling' => true,
                 'allow_cancellation' => true,
                 'require_visit_outcome' => true,
+                'allow_backdated_dcr' => true,
+                'dcr_backdate_days' => 7,
 
                 'field_rules' => [
                     'purpose' => ['visible' => true, 'required' => true, 'editable' => true],
@@ -448,6 +486,9 @@ class VisitPreferences extends Page implements HasForms
             'require_visit_outcome' => false,
             'sgip_stock_source' => SgipStockSource::SampleIssue,
             'sgip_hq_location_id' => null,
+            'tour_plan_future_months' => 12,
+            'allow_backdated_dcr' => true,
+            'dcr_backdate_days' => 3,
 
             /* Field Rules */
             'field_rules' => collect($this->visitFieldOptions())

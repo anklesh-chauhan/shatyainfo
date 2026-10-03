@@ -25,7 +25,7 @@ class ApprovalFlowResource extends Resource
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 
-    protected static ?string $recordTitleAttribute = 'ApprovalFlow';
+    protected static ?string $recordTitleAttribute = 'module';
 
     protected static ?int $navigationSort = 10;
 

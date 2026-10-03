@@ -9,10 +9,8 @@ use App\Filament\Resources\ExpenseConfigurations\Pages\ListExpenseConfigurations
 use App\Filament\Resources\ExpenseConfigurations\Schemas\ExpenseConfigurationForm;
 use App\Filament\Resources\ExpenseConfigurations\Tables\ExpenseConfigurationsTable;
 use App\Models\ExpenseConfiguration;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -21,11 +19,14 @@ class ExpenseConfigurationResource extends Resource
 {
     protected static ?string $model = ExpenseConfiguration::class;
 
-    protected static ?string $recordTitleAttribute = 'ExpenseConfiguration';
+    protected static ?string $recordTitleAttribute = 'name';
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     protected static ?int $navigationSort = 10;
+
     protected static ?string $navigationLabel = 'Expense Config';
 
     public static function form(Schema $schema): Schema

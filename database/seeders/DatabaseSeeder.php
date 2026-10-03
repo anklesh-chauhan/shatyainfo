@@ -95,6 +95,7 @@ class DatabaseSeeder extends Seeder
             ImageTagSeeder::class,
             PatchSeeder::class,
             StandardFareChartSeeder::class,
+            FullDemoSeeder::class,
         ]);
     }
 }

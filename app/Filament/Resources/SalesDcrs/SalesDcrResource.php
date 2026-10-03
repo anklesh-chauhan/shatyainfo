@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\SalesDcrs;
 
-use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
 use App\Filament\Resources\SalesDcrs\Pages\CreateSalesDcr;
 use App\Filament\Resources\SalesDcrs\Pages\EditSalesDcr;
 use App\Filament\Resources\SalesDcrs\Pages\ListSalesDcrs;
@@ -13,6 +12,7 @@ use App\Filament\Resources\SalesDcrs\Schemas\SalesDcrForm;
 use App\Filament\Resources\SalesDcrs\Schemas\SalesDcrInfolist;
 use App\Filament\Resources\SalesDcrs\Tables\SalesDcrsTable;
 use App\Models\SalesDcr;
+use App\Traits\HasRelatedGlobalSearch;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -23,11 +23,20 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrResource extends Resource
 {
+    use HasRelatedGlobalSearch;
+
     protected static ?string $model = SalesDcr::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'SalesDcr';
+    protected static ?string $recordTitleAttribute = 'remarks';
+
+    protected static array $relatedGlobalSearchAttributes = [
+        'user.name',
+        'user.email',
+        'remarks',
+        'approval_status',
+    ];
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

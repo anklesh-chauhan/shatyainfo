@@ -2,17 +2,21 @@
 
 namespace App\Traits;
 
-use Filament\Actions\Action;
+use App\Filament\GlobalSearch\RecordLabel;
+use App\Models\Employee;
+use App\Models\User;
 use Exception;
+use Filament\Actions\Action;
 use Filament\GlobalSearch\GlobalSearchResult;
-use Illuminate\Support\Collection;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Builder;
-use Spatie\Multitenancy\Models\Tenant;
-use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
+use Throwable;
 
 trait HasSafeGlobalSearch
 {
@@ -37,41 +41,122 @@ trait HasSafeGlobalSearch
     public static function getGloballySearchableAttributes(): array
     {
         if (static::searchResourceIndexOnly()) {
-            return []; // Disable record search if index-only is enabled
+            return [];
         }
 
-        $modelClass = static::getModel();
-        $table = (new $modelClass)->getTable();
+        $model = new (static::getModel());
+        $table = $model->getTable();
 
-        // Default searchable fields
-        $fallbackFields = ['reference_code', 'document_number', 'name', 'title', 'email'];
+        try {
+            $columns = Schema::getColumnListing($table);
+        } catch (Throwable) {
+            return [];
+        }
 
-        // Allow resource-specific overrides
+        $fallbackFields = [
+            'reference_code', 'document_number', 'name', 'title', 'email', 'code',
+            'first_name', 'last_name', 'module', 'reason', 'remarks', 'manager_remarks',
+            'item_name', 'item_code', 'company_code', 'account_code', 'area_town', 'pin_code', 'sku',
+        ];
+
+        if (in_array('first_name', $columns, true)) {
+            $fallbackFields[] = 'employee_id';
+        }
+
         $customFields = property_exists(static::class, 'globallySearchableFields')
             ? static::$globallySearchableFields
             : [];
 
-        $searchableFields = array_merge($fallbackFields, $customFields);
+        $titleAttribute = static::getRecordTitleAttribute();
 
-        return collect($searchableFields)
-            ->filter(fn ($field) => Schema::hasColumn($table, $field))
+        if (is_string($titleAttribute) && $titleAttribute !== '' && ! str_contains($titleAttribute, '.')) {
+            $customFields[] = $titleAttribute;
+        }
+
+        $searchableFields = collect(array_merge($fallbackFields, $customFields))
+            ->filter(fn ($field): bool => is_string($field) && ! str_contains($field, '.') && in_array($field, $columns, true))
             ->values()
             ->all();
+
+        $relations = property_exists(static::class, 'globalSearchRelations')
+            ? static::$globalSearchRelations
+            : [];
+
+        return array_values(array_unique([
+            ...$searchableFields,
+            ...$relations,
+            ...static::implicitRelationSearchAttributes($model),
+        ]));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function implicitRelationSearchAttributes(Model $model): array
+    {
+        $attributes = [];
+        $relations = [
+            'employee' => [
+                Employee::class => ['employee.first_name', 'employee.last_name', 'employee.employee_id'],
+                User::class => ['employee.name', 'employee.email'],
+            ],
+            'user' => [
+                User::class => ['user.name', 'user.email'],
+            ],
+        ];
+
+        foreach ($relations as $relation => $relatedAttributes) {
+            if (! method_exists($model, $relation)) {
+                continue;
+            }
+
+            try {
+                $related = $model->{$relation}()->getRelated();
+            } catch (Throwable) {
+                continue;
+            }
+
+            foreach ($relatedAttributes as $class => $fields) {
+                if ($related instanceof $class) {
+                    array_push($attributes, ...$fields);
+                }
+            }
+        }
+
+        return $attributes;
     }
 
     // Custom global search results
     public static function getGlobalSearchResults(string $search): Collection
     {
-        $results = new Collection();
+        $results = new Collection;
         $limit = static::$globalSearchResultsLimit ?? 5; // Default limit
 
         // Record-based search
-        if (!static::searchResourceIndexOnly()) {
+        if (! static::searchResourceIndexOnly()) {
             $query = static::getGlobalSearchEloquentQuery();
             $searchableAttributes = static::getGloballySearchableAttributes();
 
-            foreach ($searchableAttributes as $attribute) {
-                $query->orWhere($attribute, 'like', "%{$search}%");
+            if ($searchableAttributes === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $query) use ($searchableAttributes, $search): void {
+                    foreach ($searchableAttributes as $attribute) {
+                        if (str_contains($attribute, '.')) {
+                            $relation = Str::beforeLast($attribute, '.');
+                            $column = Str::afterLast($attribute, '.');
+
+                            $query->orWhereHas(
+                                $relation,
+                                fn (Builder $relatedQuery): Builder => $relatedQuery->where($column, 'like', "%{$search}%"),
+                            );
+
+                            continue;
+                        }
+
+                        $query->orWhere($attribute, 'like', "%{$search}%");
+                    }
+                });
             }
 
             $recordResults = $query
@@ -91,15 +176,21 @@ trait HasSafeGlobalSearch
         $resourceName = class_basename(static::class);
         $keywords = static::getResourceSearchKeywords();
 
-        if (Str::contains(strtolower($resourceName . ' ' . implode(' ', $keywords)), strtolower($search))) {
+        try {
+            $indexUrl = static::getUrl('index');
+        } catch (Exception) {
+            $indexUrl = null;
+        }
+
+        if ($indexUrl && Str::contains(strtolower($resourceName.' '.implode(' ', $keywords)), strtolower($search))) {
             $results->push(new GlobalSearchResult(
                 title: static::getGlobalSearchResultTitleForResource(),
                 details: static::getGlobalSearchResultDetailsForResource(),
-                url: static::getGlobalSearchResultUrlForResource(),
+                url: $indexUrl,
                 actions: [
                     Action::make('view_list')
                         ->label('View All')
-                        ->url(static::getUrl('index'))
+                        ->url($indexUrl)
                         ->icon('heroicon-o-list-bullet'),
                 ]
             ));
@@ -110,49 +201,68 @@ trait HasSafeGlobalSearch
 
     // Eloquent query for global search with tenancy and permission filters
     public static function getGlobalSearchEloquentQuery(): Builder
-{
-    $model = static::getModel();
-    $instance = new $model;
-
-    // 1. Get the correct table name from the model
-    $table = $instance->getTable();
-
-    // 2. COMPLETELY BYPASS ELOQUENT CONNECTION RESOLUTION
-    // This is the only method that beats Spatie tenancy in 2025
-    $query = DB::connection('mysql')->table($table);
-
-    // 3. Convert back to Eloquent Builder so we can use ->get(), model hydration, etc.
-    $eloquentQuery = $instance->newEloquentBuilder($query);
-    $eloquentQuery->setModel($instance);
-
-    // 4. Permission check (your custom format — now works perfectly)
-    if ($user = auth()->user()) {
-        $resourceClassName = class_basename(static::class);
-        $resourceNameOnly = str_replace('Resource', '', $resourceClassName);
-        $permissionName = "ViewAny:{$resourceNameOnly}";
-
-        $isSuperAdmin = $user->hasAnyRole(['admin', 'general_manager', 'marketing_manager']);
-
-        if (! $isSuperAdmin && ! $user->hasPermissionTo($permissionName)) {
-            $eloquentQuery->whereRaw('1 = 0');
-        }
-    }
-
-    return $eloquentQuery;
-}
-
-    // Record-based search: Result title
-    public static function getGlobalSearchResultTitle(Model $record): string | Htmlable
     {
-        $fallbackFields = ['reference_code', 'document_number', 'name', 'title', 'email'];
+        $model = static::getModel();
+        $instance = new $model;
 
-        foreach ($fallbackFields as $field) {
-            if (!empty($record->{$field})) {
-                return Str::title($field) . ': ' . $record->{$field};
+        $table = $instance->getTable();
+
+        $query = DB::connection('mysql')->table($table);
+
+        $eloquentQuery = $instance->newEloquentBuilder($query);
+        $eloquentQuery->setModel($instance);
+
+        if ($user = auth()->user()) {
+            $resourceClassName = class_basename(static::class);
+            $resourceNameOnly = str_replace('Resource', '', $resourceClassName);
+            $permissionName = "ViewAny:{$resourceNameOnly}";
+
+            $isSuperAdmin = $user->hasAnyRole(['admin', 'general_manager', 'marketing_manager']);
+
+            $canViewAny = false;
+
+            if (! $isSuperAdmin) {
+                try {
+                    $canViewAny = $user->hasPermissionTo($permissionName);
+                } catch (PermissionDoesNotExist) {
+                    $canViewAny = false;
+                }
+            }
+
+            if (! $isSuperAdmin && ! $canViewAny) {
+                $eloquentQuery->whereRaw('1 = 0');
             }
         }
 
-        return class_basename(static::class) . ' #' . $record->getKey();
+        return $eloquentQuery;
+    }
+
+    // Record-based search: Result title
+    public static function getGlobalSearchResultTitle(Model $record): string|Htmlable
+    {
+        $relatedLabel = RecordLabel::make($record);
+
+        if (filled($relatedLabel)) {
+            return $relatedLabel;
+        }
+
+        $fallbackFields = ['reference_code', 'document_number', 'name', 'title', 'email', 'first_name', 'code', 'module', 'reason', 'remarks'];
+
+        foreach ($fallbackFields as $field) {
+            $value = $record->getAttribute($field);
+
+            if (! is_scalar($value) || blank($value)) {
+                continue;
+            }
+
+            if ($field === 'first_name') {
+                return trim($value.' '.($record->getAttribute('last_name') ?? ''));
+            }
+
+            return (string) $value;
+        }
+
+        return class_basename(static::class).' #'.$record->getKey();
     }
 
     // Record-based search: Result details
@@ -187,7 +297,7 @@ trait HasSafeGlobalSearch
     }
 
     // Resource index search: Result title
-    public static function getGlobalSearchResultTitleForResource(): string | Htmlable
+    public static function getGlobalSearchResultTitleForResource(): string|Htmlable
     {
         return static::getModelLabel();
     }
@@ -195,7 +305,7 @@ trait HasSafeGlobalSearch
     // Resource index search: Result details
     public static function getGlobalSearchResultDetailsForResource(): array
     {
-        return ['Description' => 'View all ' . Str::plural(static::getModelLabel())];
+        return ['Description' => 'View all '.Str::plural(static::getModelLabel())];
     }
 
     // Resource index search: Result URL

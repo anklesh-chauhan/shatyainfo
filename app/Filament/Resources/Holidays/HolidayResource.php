@@ -18,7 +18,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Clusters\HRSettings\HRSettingsCluster;
 
 class HolidayResource extends Resource
 {
@@ -26,7 +25,7 @@ class HolidayResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'Holiday';
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?string $cluster = ShiftAndCalanderCluster::class;
 

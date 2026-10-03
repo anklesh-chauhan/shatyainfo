@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EmployeeAttendances;
 
 use App\Filament\Clusters\HR\AttendanceCluster;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmployeeAttendances\Pages\CreateEmployeeAttendance;
 use App\Filament\Resources\EmployeeAttendances\Pages\EditEmployeeAttendance;
 use App\Filament\Resources\EmployeeAttendances\Pages\ListEmployeeAttendances;
@@ -11,15 +12,11 @@ use App\Filament\Resources\EmployeeAttendances\Schemas\EmployeeAttendanceForm;
 use App\Filament\Resources\EmployeeAttendances\Schemas\EmployeeAttendanceInfolist;
 use App\Filament\Resources\EmployeeAttendances\Tables\EmployeeAttendancesTable;
 use App\Models\EmployeeAttendance;
+use App\Traits\HasSafeGlobalSearch;
 use BackedEnum;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use App\Services\Attendance\AttendanceCalculationService;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-
-use App\Traits\HasSafeGlobalSearch;
 
 class EmployeeAttendanceResource extends BaseResource
 {
@@ -29,7 +26,7 @@ class EmployeeAttendanceResource extends BaseResource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'EmployeeAttendance';
+    protected static ?string $recordTitleAttribute = null;
 
     protected static ?string $cluster = AttendanceCluster::class;
 
