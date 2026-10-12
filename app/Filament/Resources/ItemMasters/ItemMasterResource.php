@@ -2,60 +2,43 @@
 
 namespace App\Filament\Resources\ItemMasters;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use App\Traits\ItemMasterTrait;
-use App\Traits\ItemMasterTableTrait;
-use Filament\Schemas\Schema;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\ItemMasters\RelationManagers\LocationsRelationManager;
-use App\Filament\Resources\ItemMasters\RelationManagers\LeadsRelationManager;
-use App\Filament\Resources\ItemMasters\RelationManagers\SuppliersRelationManager;
-use App\Filament\Resources\ItemMasters\RelationManagers\VariantsRelationManager;
-use App\Filament\Resources\ItemMasters\Pages\ListItemMasters;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\ItemMasterResource\RelationManagers;
 use App\Filament\Resources\ItemMasters\Pages\CreateItemMaster;
 use App\Filament\Resources\ItemMasters\Pages\EditItemMaster;
-use App\Filament\Resources\ItemMasterResource\Pages;
-use App\Filament\Resources\ItemMasterResource\RelationManagers;
-use Filament\Forms;
+use App\Filament\Resources\ItemMasters\Pages\ListItemMasters;
+use App\Filament\Resources\ItemMasters\RelationManagers\LeadsRelationManager;
+use App\Filament\Resources\ItemMasters\RelationManagers\LocationsRelationManager;
+use App\Filament\Resources\ItemMasters\RelationManagers\SuppliersRelationManager;
+use App\Filament\Resources\ItemMasters\RelationManagers\VariantsRelationManager;
 use App\Models\ItemMaster;
-use App\Models\Category;
-use App\Models\NumberSeries;
-use App\Models\LocationMaster;
-use App\Models\PackagingType;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\DatePicker;
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\BadgeColumn;
-use Filament\Tables\Columns\ImageColumn;
+use App\Traits\HasSafeGlobalSearch;
+use App\Traits\ItemMasterTableTrait;
+use App\Traits\ItemMasterTrait;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Table;
 
 class ItemMasterResource extends BaseResource
 {
     use HasSafeGlobalSearch;
-    use ItemMasterTrait;
     use ItemMasterTableTrait;
+    use ItemMasterTrait;
 
     protected static ?string $model = ItemMaster::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Items & Inventory';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+
     protected static ?int $navigationSort = 198;
+
     protected static ?string $navigationLabel = 'Item Master';
 
     public static function form(Schema $schema): Schema
@@ -87,9 +70,9 @@ class ItemMasterResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
@@ -129,11 +112,12 @@ DeleteBulkAction::make(),
     {
         $options = [];
         foreach ($locations as $location) {
-            $options[$location->id] = $prefix . $location->name;
+            $options[$location->id] = $prefix.$location->name;
             if ($location->subLocations->count()) {
-                $options += self::formatLocations($location->subLocations, $prefix . '-- ');
+                $options += self::formatLocations($location->subLocations, $prefix.'-- ');
             }
         }
+
         return $options;
     }
 
@@ -141,11 +125,12 @@ DeleteBulkAction::make(),
     {
         $options = [];
         foreach ($categories as $category) {
-            $options[$category->id] = $prefix . $category->name;
+            $options[$category->id] = $prefix.$category->name;
             if ($category->subCategories->count()) {
-                $options += self::formatCategories($category->subCategories, $prefix . '-- ');
+                $options += self::formatCategories($category->subCategories, $prefix.'-- ');
             }
         }
+
         return $options;
     }
 }

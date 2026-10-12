@@ -2,43 +2,38 @@
 
 namespace App\Filament\Resources\States;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\States\Pages\ListStates;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\States\Pages\CreateState;
 use App\Filament\Resources\States\Pages\EditState;
-use App\Filament\Resources\StateResource\Pages;
-use App\Filament\Resources\StateResource\RelationManagers;
+use App\Filament\Resources\States\Pages\ListStates;
 use App\Models\State;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class StateResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = State::class;
 
     protected static ?string $cluster = AddressConfigurationCluster::class;
-    protected static ?string $navigationLabel = 'State Master';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-map';
-    protected static ?int $navigationSort = 3;
 
+    protected static ?string $navigationLabel = 'State Master';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
+
+    protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema
     {
@@ -78,9 +73,9 @@ class StateResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

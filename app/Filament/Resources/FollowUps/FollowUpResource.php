@@ -2,45 +2,42 @@
 
 namespace App\Filament\Resources\FollowUps;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\FollowUps\Pages\ListFollowUps;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUps\Pages\CreateFollowUp;
 use App\Filament\Resources\FollowUps\Pages\EditFollowUp;
-use App\Filament\Resources\FollowUpResource\Pages;
-use App\Filament\Resources\FollowUpResource\RelationManagers;
+use App\Filament\Resources\FollowUps\Pages\ListFollowUps;
 use App\Models\FollowUp;
 use App\Models\Lead;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class FollowUpResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = FollowUp::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Sales & Marketing';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & Marketing';
+
     protected static ?string $navigationParentItem = 'Leads';
+
     protected static ?int $navigationSort = 1;
+
     protected static ?string $navigationLabel = 'Follow ups';
 
     public static function form(Schema $schema): Schema
@@ -110,7 +107,6 @@ class FollowUpResource extends BaseResource
         return parent::getEloquentQuery()->with('contactDetail');
     }
 
-
     public static function table(Table $table): Table
     {
         return $table
@@ -161,10 +157,10 @@ class FollowUpResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    
-                        BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    BulkApprovalAction::make(),
+
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

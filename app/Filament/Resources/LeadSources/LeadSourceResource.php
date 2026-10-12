@@ -2,42 +2,37 @@
 
 namespace App\Filament\Resources\LeadSources;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\LeadSources\Pages\ListLeadSources;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\LeadSources\Pages\CreateLeadSource;
 use App\Filament\Resources\LeadSources\Pages\EditLeadSource;
-use App\Filament\Resources\LeadSourceResource\Pages;
-use App\Filament\Resources\LeadSourceResource\RelationManagers;
+use App\Filament\Resources\LeadSources\Pages\ListLeadSources;
 use App\Models\LeadSource;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeadSourceResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = LeadSource::class;
 
     protected static ?string $cluster = LeadConfigurationCluster::class;
-    protected static ?int $navigationSort = 2;
-    protected static ?string $navigationLabel = 'Lead Source';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office';
 
+    protected static ?int $navigationSort = 2;
+
+    protected static ?string $navigationLabel = 'Lead Source';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCursorArrowRays;
 
     public static function form(Schema $schema): Schema
     {
@@ -74,9 +69,9 @@ class LeadSourceResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

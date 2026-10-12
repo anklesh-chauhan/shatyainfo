@@ -4,8 +4,8 @@ namespace App\Filament\Pages;
 
 use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Pages\Reports\LeaveLedger as ReportsLeaveLedger;
-use BackedEnum;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 
 class LeaveLedger extends Page
 {
@@ -17,7 +17,7 @@ class LeaveLedger extends Page
 
     protected static ?string $title = 'Leave Ledger';
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-chart-bar';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
 
     protected string $view = 'filament.pages.leave-ledger';
 

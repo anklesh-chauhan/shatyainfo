@@ -2,35 +2,73 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Tenancy\LandlordDomains;
 use Closure;
 use Illuminate\Http\Request;
-use Spatie\Multitenancy\Models\Tenant;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
+use Spatie\Multitenancy\Contracts\IsTenant;
+use Symfony\Component\HttpFoundation\Response;
 
 class IdentifyTenant
 {
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): Response
     {
-        $host = $request->getHost();
-        Log::info("Request Host: {$host}");
+        $tenantModel = app(IsTenant::class);
+        $host = LandlordDomains::normalize($request->getHost());
 
-        if ($host === 'crm.local') {
-            Log::info("Skipping tenant identification for landlord domain.");
-            return $next($request);
+        if (LandlordDomains::isLandlordHost($host)) {
+            $tenant = $this->tenantFromHeader($request, $tenantModel);
+
+            if (! $tenant) {
+                $tenantModel::forgetCurrent();
+
+                return $next($request);
+            }
+        } else {
+            $tenant = $tenantModel::query()->where('domain', $host)->first();
+
+            if (! $tenant) {
+                abort(Response::HTTP_NOT_FOUND, 'Tenant not found');
+            }
         }
 
-        $tenant = Tenant::where('domain', $host)->first();
+        if ($tenant->getAttribute('provisioning_status') !== 'ready') {
+            $tenantModel::forgetCurrent();
 
-        if (! $tenant) {
-            Log::error("Tenant not found for domain: {$host}");
-            abort(404, 'Tenant not found');
+            abort(Response::HTTP_SERVICE_UNAVAILABLE, 'Company setup is not complete. Please try again later.');
         }
 
-        Log::info("Tenant identified: {$tenant->id} - {$tenant->domain}");
         $tenant->makeCurrent();
-        Log::info("Current database connection1:" . DB::getDefaultConnection());
+
+        $path = trim($request->path(), '/');
+        if ($path === 'landlord' || str_starts_with($path, 'landlord/')) {
+            abort(Response::HTTP_FORBIDDEN, 'Landlord routes are not available for a company domain.');
+        }
 
         return $next($request);
+    }
+
+    public function terminate(Request $request, Response $response): void
+    {
+        app(IsTenant::class)::forgetCurrent();
+    }
+
+    private function tenantFromHeader(Request $request, IsTenant $tenantModel): ?IsTenant
+    {
+        $header = $request->headers->get('X-Tenant-Domain');
+        if (! is_string($header) || trim($header) === '') {
+            return null;
+        }
+
+        $domain = LandlordDomains::normalize($header);
+        if ($domain === '' || LandlordDomains::isLandlordHost($domain)) {
+            abort(Response::HTTP_NOT_FOUND, 'Tenant not found');
+        }
+
+        $tenant = $tenantModel::query()->where('domain', $domain)->first();
+        if (! $tenant) {
+            abort(Response::HTTP_NOT_FOUND, 'Tenant not found');
+        }
+
+        return $tenant;
     }
 }

@@ -32,7 +32,6 @@ return [
             'VisitResource' => 'F',
             'FollowUpResource' => 'F',
             'ContactDetailResource' => 'C',
-            'CompanyMasterResource' => 'R',
             'ItemMasterResource' => 'R',
             'PurchaseOrderResource' => 'C',
             'GoodsReceiptNoteResource' => 'C',
@@ -81,8 +80,6 @@ return [
 
         /* ================= FINANCE ================= */
         'finance_admin' => [
-            'ChartOfAccountResource' => 'F',
-            'LedgerResource' => 'F',
             'PaymentMethodResource' => 'F',
             'PaymentTermResource' => 'F',
             'SalesInvoiceResource' => 'F',
@@ -90,7 +87,6 @@ return [
             'ExpenseTypeResource' => 'F',
             'ExpenseConfigurationResource' => 'F',
             'TaxResource' => 'F',
-            'GstPanResource' => 'F',
             'PurchaseOrderResource' => 'F',
             'GoodsReceiptNoteResource' => 'F',
             'DeliveryChallanResource' => 'F',

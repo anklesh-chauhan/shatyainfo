@@ -2,58 +2,52 @@
 
 namespace App\Filament\Resources\EmpDepartments;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Hidden;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\TrashedFilter;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\Filter;
-use Filament\Actions\ViewAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\EmpDepartments\Pages\CreateEmpDeparment;
+use App\Filament\Resources\EmpDepartments\Pages\EditEmpDeparment;
+use App\Filament\Resources\EmpDepartments\Pages\ListEmpDeparments;
+use App\Filament\Resources\EmpDepartments\Pages\ViewEmpDeparment;
+use App\Filament\Resources\EmpDepartments\RelationManagers\DivisionsRelationManager;
+use App\Filament\Resources\EmpDepartments\RelationManagers\EmploymentDetailsRelationManager;
+use App\Filament\Resources\EmpDepartments\RelationManagers\GradesRelationManager;
+use App\Filament\Resources\EmpDepartments\RelationManagers\JobTitlesRelationManager;
+use App\Models\EmpDepartment;
+use App\Traits\HasSafeGlobalSearch;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
-use App\Filament\Resources\EmpDepartments\RelationManagers\GradesRelationManager;
-use App\Filament\Resources\EmpDepartments\RelationManagers\DivisionsRelationManager;
-use App\Filament\Resources\EmpDepartments\RelationManagers\JobTitlesRelationManager;
-use App\Filament\Resources\EmpDepartments\RelationManagers\EmploymentDetailsRelationManager;
-use App\Filament\Resources\EmpDepartments\Pages\ListEmpDeparments;
-use App\Filament\Resources\EmpDepartments\Pages\CreateEmpDeparment;
-use App\Filament\Resources\EmpDepartments\Pages\ViewEmpDeparment;
-use App\Filament\Resources\EmpDepartments\Pages\EditEmpDeparment;
-use App\Filament\Resources\EmpDepartmentResource\Pages;
-use App\Filament\Resources\EmpDepartmentResource\RelationManagers;
-use App\Models\EmpDepartment;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
 
 class EmpDepartmentResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = EmpDepartment::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
     protected static ?string $cluster = EmployeeManagementCluster::class;
 
@@ -150,9 +144,9 @@ class EmpDepartmentResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                     ForceDeleteBulkAction::make(),
                     RestoreBulkAction::make(),
                 ]),

@@ -2,40 +2,36 @@
 
 namespace App\Filament\Resources\FollowUpPriorities;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\FollowpConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\FollowUpPriorities\Pages\ListFollowUpPriorities;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUpPriorities\Pages\CreateFollowUpPriority;
 use App\Filament\Resources\FollowUpPriorities\Pages\EditFollowUpPriority;
-use App\Filament\Resources\FollowUpPriorityResource\Pages;
-use App\Filament\Resources\FollowUpPriorityResource\RelationManagers;
+use App\Filament\Resources\FollowUpPriorities\Pages\ListFollowUpPriorities;
 use App\Models\FollowUpPriority;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class FollowUpPriorityResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = FollowUpPriority::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFlag;
+
     protected static ?string $cluster = FollowpConfigurationCluster::class;
+
     protected static ?string $navigationLabel = 'Priorities';
+
     protected static ?int $navigationSort = 21;
 
     public static function form(Schema $schema): Schema
@@ -73,9 +69,9 @@ class FollowUpPriorityResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

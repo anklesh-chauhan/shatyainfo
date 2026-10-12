@@ -2,44 +2,39 @@
 
 namespace App\Filament\Resources\LeadActivities;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\DatePicker;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\LeadActivities\Pages\ListLeadActivities;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\LeadActivities\Pages\CreateLeadActivity;
 use App\Filament\Resources\LeadActivities\Pages\EditLeadActivity;
-use App\Filament\Resources\LeadActivityResource\Pages;
-use App\Filament\Resources\LeadActivityResource\RelationManagers;
+use App\Filament\Resources\LeadActivities\Pages\ListLeadActivities;
 use App\Models\LeadActivity;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeadActivityResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = LeadActivity::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBolt;
+
     protected static ?string $navigationParentItem = 'Lead';
-    protected static string | \UnitEnum | null $navigationGroup = 'Sales & Marketing';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & Marketing';
 
     public static function form(Schema $schema): Schema
     {
@@ -125,10 +120,10 @@ class LeadActivityResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    
-                        BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    BulkApprovalAction::make(),
+
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

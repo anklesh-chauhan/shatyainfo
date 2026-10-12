@@ -9,7 +9,6 @@ use App\Filament\Resources\DeliveryChallans\Pages\ListDeliveryChallans;
 use App\Filament\Resources\DeliveryChallans\Schemas\DeliveryChallanForm;
 use App\Filament\Resources\DeliveryChallans\Tables\DeliveryChallansTable;
 use App\Models\DeliveryChallan;
-use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,7 +20,7 @@ class DeliveryChallanResource extends BaseResource
 {
     protected static ?string $model = DeliveryChallan::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPaperAirplane;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

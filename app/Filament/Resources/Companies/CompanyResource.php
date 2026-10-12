@@ -2,46 +2,42 @@
 
 namespace App\Filament\Resources\Companies;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Hidden;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Companies\Pages\ListCompanies;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
-use App\Filament\Resources\CompanyResource\Pages;
-use App\Filament\Resources\CompanyResource\RelationManagers;
-use App\Models\Company;
+use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Models\CityPinCode;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\Company;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CompanyResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Company::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Contacts & Companies';
+    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
+
     protected static ?string $navigationParentItem = 'Contacts';
+
     protected static ?string $navigationLabel = 'Companies';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
+
     protected static ?int $navigationSort = 60;
 
     public static function form(Schema $schema): Schema
@@ -82,65 +78,65 @@ class CompanyResource extends BaseResource
 
                 // 🔄 Add Address Repeater
                 Repeater::make('addresses')
-                ->relationship('addresses')
-                ->schema([
-                    Hidden::make('address_type')->default('Company'),
+                    ->relationship('addresses')
+                    ->schema([
+                        Hidden::make('address_type')->default('Company'),
 
-                    TextInput::make('street')
-                        ->required(),
+                        TextInput::make('street')
+                            ->required(),
 
-                    // 🔍 Pin Code (Auto-fills fields only when changed)
-                    TextInput::make('pin_code')
-                        ->reactive()
-                        ->afterStateUpdated(function (callable $set, callable $get, $state) {
-                            if (!$get('city_id')) { // Only auto-fill if city is NOT set
-                                $pinCodeDetails = CityPinCode::where('pin_code', $state)->first();
+                        // 🔍 Pin Code (Auto-fills fields only when changed)
+                        TextInput::make('pin_code')
+                            ->reactive()
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                if (! $get('city_id')) { // Only auto-fill if city is NOT set
+                                    $pinCodeDetails = CityPinCode::where('pin_code', $state)->first();
 
-                                if ($pinCodeDetails) {
-                                    $set('area_town', $pinCodeDetails->area_town);
-                                    $set('city_id', $pinCodeDetails->city_id);
-                                    $set('state_id', $pinCodeDetails->state_id);
-                                    $set('country_id', $pinCodeDetails->country_id);
+                                    if ($pinCodeDetails) {
+                                        $set('area_town', $pinCodeDetails->area_town);
+                                        $set('city_id', $pinCodeDetails->city_id);
+                                        $set('state_id', $pinCodeDetails->state_id);
+                                        $set('country_id', $pinCodeDetails->country_id);
+                                    }
                                 }
-                            }
-                        }),
+                            }),
 
-                    // 🔍 City (Auto-fills fields only when changed)
-                    Select::make('city_id')
-                        ->relationship('city', 'name')
-                        ->searchable()
-                        ->reactive()
-                        ->afterStateUpdated(function (callable $set, callable $get, $state) {
-                            if (!$get('pin_code')) { // Only auto-fill if pin_code is NOT set
-                                $pinCodeDetails = CityPinCode::where('city_id', $state)->first();
+                        // 🔍 City (Auto-fills fields only when changed)
+                        Select::make('city_id')
+                            ->relationship('city', 'name')
+                            ->searchable()
+                            ->reactive()
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                if (! $get('pin_code')) { // Only auto-fill if pin_code is NOT set
+                                    $pinCodeDetails = CityPinCode::where('city_id', $state)->first();
 
-                                if ($pinCodeDetails) {
-                                    $set('area_town', $pinCodeDetails->area_town);
-                                    $set('pin_code', $pinCodeDetails->pin_code);
-                                    $set('state_id', $pinCodeDetails->state_id);
-                                    $set('country_id', $pinCodeDetails->country_id);
+                                    if ($pinCodeDetails) {
+                                        $set('area_town', $pinCodeDetails->area_town);
+                                        $set('pin_code', $pinCodeDetails->pin_code);
+                                        $set('state_id', $pinCodeDetails->state_id);
+                                        $set('country_id', $pinCodeDetails->country_id);
+                                    }
                                 }
-                            }
-                        }),
+                            }),
 
-                    // 🔍 Area/Town (Save as a string only)
-                    TextInput::make('area_town')
-                        ->required()
-                        ->reactive()
-                        ->afterStateUpdated(function (callable $set, callable $get, $state) {
-                            // Area/Town change will NOT affect pin_code, city, etc.
-                            $set('area_town', $state); // Save the entered value directly
-                        }),
+                        // 🔍 Area/Town (Save as a string only)
+                        TextInput::make('area_town')
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                // Area/Town change will NOT affect pin_code, city, etc.
+                                $set('area_town', $state); // Save the entered value directly
+                            }),
 
-                    Select::make('state_id')
-                        ->relationship('state', 'name')->searchable(),
+                        Select::make('state_id')
+                            ->relationship('state', 'name')->searchable(),
 
-                    Select::make('country_id')
-                        ->relationship('country', 'name')->searchable(),
-                ])
-                ->collapsible() // Optional for better UI
-                ->orderColumn() // Enables drag & drop sorting
-                ->addActionLabel('Add Address') // Custom add button text
+                        Select::make('country_id')
+                            ->relationship('country', 'name')->searchable(),
+                    ])
+                    ->collapsible() // Optional for better UI
+                    ->orderColumn() // Enables drag & drop sorting
+                    ->addActionLabel('Add Address'), // Custom add button text
             ]);
     }
 
@@ -183,9 +179,9 @@ class CompanyResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

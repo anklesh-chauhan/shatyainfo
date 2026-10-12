@@ -116,7 +116,10 @@ class User extends Authenticatable
 
     public function canAccessPanel(Panel $panel): bool
     {
-        // Allow access if user is linked to an active, non-deleted employee via employee_id
+        if ($this->roles()->whereIn('name', ['super_admin', 'administration_admin'])->exists()) {
+            return true;
+        }
+
         return $this->employeeViaId && $this->employeeViaId->is_active && ! $this->employeeViaId->is_deleted;
     }
 }

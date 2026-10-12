@@ -2,43 +2,37 @@
 
 namespace App\Filament\Resources\TypeMasters;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\TypeMasters\Pages\ListTypeMasters;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TypeMasters\Pages\CreateTypeMaster;
 use App\Filament\Resources\TypeMasters\Pages\EditTypeMaster;
-use App\Filament\Resources\TypeMasterResource\Pages;
-use App\Filament\Resources\TypeMasterResource\RelationManagers;
-use App\Models\TypeMaster;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\TypeMasters\Pages\ListTypeMasters;
 use App\Helpers\ModelHelper;
+use App\Models\TypeMaster;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class TypeMasterResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = TypeMaster::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
+
     protected static ?int $navigationSort = 200;
 
     public static function form(Schema $schema): Schema
@@ -59,8 +53,7 @@ class TypeMasterResource extends BaseResource
 
                 Select::make('parent_id')
                     ->label('Parent Type')
-                    ->options(fn (Get $get) =>
-                        filled($get('typeable_type'))
+                    ->options(fn (Get $get) => filled($get('typeable_type'))
                             ? TypeMaster::where('typeable_type', $get('typeable_type'))
                                 ->whereNull('parent_id')
                                 ->pluck('name', 'id')
@@ -111,9 +104,9 @@ class TypeMasterResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

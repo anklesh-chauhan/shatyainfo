@@ -6,7 +6,6 @@ use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\InventoryStocks\Pages\ListInventoryStocks;
 use App\Filament\Resources\InventoryStocks\Tables\InventoryStocksTable;
 use App\Models\InventoryStock;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -15,7 +14,7 @@ class InventoryStockResource extends BaseResource
 {
     protected static ?string $model = InventoryStock::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCircleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

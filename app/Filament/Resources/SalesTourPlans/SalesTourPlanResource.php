@@ -13,6 +13,7 @@ use App\Traits\HasApprovalWorkflow;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\HasVisibilityScope;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class SalesTourPlanResource extends BaseResource
@@ -21,7 +22,7 @@ class SalesTourPlanResource extends BaseResource
 
     protected static ?string $model = SalesTourPlan::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calendar-date-range';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

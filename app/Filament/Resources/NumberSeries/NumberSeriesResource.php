@@ -2,46 +2,42 @@
 
 namespace App\Filament\Resources\NumberSeries;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Grid;
-use Filament\Forms\Components\TextInput;
-use App\Models\TypeMaster;
-use App\Models\AccountMaster;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\TextInputColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\NumberSeries\Pages\ListNumberSeries;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\NumberSeries\Pages\CreateNumberSeries;
 use App\Filament\Resources\NumberSeries\Pages\EditNumberSeries;
-use App\Filament\Resources\NumberSeriesResource\Pages;
-use App\Filament\Resources\NumberSeriesResource\RelationManagers;
-use App\Models\NumberSeries;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\NumberSeries\Pages\ListNumberSeries;
 use App\Helpers\ModelHelper;
+use App\Models\AccountMaster;
+use App\Models\NumberSeries;
+use App\Models\TypeMaster;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Table;
 
 class NumberSeriesResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = NumberSeries::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedHashtag;
+
     protected static ?string $cluster = OperationalConfigCluster::class;
+
     protected static ?int $navigationSort = 1;
+
     protected static ?string $navigationLabel = 'Number Series';
 
     public static function form(Schema $schema): Schema
@@ -115,9 +111,9 @@ class NumberSeriesResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

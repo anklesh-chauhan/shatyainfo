@@ -2,46 +2,48 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Pages\Page;
-use Filament\Tables\Table;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\Action;
-use Filament\Forms\Components\Textarea;
 use App\Models\ApprovalStep;
 use App\Services\Approval\ApprovalService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Textarea;
+use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 
 class MyApprovals extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-document-text';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
+
     protected static ?string $navigationLabel = 'My Approvals';
+
     protected string $view = 'filament.pages.my-approvals';
 
     public function table(Table $table): Table
     {
         return $table
-            ->query(fn () =>
-                ApprovalStep::query()
-                    ->where('assigned_user_id', Auth::id())
-                    ->where('status', 'pending')
-                    ->whereRaw(
-                        'approval_steps.step_order = (
+            ->query(fn () => ApprovalStep::query()
+                ->where('assigned_user_id', Auth::id())
+                ->where('status', 'pending')
+                ->whereRaw(
+                    'approval_steps.step_order = (
                             select min(current_steps.step_order)
                             from approval_steps as current_steps
                             where current_steps.approval_id = approval_steps.approval_id
                             and current_steps.status = ?
                             and current_steps.deleted_at is null
                         )',
-                        ['pending']
-                    )
-                    ->with([
-                        'approval.approvable',
-                        'approval.requestedBy',
-                    ])
+                    ['pending']
+                )
+                ->with([
+                    'approval.approvable',
+                    'approval.requestedBy',
+                ])
             )
             ->columns([
                 TextColumn::make('approval.approvable_type')
@@ -62,9 +64,8 @@ class MyApprovals extends Page implements HasTable
                 Action::make('approve')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->action(fn (ApprovalStep $record) =>
-                        app(ApprovalService::class)
-                            ->approve($record->approval, Auth::id())
+                    ->action(fn (ApprovalStep $record) => app(ApprovalService::class)
+                        ->approve($record->approval, Auth::id())
                     ),
 
                 Action::make('reject')
@@ -74,13 +75,12 @@ class MyApprovals extends Page implements HasTable
                         Textarea::make('comments')
                             ->required(),
                     ])
-                    ->action(fn (ApprovalStep $record, array $data) =>
-                        app(ApprovalService::class)
-                            ->reject(
-                                $record->approval,
-                                Auth::id(),
-                                $data['comments']
-                            )
+                    ->action(fn (ApprovalStep $record, array $data) => app(ApprovalService::class)
+                        ->reject(
+                            $record->approval,
+                            Auth::id(),
+                            $data['comments']
+                        )
                     ),
             ])
             ->emptyStateHeading('No pending approvals')

@@ -2,39 +2,33 @@
 
 namespace App\Filament\Resources\Territories;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
+use App\Enums\TerritoryStatus;
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\Territories\Pages\CreateTerritory;
+use App\Filament\Resources\Territories\Pages\EditTerritory;
+use App\Filament\Resources\Territories\Pages\ListTerritories;
+use App\Filament\Resources\Territories\RelationManagers\PatchesRelationManager;
+use App\Models\CityPinCode;
+use App\Models\Territory;
+use App\Traits\HasSafeGlobalSearch;
+use App\Traits\HasVisibilityScope;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use App\Models\CityPinCode;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
-use Filament\Actions\ViewAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Territories\Pages\ListTerritories;
-use App\Filament\Resources\Territories\Pages\CreateTerritory;
-use App\Filament\Resources\Territories\Pages\EditTerritory;
-use App\Enums\TerritoryStatus;
-use App\Filament\Resources\TerritoryResource\RelationManagers;
-use App\Models\Territory;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use App\Traits\HasVisibilityScope;
-use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class TerritoryResource extends BaseResource
@@ -42,8 +36,11 @@ class TerritoryResource extends BaseResource
     use HasSafeGlobalSearch, HasVisibilityScope;
 
     protected static ?string $model = Territory::class;
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-map';
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
@@ -95,10 +92,8 @@ class TerritoryResource extends BaseResource
                         ->relationship(
                             name: 'divisions',
                             titleAttribute: 'name',
-                            modifyQueryUsing: fn ($query) =>
-                                $query->whereHas('typeMaster', fn ($q) =>
-                                    $q->where('name', 'Division')
-                                )
+                            modifyQueryUsing: fn ($query) => $query->whereHas('typeMaster', fn ($q) => $q->where('name', 'Division')
+                            )
                         )
                         ->searchable()
                         ->preload()
@@ -110,7 +105,7 @@ class TerritoryResource extends BaseResource
                         ->multiple()
                         ->relationship('positions', 'name')
                         ->searchable()
-                            ->preload()
+                        ->preload()
                         ->label('Positions')
                         ->placeholder('Select positions linked to this territory'),
 
@@ -122,36 +117,31 @@ class TerritoryResource extends BaseResource
                         ->multiple()
                         ->relationship('cityPinCodes', 'id')
                         ->searchable()
-                        ->getSearchResultsUsing(fn (string $search) =>
-                            CityPinCode::query()
-                                ->whereHas('city', fn ($q) => $q->where('name', 'like', "%{$search}%"))
-                                ->orWhere('area_town', 'like', "%{$search}%")
-                                ->orWhere('pin_code', 'like', "%{$search}%")
-                                ->with('city')
-                                ->limit(50)
-                                ->get()
-                                ->mapWithKeys(fn ($item) => [
-                                    $item->id => "{$item->city->name} - {$item->area_town} ({$item->pin_code})"
-                                ])
+                        ->getSearchResultsUsing(fn (string $search) => CityPinCode::query()
+                            ->whereHas('city', fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                            ->orWhere('area_town', 'like', "%{$search}%")
+                            ->orWhere('pin_code', 'like', "%{$search}%")
+                            ->with('city')
+                            ->limit(50)
+                            ->get()
+                            ->mapWithKeys(fn ($item) => [
+                                $item->id => "{$item->city->name} - {$item->area_town} ({$item->pin_code})",
+                            ])
                         )
-                        ->getOptionLabelsUsing(fn ($values) =>
-                            CityPinCode::whereIn('id', $values)
-                                ->with('city')
-                                ->get()
-                                ->mapWithKeys(fn ($item) => [
-                                    $item->id => "{$item->city->name} - {$item->area_town} ({$item->pin_code})"
-                                ])
+                        ->getOptionLabelsUsing(fn ($values) => CityPinCode::whereIn('id', $values)
+                            ->with('city')
+                            ->get()
+                            ->mapWithKeys(fn ($item) => [
+                                $item->id => "{$item->city->name} - {$item->area_town} ({$item->pin_code})",
+                            ])
                         )
                         ->label('Cities and Areas')
                         ->required(),
                 ])->columnSpanFull(),
 
-
-
-
             Textarea::make('description')
-                        ->nullable()
-                        ->columnSpanFull(),
+                ->nullable()
+                ->columnSpanFull(),
 
         ]);
     }
@@ -216,9 +206,9 @@ class TerritoryResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('name');
@@ -227,16 +217,16 @@ DeleteBulkAction::make(),
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\Territories\RelationManagers\PatchesRelationManager::class,
+            PatchesRelationManager::class,
         ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index'  => ListTerritories::route('/'),
+            'index' => ListTerritories::route('/'),
             'create' => CreateTerritory::route('/create'),
-            'edit'   => EditTerritory::route('/{record}/edit'),
+            'edit' => EditTerritory::route('/{record}/edit'),
         ];
     }
 
@@ -253,7 +243,7 @@ DeleteBulkAction::make(),
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return [
-            'Code'   => $record->code,
+            'Code' => $record->code,
             'Status' => $record->status->getLabel(),
         ];
     }

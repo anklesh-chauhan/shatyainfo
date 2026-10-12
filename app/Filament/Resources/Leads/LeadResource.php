@@ -2,82 +2,65 @@
 
 namespace App\Filament\Resources\Leads;
 
-use App\Filament\Actions\BulkApprovalAction;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
-use App\Traits\AddressDetailsTrait;
-use App\Traits\HasSafeGlobalSearch;
-use App\Models\LeadStatus;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Group;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use App\Models\User;
-use Filament\Tables\Filters\Filter;
-use Filament\Actions\ActionGroup;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\DateTimePicker;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\Leads\Pages\CreateLead;
+use App\Filament\Resources\Leads\Pages\CustomFields;
+use App\Filament\Resources\Leads\Pages\EditLead;
+use App\Filament\Resources\Leads\Pages\ListLeads;
+use App\Filament\Resources\Leads\RelationManagers\ItemMastersRelationManager;
+use App\Filament\Resources\Leads\RelationManagers\LeadActivityRelationManager;
+use App\Filament\Resources\Leads\RelationManagers\LeadFollowUpRelationManager;
+use App\Filament\Resources\Leads\RelationManagers\LeadNotesRelationManager;
 use App\Models\ContactDetail;
 use App\Models\FollowUpMedia;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Leads\RelationManagers\LeadFollowUpRelationManager;
-use App\Filament\Resources\Leads\RelationManagers\ItemMastersRelationManager;
-use App\Filament\Resources\Leads\RelationManagers\LeadNotesRelationManager;
-use App\Filament\Resources\Leads\RelationManagers\LeadActivityRelationManager;
-use App\Filament\Resources\Leads\Pages\ListLeads;
-use App\Filament\Resources\Leads\Pages\CreateLead;
-use App\Filament\Resources\Leads\Pages\EditLead;
-use App\Filament\Resources\Leads\Pages\CustomFields;
-use App\Filament\Resources\LeadResource\Pages;
-use App\Filament\Resources\LeadResource\RelationManagers;
 use App\Models\Lead;
-use App\Models\CityPinCode;
 use App\Models\LeadCustomField;
-use App\Models\NumberSeries;
-use App\Models\ItemMaster;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\LeadStatus;
+use App\Models\User;
+use App\Traits\AddressDetailsTrait;
+use App\Traits\HasCustomerInteractionFields;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Actions\Action;
-use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Auth;
-use Filament\Forms\Components\Repeater;
-use Filament\Tables\Columns\SelectColumn;
-use Illuminate\Database\Eloquent\Model;
-use Filament\Facades\Filament;
-use Filament\GlobalSearch\GlobalSearchResult;
-use Illuminate\Support\Collection;
-use Filament\Navigation\NavigationItem;
-
-use App\Traits\HasCustomerInteractionFields;
-
-
 
 class LeadResource extends BaseResource
 {
-    use HasCustomerInteractionFields;
     use AddressDetailsTrait;
+    use HasCustomerInteractionFields;
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Lead::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-clipboard-document';
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserPlus;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+
     protected static ?int $navigationSort = 10;
 
     /**
@@ -103,7 +86,6 @@ class LeadResource extends BaseResource
         return true;
     }
 
-
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -113,70 +95,68 @@ class LeadResource extends BaseResource
 
                 // ✅ Address Details
                 Section::make('Other Details')
-                ->collapsible()
-                ->schema([
-                    Grid::make(4)
-                        ->schema([
-                            Select::make('lead_source_id')
-                                ->relationship('leadSource', 'name')
-                                ->required(),
+                    ->collapsible()
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                Select::make('lead_source_id')
+                                    ->relationship('leadSource', 'name')
+                                    ->required(),
 
-                            Select::make('rating_type_id')
-                                ->relationship('rating', 'name')
-                                ->preload(),
+                                Select::make('rating_type_id')
+                                    ->relationship('rating', 'name')
+                                    ->preload(),
 
-                            TextInput::make('annual_revenue')
-                                ->numeric()
-                                ->prefix('Rs')
-                                ->label('Annual Revenue'),
+                                TextInput::make('annual_revenue')
+                                    ->numeric()
+                                    ->prefix('Rs')
+                                    ->label('Annual Revenue'),
 
-                            Textarea::make('description')
-                                ->nullable()
-                                ->label('Description Information'),
-                        ])->columnSpanFull(),
+                                Textarea::make('description')
+                                    ->nullable()
+                                    ->label('Description Information'),
+                            ])->columnSpanFull(),
 
-
-                    // Dynamic Custom Fields
-                    Group::make([
-                        Section::make('More Details')
-                            ->hidden(fn () => LeadCustomField::count() === 0)
-                            ->schema(function () {
-                                return LeadCustomField::all()->map(function ($field) {
-                                    return match ($field->type) {
-                                        'text' => TextInput::make("custom_fields.{$field->name}")
-                                            ->label($field->label)
-                                            ->required(),
-                                        'number' => TextInput::make("custom_fields.{$field->name}")
-                                            ->numeric()
-                                            ->label($field->label)
-                                            ->required(),
-                                        'date' => DatePicker::make("custom_fields.{$field->name}")
-                                            ->label($field->label)
-                                            ->required(),
-                                        'email' => TextInput::make("custom_fields.{$field->name}")
-                                            ->email()
-                                            ->label($field->label)
-                                            ->required(),
-                                        default => null,
-                                    };
-                                })->toArray();
-                            })
-                            ->columnSpanFull()
-                            ->columns(2)
+                        // Dynamic Custom Fields
+                        Group::make([
+                            Section::make('More Details')
+                                ->hidden(fn () => LeadCustomField::count() === 0)
+                                ->schema(function () {
+                                    return LeadCustomField::all()->map(function ($field) {
+                                        return match ($field->type) {
+                                            'text' => TextInput::make("custom_fields.{$field->name}")
+                                                ->label($field->label)
+                                                ->required(),
+                                            'number' => TextInput::make("custom_fields.{$field->name}")
+                                                ->numeric()
+                                                ->label($field->label)
+                                                ->required(),
+                                            'date' => DatePicker::make("custom_fields.{$field->name}")
+                                                ->label($field->label)
+                                                ->required(),
+                                            'email' => TextInput::make("custom_fields.{$field->name}")
+                                                ->email()
+                                                ->label($field->label)
+                                                ->required(),
+                                            default => null,
+                                        };
+                                    })->toArray();
+                                })
+                                ->columnSpanFull()
+                                ->columns(2),
                         ]),
 
-                ])->columnSpanFull(),
+                    ])->columnSpanFull(),
 
-    ]);
+            ]);
 
     }
-
 
     public static function mutateFormDataBeforeCreate(array $data): array
     {
 
         $data['custom_fields'] = collect($data['custom_fields'])
-            ->filter(fn ($value) => !is_null($value)) // Filter out empty fields
+            ->filter(fn ($value) => ! is_null($value)) // Filter out empty fields
             ->toArray();
 
         return $data;
@@ -186,12 +166,11 @@ class LeadResource extends BaseResource
     {
 
         $data['custom_fields'] = collect($data['custom_fields'])
-            ->filter(fn ($value) => !is_null($value)) // Filter out empty fields
+            ->filter(fn ($value) => ! is_null($value)) // Filter out empty fields
             ->toArray();
 
         return $data;
     }
-
 
     public static function table(Table $table): Table
     {
@@ -244,10 +223,11 @@ class LeadResource extends BaseResource
                     ->label('Next Follow-up Date')
                     ->formatStateUsing(function ($record) {
                         $nextFollowUp = $record->followups()->orderByDesc('next_follow_up_date')->first();
-                        if (!$nextFollowUp || !$nextFollowUp->next_follow_up_date) {
+                        if (! $nextFollowUp || ! $nextFollowUp->next_follow_up_date) {
 
-                            return '<a href="' . route('filament.admin.resources.follow-ups.create', ['lead_id' => $record->id]) . '" class="text-blue-500 underline">Add Follow-up</a>';
+                            return '<a href="'.route('filament.admin.resources.follow-ups.create', ['lead_id' => $record->id]).'" class="text-blue-500 underline">Add Follow-up</a>';
                         }
+
                         return $nextFollowUp->next_follow_up_date;
                     })
                     ->html(),
@@ -271,7 +251,7 @@ class LeadResource extends BaseResource
                         ->sortable()
                         ->searchable()
                         ->toggleable(isToggledHiddenByDefault: true);
-                })->toArray()
+                })->toArray(),
 
             ])
             ->filters([
@@ -290,7 +270,7 @@ class LeadResource extends BaseResource
             ->recordActions([
                 ActionGroup::make([
                     EditAction::make(),
-                ApprovalAction::make(),
+                    ApprovalAction::make(),
                     DeleteAction::make(),
                     \Filament\Actions\Action::make('convert_to_deal')
                         ->label('Convert to Deal')
@@ -329,25 +309,26 @@ class LeadResource extends BaseResource
                                 ->default(fn ($record) => $record->id),
 
                             DateTimePicker::make('follow_up_date')
-                                    ->required()
-                                    ->label('Follow-up Date'),
+                                ->required()
+                                ->label('Follow-up Date'),
 
-                                    Select::make('to_whom')
-                                    ->options(function (callable $get) {
-                                        $lead = Lead::find($get('lead_id'));
+                            Select::make('to_whom')
+                                ->options(function (callable $get) {
+                                    $lead = Lead::find($get('lead_id'));
 
-                                        if ($lead) {
-                                            return ContactDetail::where('company_id', $lead->company_id)
-                                                ->get()
-                                                ->mapWithKeys(fn ($contact) => [
-                                                    $contact->id => "{$contact->first_name} {$contact->last_name}"
-                                                ]);
-                                        }
-                                        return [];
-                                    })
-                                    ->searchable()
-                                    ->preload()
-                                    ->label('To Whom'),
+                                    if ($lead) {
+                                        return ContactDetail::where('company_id', $lead->company_id)
+                                            ->get()
+                                            ->mapWithKeys(fn ($contact) => [
+                                                $contact->id => "{$contact->first_name} {$contact->last_name}",
+                                            ]);
+                                    }
+
+                                    return [];
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->label('To Whom'),
 
                             Textarea::make('interaction')
                                 ->label('Interaction')
@@ -383,12 +364,11 @@ class LeadResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                BulkApprovalAction::make(),
-                DeleteBulkAction::make(),
-            ]),
-        ]);
+                    BulkApprovalAction::make(),
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
     }
-
 
     public static function getRelations(): array
     {

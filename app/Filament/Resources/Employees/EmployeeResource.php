@@ -2,64 +2,56 @@
 
 namespace App\Filament\Resources\Employees;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\HR\EmployeeManagementCluster;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Tabs;
-use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Hidden;
-use Illuminate\Validation\Rules\Unique;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Group;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\Filter;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Employees\Pages\ListEmployees;
+use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Employees\Pages\CreateEmployee;
 use App\Filament\Resources\Employees\Pages\EditEmployee;
-use App\Filament\Resources\EmployeeResource\Pages;
+use App\Filament\Resources\Employees\Pages\ListEmployees;
+use App\Filament\Resources\Employees\RelationManagers\PositionsRelationManager;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\User;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+// Import Tabs
+use Filament\Tables\Filters\TernaryFilter; // Import Tab
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Support\Facades\Auth; // Import Tabs
-use Filament\Forms\Components\Repeater; // Import Tab
-use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
-use App\Filament\Resources\Employees\RelationManagers\PositionsRelationManager;
-use Filament\Resources\RelationManagers\RelationManager;
-use App\Models\User;
-use Illuminate\Support\Str;
-use App\Notifications\UserAccountCreated;
-use Filament\Actions\Action;
+use Illuminate\Validation\Rules\Unique;
 
 class EmployeeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Employee::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
     protected static ?string $cluster = EmployeeManagementCluster::class;
 
@@ -245,12 +237,12 @@ class EmployeeResource extends BaseResource
                         // Converted 'Employment Details' Step to a Tab
                         Tab::make('Employment')
                             ->icon('heroicon-o-briefcase')
-                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                             ->schema([
                                 Section::make('Note')
                                     // This section is shown only when creating a new record
                                     ->description('This section is only available after saving the General Information.')
-                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                                     ->columnSpanFull()
                                     ->hiddenLabel() // Hide the default label for a cleaner look
                                     ->extraAttributes([
@@ -291,12 +283,10 @@ class EmployeeResource extends BaseResource
 
                                         Select::make('division_ou_id')
                                             ->label('Division')
-                                            ->options(fn () =>
-                                                \App\Models\OrganizationalUnit::query()
-                                                    ->whereHas('typeMaster', fn ($q) =>
-                                                        $q->where('name', 'Division')
-                                                    )
-                                                    ->pluck('name', 'id')
+                                            ->options(fn () => OrganizationalUnit::query()
+                                                ->whereHas('typeMaster', fn ($q) => $q->where('name', 'Division')
+                                                )
+                                                ->pluck('name', 'id')
                                             )
                                             ->searchable()
                                             ->preload()
@@ -318,12 +308,13 @@ class EmployeeResource extends BaseResource
 
                                                     if (! $divisionId) {
                                                         $query->whereRaw('1 = 0');
+
                                                         return;
                                                     }
 
                                                     $query->where(function ($q) use ($divisionId) {
                                                         $q->where('organizational_units.id', $divisionId)
-                                                        ->orWhere('organizational_units.parent_id', $divisionId);
+                                                            ->orWhere('organizational_units.parent_id', $divisionId);
                                                     });
                                                 }
                                             )
@@ -335,7 +326,7 @@ class EmployeeResource extends BaseResource
                                             ->label('Reporting Manager')
                                             ->relationship('reportingManager', 'id') // or name
                                             ->getOptionLabelFromRecordUsing(
-                                                fn (\App\Models\Employee $record) => $record->full_name
+                                                fn (Employee $record) => $record->full_name
                                             )
                                             ->disabled()
                                             ->dehydrated(false)
@@ -350,7 +341,7 @@ class EmployeeResource extends BaseResource
 
                                         Select::make('employment_type')
                                             ->label('Employment Type')
-                                            ->options(['Permanent' => 'Permanent','Contract' => 'Contract', 'Part-Time' => 'Part-Time', 'Intern' => 'Intern', 'Temporary' => 'Temporary', 'Consultant' => 'Consultant'])
+                                            ->options(['Permanent' => 'Permanent', 'Contract' => 'Contract', 'Part-Time' => 'Part-Time', 'Intern' => 'Intern', 'Temporary' => 'Temporary', 'Consultant' => 'Consultant'])
                                             ->nullable(),
 
                                         Select::make('employment_status')
@@ -416,7 +407,7 @@ class EmployeeResource extends BaseResource
                                                 $isPrimary = true;
                                             }
                                             // 3. If there is NO primary in DB yet, make the first one in the selection primary
-                                            elseif (!$existingPrimaryId && $index === 0) {
+                                            elseif (! $existingPrimaryId && $index === 0) {
                                                 $isPrimary = true;
                                             }
 
@@ -427,18 +418,18 @@ class EmployeeResource extends BaseResource
                                         $record->positions()->sync($syncData);
                                     })
                                     ->preload()
-                                    ->searchable()
+                                    ->searchable(),
                             ]),
 
                         // Uncommented and converted Professional Tax to a Tab
                         Tab::make('Prof. Tax')
                             ->icon('heroicon-o-banknotes')
-                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                             ->schema([
                                 Section::make('Note')
                                     // This section is shown only when creating a new record
                                     ->description('This section is only available after saving the General Information.')
-                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                                     ->columnSpanFull()
                                     ->hiddenLabel() // Hide the default label for a cleaner look
                                     ->extraAttributes([
@@ -462,6 +453,7 @@ class EmployeeResource extends BaseResource
                                                 if (empty($get('pt_no'))) {
                                                     return $rule->whereNull('pt_no');
                                                 }
+
                                                 return $rule->whereNotNull('pt_no');
                                             }),
                                         TextInput::make('pt_amount')
@@ -521,12 +513,12 @@ class EmployeeResource extends BaseResource
                         // Uncommented and converted Statutory IDs to a Tab
                         Tab::make('Statutory IDs')
                             ->icon('heroicon-o-identification')
-                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                             ->schema([
                                 Section::make('Note')
                                     // This section is shown only when creating a new record
                                     ->description('This section is only available after saving the General Information.')
-                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                                     ->columnSpanFull()
                                     ->hiddenLabel() // Hide the default label for a cleaner look
                                     ->extraAttributes([
@@ -598,12 +590,12 @@ class EmployeeResource extends BaseResource
                         // Uncommented and converted Qualifications to a Tab
                         Tab::make('Qualifications')
                             ->icon('heroicon-o-academic-cap')
-                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                             ->schema([
                                 Section::make('Note')
                                     // This section is shown only when creating a new record
                                     ->description('This section is only available after saving the General Information.')
-                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                                     ->columnSpanFull()
                                     ->hiddenLabel() // Hide the default label for a cleaner look
                                     ->extraAttributes([
@@ -623,7 +615,7 @@ class EmployeeResource extends BaseResource
                                             ->columnSpan(1),
                                         TextInput::make('year_of_completion')
                                             ->numeric()
-                                            ->rules(['digits:4', 'min:1900', 'max:' . (date('Y') + 5)]) // Sensible year range
+                                            ->rules(['digits:4', 'min:1900', 'max:'.(date('Y') + 5)]) // Sensible year range
                                             ->nullable()
                                             ->columnSpan(1),
                                         TextInput::make('certification')
@@ -648,18 +640,18 @@ class EmployeeResource extends BaseResource
                                     ->defaultItems(1)
                                     ->reorderableWithButtons()
                                     ->collapsible()
-                                    ->itemLabel(fn (array $state): ?string => ($state['degree'] ?? '') . ' from ' . ($state['institution'] ?? null)),
+                                    ->itemLabel(fn (array $state): ?string => ($state['degree'] ?? '').' from '.($state['institution'] ?? null)),
                             ]),
 
                         // Uncommented and converted Skills to a Tab
                         Tab::make('Skills')
                             ->icon('heroicon-o-sparkles')
-                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                            ->disabled(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                             ->schema([
                                 Section::make('Note')
                                     // This section is shown only when creating a new record
                                     ->description('This section is only available after saving the General Information.')
-                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && !$record?->exists)
+                                    ->visible(fn (string $operation, ?Employee $record): bool => $operation === 'create' && ! $record?->exists)
                                     ->columnSpanFull()
                                     ->hiddenLabel() // Hide the default label for a cleaner look
                                     ->extraAttributes([
@@ -686,7 +678,7 @@ class EmployeeResource extends BaseResource
                                     ->defaultItems(1)
                                     ->reorderableWithButtons()
                                     ->collapsible()
-                                    ->itemLabel(fn (array $state): ?string => ($state['skill_name'] ?? '') . ' (' . ($state['proficiency_level'] ?? '') . ')' ?? null),
+                                    ->itemLabel(fn (array $state): ?string => ($state['skill_name'] ?? '').' ('.($state['proficiency_level'] ?? '').')' ?? null),
                             ]),
 
                     ])->persistTabInQueryString(),
@@ -920,8 +912,8 @@ class EmployeeResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                        BulkApprovalAction::make(),
-                        DeleteBulkAction::make(),
+                    BulkApprovalAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

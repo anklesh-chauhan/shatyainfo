@@ -4,8 +4,8 @@ namespace App\Filament\Resources\CityPinCodes;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Exports\CityPinCodeExporter;
 use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Exports\CityPinCodeExporter;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\CityPinCodes\Pages\CreateCityPinCode;
 use App\Filament\Resources\CityPinCodes\Pages\EditCityPinCode;
@@ -22,6 +22,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -38,7 +39,7 @@ class CityPinCodeResource extends BaseResource
 
     protected static ?int $navigationSort = 1;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-office';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 
     public static function form(Schema $schema): Schema
     {

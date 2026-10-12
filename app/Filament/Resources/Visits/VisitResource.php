@@ -9,7 +9,6 @@ use App\Filament\Resources\Visits\Pages\ListVisits;
 use App\Filament\Resources\Visits\Schemas\VisitForm;
 use App\Filament\Resources\Visits\Tables\VisitsTable;
 use App\Models\Visit;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -20,7 +19,7 @@ class VisitResource extends BaseResource
 {
     protected static ?string $model = Visit::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

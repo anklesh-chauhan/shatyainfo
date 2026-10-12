@@ -2,47 +2,40 @@
 
 namespace App\Filament\Resources\Quotes;
 
+use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Quotes\Pages\ListQuotes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Quotes\Pages\CreateQuote;
 use App\Filament\Resources\Quotes\Pages\EditQuote;
-use App\Filament\Resources\QuoteResource\Pages;
-use App\Filament\Resources\QuoteResource\RelationManagers;
+use App\Filament\Resources\Quotes\Pages\ListQuotes;
+use App\Helpers\SalesDocumentHelper;
+use App\Models\Organization;
 use App\Models\Quote;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Models\SalesInvoice;
+use App\Models\SalesOrder;
+use App\Traits\HasSafeGlobalSearch;
 use App\Traits\SalesDocumentResourceTrait;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
-use Filament\Actions\Action;
-use Filament\Tables\Enums\RecordActionsPosition;
-use Filament\Actions\ActionGroup;
-use App\Models\SalesOrder;
-use App\Models\SalesInvoice;
-use App\Models\NumberSeries;
-use App\Helpers\SalesDocumentHelper;
-use Filament\Notifications\Notification;
-use Filament\Actions\BulkAction;
-use App\Filament\Actions\ApprovalAction;
 
 class QuoteResource extends BaseResource
 {
@@ -51,8 +44,10 @@ class QuoteResource extends BaseResource
 
     protected static ?string $model = Quote::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+
     protected static ?int $navigationSort = 10;
 
     protected static function resolveModelClass(): string
@@ -144,6 +139,7 @@ class QuoteResource extends BaseResource
                         ->requiresConfirmation()
                         ->action(function (Quote $record) {
                             $salesOrder = SalesDocumentHelper::createFrom($record, SalesOrder::class);
+
                             return redirect()->route('filament.admin.resources.sales-orders.edit', $salesOrder);
                         }),
 
@@ -154,6 +150,7 @@ class QuoteResource extends BaseResource
                         ->color('warning')
                         ->action(function (Quote $record) {
                             $salesInvoice = SalesDocumentHelper::createFrom($record, SalesInvoice::class);
+
                             return redirect()->route('filament.admin.resources.sales-invoices.edit', $salesInvoice);
                         }),
 
@@ -166,20 +163,20 @@ class QuoteResource extends BaseResource
                         ->modalContent(fn ($record) => view('components.pdf-preview', [
                             'url' => route('sales-documents.preview', [
                                 strtolower(class_basename($record)),
-                                $record->id
+                                $record->id,
                             ]),
-                            'organization' => \App\Models\Organization::first(),
+                            'organization' => Organization::first(),
                         ])),
 
                     Action::make('downloadPdf')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->label('Download PDF')
-                        ->url(fn($record) => route('sales-documents.download', [
-                            strtolower(class_basename($record)), $record->id
+                        ->url(fn ($record) => route('sales-documents.download', [
+                            strtolower(class_basename($record)), $record->id,
                         ])),
 
-                    ])
-                    ], position: RecordActionsPosition::BeforeColumns)
+                ]),
+            ], position: RecordActionsPosition::BeforeColumns)
             ->filters([
                 // 📅 Date Range Filter
                 Filter::make('date')
@@ -246,33 +243,33 @@ class QuoteResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    
-                        BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    BulkApprovalAction::make(),
 
-                // SEND FOR APPROVAL
-                BulkAction::make('sendForApproval')
-                    ->label('Send for Approval')
-                    ->icon('heroicon-o-arrow-up-tray')
-                    ->color('primary')
-                    ->action(function ($records) {
-                        $count = 0;
-                        foreach ($records as $record) {
-                            try {
-                                if ($record->canStartApproval()) {
-                                    $record->startApprovalFromRules();
-                                    $count++;
+                    DeleteBulkAction::make(),
+
+                    // SEND FOR APPROVAL
+                    BulkAction::make('sendForApproval')
+                        ->label('Send for Approval')
+                        ->icon('heroicon-o-arrow-up-tray')
+                        ->color('primary')
+                        ->action(function ($records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                try {
+                                    if ($record->canStartApproval()) {
+                                        $record->startApprovalFromRules();
+                                        $count++;
+                                    }
+                                } catch (\Exception $e) {
+                                    // skip or collect errors
                                 }
-                            } catch (\Exception $e) {
-                                // skip or collect errors
                             }
-                        }
-                        \Filament\Notifications\Notification::make()
-                            ->title("Sent approval for {$count} records")
-                            ->success()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title("Sent approval for {$count} records")
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ]);
     }
@@ -285,16 +282,18 @@ DeleteBulkAction::make(),
     }
 
     protected function handleRecordCreation(array $data): Model
-         {
-             Log::debug('QuoteResource handleRecordCreation called');
-             return $this->handleRecordCreation($data);
-         }
+    {
+        Log::debug('QuoteResource handleRecordCreation called');
+
+        return $this->handleRecordCreation($data);
+    }
 
     protected function handleRecordUpdate(Model $record, array $data): Model
-         {
-             Log::debug('QuoteResource handleRecordUpdate called');
-             return $this->handleRecordUpdate($record, $data);
-         }
+    {
+        Log::debug('QuoteResource handleRecordUpdate called');
+
+        return $this->handleRecordUpdate($record, $data);
+    }
 
     public static function getPages(): array
     {
@@ -304,5 +303,4 @@ DeleteBulkAction::make(),
             'edit' => EditQuote::route('/{record}/edit'),
         ];
     }
-
 }

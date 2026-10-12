@@ -23,6 +23,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\RecordActionsPosition;
@@ -37,7 +38,7 @@ class PatchResource extends BaseResource
 
     protected static ?string $model = Patch::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-wrench-screwdriver';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

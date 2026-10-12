@@ -3,17 +3,14 @@
 namespace App\Filament\Resources\TermsAndConditionsMasters;
 
 use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
-use App\Traits\HasSafeGlobalSearch;
-
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TermsAndConditionsMasters\Pages\CreateTermsAndConditionsMaster;
 use App\Filament\Resources\TermsAndConditionsMasters\Pages\EditTermsAndConditionsMaster;
 use App\Filament\Resources\TermsAndConditionsMasters\Pages\ListTermsAndConditionsMasters;
 use App\Filament\Resources\TermsAndConditionsMasters\Schemas\TermsAndConditionsMasterForm;
 use App\Filament\Resources\TermsAndConditionsMasters\Tables\TermsAndConditionsMastersTable;
 use App\Models\TermsAndConditionsMaster;
-use BackedEnum;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use App\Traits\HasSafeGlobalSearch;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -21,9 +18,10 @@ use Filament\Tables\Table;
 class TermsAndConditionsMasterResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = TermsAndConditionsMaster::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 

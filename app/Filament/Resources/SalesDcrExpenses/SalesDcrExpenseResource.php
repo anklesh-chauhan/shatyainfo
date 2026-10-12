@@ -9,7 +9,6 @@ use App\Filament\Resources\SalesDcrExpenses\Schemas\SalesDcrExpenseForm;
 use App\Filament\Resources\SalesDcrExpenses\Tables\SalesDcrExpensesTable;
 use App\Models\SalesDcrExpense;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,7 +22,7 @@ class SalesDcrExpenseResource extends Resource
 
     protected static ?string $model = SalesDcrExpense::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
     protected static ?string $recordTitleAttribute = 'remarks';
 

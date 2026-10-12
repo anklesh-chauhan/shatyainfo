@@ -7,7 +7,6 @@ use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
 use App\Models\DealStage;
 use App\Services\Reports\DealPipelineQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,7 +19,7 @@ class DealPipeline extends BaseReportPage
 
     protected static ?string $exporter = DealPipelineExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
 
     protected static ?string $navigationLabel = 'Deal pipeline';
 

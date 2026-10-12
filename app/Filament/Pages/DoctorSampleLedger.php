@@ -3,8 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Pages\Reports\DoctorSampleLedger as ReportsDoctorSampleLedger;
-use BackedEnum;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use UnitEnum;
 
 class DoctorSampleLedger extends Page
@@ -17,7 +17,7 @@ class DoctorSampleLedger extends Page
 
     protected static ?int $navigationSort = 7;
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-document-chart-bar';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
     protected string $view = 'filament.pages.doctor-sample-ledger';
 

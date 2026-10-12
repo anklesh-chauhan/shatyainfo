@@ -10,7 +10,6 @@ use App\Filament\Resources\LeaveAdjustments\Schemas\LeaveAdjustmentForm;
 use App\Filament\Resources\LeaveAdjustments\Tables\LeaveAdjustmentsTable;
 use App\Models\LeaveAdjustment;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +23,7 @@ class LeaveAdjustmentResource extends Resource
 
     protected static ?string $model = LeaveAdjustment::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     protected static ?string $recordTitleAttribute = 'reason';
 

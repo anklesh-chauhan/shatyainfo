@@ -9,7 +9,6 @@ use App\Filament\Resources\GoodsReceiptNotes\Pages\ListGoodsReceiptNotes;
 use App\Filament\Resources\GoodsReceiptNotes\Schemas\GoodsReceiptNoteForm;
 use App\Filament\Resources\GoodsReceiptNotes\Tables\GoodsReceiptNotesTable;
 use App\Models\GoodsReceiptNote;
-use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,7 +20,7 @@ class GoodsReceiptNoteResource extends BaseResource
 {
     protected static ?string $model = GoodsReceiptNote::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBoxArrowDown;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

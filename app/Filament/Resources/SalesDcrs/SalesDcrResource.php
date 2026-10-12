@@ -13,7 +13,6 @@ use App\Filament\Resources\SalesDcrs\Schemas\SalesDcrInfolist;
 use App\Filament\Resources\SalesDcrs\Tables\SalesDcrsTable;
 use App\Models\SalesDcr;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -27,7 +26,7 @@ class SalesDcrResource extends Resource
 
     protected static ?string $model = SalesDcr::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
 
     protected static ?string $recordTitleAttribute = 'remarks';
 

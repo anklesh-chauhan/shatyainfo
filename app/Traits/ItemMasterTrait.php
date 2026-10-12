@@ -3,31 +3,22 @@
 namespace App\Traits;
 
 use App\Enums\ItemType;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Section;
-use Filament\Forms;
-use Filament\Tables;
-use Filament\Forms\Components\Actions\Action;
-use Filament\Notifications\Notification;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\DatePicker;
-use Filament\Tables\Columns\TextColumn;
-use App\Models\ItemMaster;
+use App\Filament\Resources\ItemMasters\RelationManagers\VariantsRelationManager;
 use App\Models\Category;
+use App\Models\ItemMaster;
 use App\Models\NumberSeries;
 use App\Models\PackagingType;
-use App\Models\CompanyMaster;
-use Dom\Text;
-use App\Filament\Resources\ItemMasters\RelationManagers\VariantsRelationManager;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 
 trait ItemMasterTrait
 {
     /**
      * Get common form fields for SalesDocument.
-     *
-     * @return array
      */
     public static function getItemMasterTraitField($livewire = null): array
     {
@@ -55,7 +46,7 @@ trait ItemMasterTrait
 
                     TextInput::make('item_name')
                         ->label('Item Name')
-                        ->required(!$isVariant) // Required for main item only
+                        ->required(! $isVariant) // Required for main item only
                         ->default(fn () => $isVariant ? $parentItem->item_name : null) // Inherit name from parent
                         ->readOnly($isVariant)
                         ->dehydrateStateUsing(fn ($state) => $state ?? ($parentItem->item_name ?? null)),
@@ -132,7 +123,7 @@ trait ItemMasterTrait
                                 ]),
                         ])
                         ->columnSpanFull()
-                        ->collapsed()
+                        ->collapsed(),
                 ])->columnSpanFull(),
 
         ];

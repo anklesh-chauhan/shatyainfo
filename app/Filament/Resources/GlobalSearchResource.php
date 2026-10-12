@@ -2,14 +2,11 @@
 
 namespace App\Filament\Resources;
 
-use App\Traits\HasSafeGlobalSearch;
-
-use App\Filament\Resources\CompanyMasters\CompanyMasterResource;
+use App\Filament\Resources\AccountMasters\AccountMasterResource;
 use App\Filament\Resources\ContactDetails\ContactDetailResource;
 use App\Filament\Resources\ItemMasters\ItemMasterResource;
 use App\Filament\Resources\Leads\LeadResource;
 use Filament\GlobalSearch\GlobalSearchResult;
-use Illuminate\Support\Collection;
 
 class GlobalSearchResource
 {
@@ -25,7 +22,7 @@ class GlobalSearchResource
         // ✅ Add module index pages if search matches module name
         $modules = [
             'Leads' => 'filament.admin.resources.leads.index',
-            'Companies' => 'filament.admin.resources.company-masters.index',
+            'Accounts' => 'filament.admin.resources.account-masters.index',
             'Contacts' => 'filament.admin.resources.contacts.index',
             'Items' => 'filament.admin.resources.items.index',
         ];
@@ -46,7 +43,7 @@ class GlobalSearchResource
     {
         return [
             LeadResource::class,
-            CompanyMasterResource::class,
+            AccountMasterResource::class,
             ContactDetailResource::class,
             ItemMasterResource::class,
         ];

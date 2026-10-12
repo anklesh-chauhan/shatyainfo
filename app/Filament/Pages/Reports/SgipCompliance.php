@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\SgipComplianceExporter;
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
 use App\Models\SgipViolation;
 use App\Services\Reports\SgipComplianceQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -19,7 +18,7 @@ class SgipCompliance extends BaseReportPage
 
     protected static ?string $exporter = SgipComplianceExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldExclamation;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldExclamation;
 
     protected static ?string $navigationLabel = 'SGIP compliance';
 

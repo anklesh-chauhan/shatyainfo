@@ -2,23 +2,16 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Spatie\Multitenancy\Commands\TenantsArtisanCommand;
-use App\Filament\Support\GlobalApprovalActionInjector;
-use App\Events\ApprovalStatusChanged;
-use Filament\Actions\Action;
-use Filament\Facades\Filament;
-use Filament\Tables\Table;
-use Filament\Support\Facades\FilamentView;
 use App\Database\Macros\BlueprintMacros;
+use App\Events\ApprovalStatusChanged;
 use App\Listeners\ApprovalListener;
 use App\Models\Media;
 use App\Models\Visit;
 use App\Observers\MediaObserver;
 use App\Observers\VisitObserver;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+use Spatie\Multitenancy\Commands\TenantsArtisanCommand;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->loadMigrationsFrom(database_path('migrations/tenant'));
+
         BlueprintMacros::register();
         Event::listen(ApprovalStatusChanged::class, ApprovalListener::class);
         Media::observe(MediaObserver::class);

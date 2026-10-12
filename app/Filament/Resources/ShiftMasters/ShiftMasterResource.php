@@ -11,7 +11,6 @@ use App\Filament\Resources\ShiftMasters\Schemas\ShiftMasterForm;
 use App\Filament\Resources\ShiftMasters\Tables\ShiftMastersTable;
 use App\Models\ShiftMaster;
 use App\Traits\HasSafeGlobalSearch;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -22,7 +21,7 @@ class ShiftMasterResource extends BaseResource
 
     protected static ?string $model = ShiftMaster::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
     protected static ?string $recordTitleAttribute = 'name';
 

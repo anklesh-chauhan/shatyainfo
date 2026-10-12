@@ -2,33 +2,25 @@
 
 namespace App\Filament\Resources\Users;
 
-use App\Filament\Actions\BulkApprovalAction;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\UserAndAccessCluster;
-use App\Traits\HasSafeGlobalSearch;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
-use App\Filament\Resources\UserResource\Pages;
-use App\Filament\Resources\UserResource\RelationManagers;
+use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Models\User;
-use Filament\Forms;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Spatie\Multitenancy\Models\Tenant;
 
 class UserResource extends Resource
 {
@@ -37,15 +29,10 @@ class UserResource extends Resource
     protected static ?string $model = User::class;
 
     protected static ?string $cluster = UserAndAccessCluster::class;
+
     protected static ?string $navigationLabel = 'User Management';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-user-group';
 
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        // Only register in the admin panel
-        return Tenant::checkCurrent() === false;
-    }
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
     public static function form(Schema $schema): Schema
     {
@@ -102,9 +89,9 @@ class UserResource extends Resource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

@@ -10,7 +10,6 @@ use App\Filament\Resources\LeaveEncashments\Schemas\LeaveEncashmentForm;
 use App\Filament\Resources\LeaveEncashments\Tables\LeaveEncashmentsTable;
 use App\Models\LeaveEncashment;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +23,7 @@ class LeaveEncashmentResource extends Resource
 
     protected static ?string $model = LeaveEncashment::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
     protected static ?string $recordTitleAttribute = 'payroll_month';
 

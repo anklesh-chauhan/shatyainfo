@@ -5,7 +5,6 @@ namespace App\Filament\Pages\Reports;
 use App\Enums\ItemType;
 use App\Filament\Exports\Reports\StockMovementRegisterExporter;
 use App\Services\Reports\StockMovementRegisterQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -17,7 +16,7 @@ class StockMovementRegister extends BaseReportPage
 
     protected static ?string $exporter = StockMovementRegisterExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     protected static ?string $navigationLabel = 'Stock movements';
 

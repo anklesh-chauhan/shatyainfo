@@ -11,6 +11,7 @@ use App\Filament\Resources\ExpenseConfigurations\Tables\ExpenseConfigurationsTab
 use App\Models\ExpenseConfiguration;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -21,7 +22,7 @@ class ExpenseConfigurationResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 

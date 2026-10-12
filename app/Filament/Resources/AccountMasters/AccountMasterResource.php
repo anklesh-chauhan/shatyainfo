@@ -2,63 +2,60 @@
 
 namespace App\Filament\Resources\AccountMasters;
 
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
 use App\Filament\Actions\BulkApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\TrashedFilter;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\RestoreAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
-use App\Filament\Resources\AccountMasters\RelationManagers\ContactDetailsRelationManager;
-use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
-use App\Filament\Resources\AccountMasters\Pages\ListAccountMasters;
-use App\Filament\Resources\AccountMasters\Pages\CreateAccountMaster;
-use App\Filament\Resources\AccountMasters\Pages\EditAccountMaster;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Resources\AccountMasterResource\Pages;
-use App\Models\AccountMaster;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
-use Filament\Tables\Table;
-use App\Traits\CreateAccountMasterTrait;
 use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
 use App\Filament\Resources\AccountMasterCreditDetailResource\RelationManagers\CreditDetailRelationManager;
 use App\Filament\Resources\AccountMasterGSTDetailResource\RelationManagers\GSTDetailRelationManager;
 use App\Filament\Resources\AccountMasters\Pages\AccountMasterInfolist;
+use App\Filament\Resources\AccountMasters\Pages\CreateAccountMaster;
+use App\Filament\Resources\AccountMasters\Pages\EditAccountMaster;
+use App\Filament\Resources\AccountMasters\Pages\ListAccountMasters;
+use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
+use App\Filament\Resources\AccountMasters\RelationManagers\ContactDetailsRelationManager;
 use App\Filament\Resources\AccountMasterStatutoryDetailResource\RelationManagers\StatutoryDetailRelationManager;
+use App\Filament\Resources\BaseResource;
+use App\Models\AccountMaster;
+use App\Traits\CreateAccountMasterTrait;
+use App\Traits\HasSafeGlobalSearch;
 use App\Traits\HasVisibilityScope;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TrashedFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AccountMasterResource extends BaseResource
 {
-    use HasSafeGlobalSearch;
     use CreateAccountMasterTrait;
+    use HasSafeGlobalSearch;
     use HasVisibilityScope;
 
     protected static ?string $model = AccountMaster::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Contacts & Companies';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
+
     protected static ?int $navigationSort = 190;
+
     protected static ?string $navigationLabel = 'Account Masters';
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
-                ...self::getCreateAccountMasterTraitFields()
+                ...self::getCreateAccountMasterTraitFields(),
             ]);
     }
 

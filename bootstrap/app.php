@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureLandlordHost;
+use App\Http\Middleware\EnsureTenantSession;
+use App\Http\Middleware\IdentifyTenant;
 use App\Providers\Filament\AdminPanelProvider;
 use App\Providers\Filament\LandlordPanelProvider;
 use App\Providers\Filament\TenantPanelProvider;
@@ -15,7 +18,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // $middleware->append(\App\Http\Middleware\IdentifyTenant::class);
+        $middleware->prepend(IdentifyTenant::class);
+        $middleware->alias([
+            'landlord' => EnsureLandlordHost::class,
+        ]);
+        $middleware->web(append: [
+            EnsureTenantSession::class,
+        ]);
     })
     ->withProviders([
         AdminPanelProvider::class,

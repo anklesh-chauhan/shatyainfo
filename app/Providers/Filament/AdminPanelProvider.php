@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
+use App\Http\Middleware\PromptCompanySetup;
 use App\Http\Middleware\RedirectMarketingToPunchIn;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
@@ -45,6 +46,7 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearchDebounce(500)
             ->id('admin')
             ->path('admin')
+            ->brandName('Shatya Info')
             ->login()
             ->profile()
             ->colors([
@@ -94,6 +96,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                PromptCompanySetup::class,
             ])
             ->viteTheme('resources/css/app.css')
             ->sidebarCollapsibleOnDesktop()

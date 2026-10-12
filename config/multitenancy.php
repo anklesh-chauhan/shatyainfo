@@ -1,5 +1,11 @@
 <?php
 
+use App\Jobs\ManageCloudflareCname;
+use App\Jobs\ProvisionTenant;
+use App\Models\Tenant;
+use App\Tasks\CustomSwitchTenantDatabaseTask;
+use App\Tasks\SwitchTenantFilesystemTask;
+use App\Tasks\SwitchTenantPermissionCacheTask;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Mail\SendQueuedMailable;
@@ -9,7 +15,8 @@ use Spatie\Multitenancy\Actions\ForgetCurrentTenantAction;
 use Spatie\Multitenancy\Actions\MakeQueueTenantAwareAction;
 use Spatie\Multitenancy\Actions\MakeTenantCurrentAction;
 use Spatie\Multitenancy\Actions\MigrateTenantAction;
-use Spatie\Multitenancy\Models\Tenant;
+use Spatie\Multitenancy\Tasks\PrefixCacheTask;
+use Spatie\Multitenancy\TenantFinder\DomainTenantFinder;
 
 return [
     /*
@@ -19,7 +26,7 @@ return [
      * This class should extend `Spatie\Multitenancy\TenantFinder\TenantFinder`
      *
      */
-    'tenant_finder' => \Spatie\Multitenancy\TenantFinder\DomainTenantFinder::class,
+    'tenant_finder' => DomainTenantFinder::class,
 
     /*
      * These fields are used by tenant:artisan command to match one or more tenant.
@@ -34,10 +41,10 @@ return [
      * A valid task is any class that implements Spatie\Multitenancy\Tasks\SwitchTenantTask
      */
     'switch_tenant_tasks' => [
-        // \Spatie\Multitenancy\Tasks\PrefixCacheTask::class,
-        \App\Tasks\CustomSwitchTenantDatabaseTask::class,
-        // \Spatie\Multitenancy\Tasks\SwitchTenantDatabaseTask::class,
-        // \Spatie\Multitenancy\Tasks\SwitchRouteCacheTask::class,
+        CustomSwitchTenantDatabaseTask::class,
+        PrefixCacheTask::class,
+        SwitchTenantFilesystemTask::class,
+        SwitchTenantPermissionCacheTask::class,
     ],
 
     /*
@@ -88,7 +95,6 @@ return [
      * Your custom action should always extend the default one.
      */
     'actions' => [
-        'make_tenant_current_action' => \App\Tasks\CustomSwitchTenantDatabaseTask::class,
         'make_tenant_current_action' => MakeTenantCurrentAction::class,
         'forget_current_tenant_action' => ForgetCurrentTenantAction::class,
         'make_queue_tenant_aware_action' => MakeQueueTenantAwareAction::class,
@@ -120,6 +126,33 @@ return [
      * Jobs not tenant aware even if these don't implement the NotTenantAware interface.
      */
     'not_tenant_aware_jobs' => [
-        // ...
+        ManageCloudflareCname::class,
+        ProvisionTenant::class,
+    ],
+
+    /*
+     * Hosts that stay on the landlord database. Tenant domains are everyone else.
+     * Leave SESSION_DOMAIN empty so a company session cookie is not sent to
+     * another company host.
+     */
+    'landlord_domains' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('LANDLORD_DOMAINS', 'crm.local,it-erp.test,localhost,127.0.0.1'))
+    ))),
+
+    'base_domain' => env('APP_DOMAIN', 'iterp.in'),
+
+    'geographic_reference_database' => env('GEOGRAPHIC_REFERENCE_DATABASE', 'it_erp_reference'),
+
+    /*
+     * MySQL account host for the dedicated user created with each tenant database.
+     * The user is granted privileges only on that tenant's schema.
+     */
+    'tenant_database_user_host' => env('TENANT_DB_USER_HOST', '%'),
+
+    'cloudflare' => [
+        'zone_id' => env('CLOUDFLARE_ZONE_ID'),
+        'api_token' => env('CLOUDFLARE_API_TOKEN'),
+        'target' => env('CLOUDFLARE_TARGET', 'iterp.in'),
     ],
 ];

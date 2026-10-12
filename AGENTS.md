@@ -376,7 +376,7 @@ Authenticate before testing panel functionality. Filament uses Livewire, so use 
 
 === it-erp rules ===
 
-IT-ERP is a pharma field-force ERP. Admin panel at `/admin` is the product. Sales/Tenant/Landlord panels exist but do not replace Admin.
+Shatya Info is a pharma field-force ERP. Admin panel at `/admin` is the product. Sales/Tenant/Landlord panels exist but do not replace Admin.
 
 ## Domain spine
 

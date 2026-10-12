@@ -9,7 +9,6 @@ use App\Filament\Resources\SampleIssues\Pages\ListSampleIssues;
 use App\Filament\Resources\SampleIssues\Schemas\SampleIssueForm;
 use App\Filament\Resources\SampleIssues\Tables\SampleIssuesTable;
 use App\Models\SampleIssue;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -20,7 +19,7 @@ class SampleIssueResource extends BaseResource
 {
     protected static ?string $model = SampleIssue::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowRightCircle;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

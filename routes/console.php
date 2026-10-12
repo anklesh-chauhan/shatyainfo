@@ -1,12 +1,17 @@
 <?php
 
 use App\Console\Commands\ScanModels;
+use App\Support\Tenancy\RunsAcrossTenants;
 use Illuminate\Foundation\Console\ClosureCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('visits:auto-checkout')->everyMinute();
+Schedule::call(function () {
+    app(RunsAcrossTenants::class)->each(function () {
+        Artisan::call('visits:auto-checkout');
+    });
+})->everyMinute()->name('visits-auto-checkout')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     /** @var ClosureCommand $this */

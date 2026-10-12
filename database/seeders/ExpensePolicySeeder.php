@@ -50,6 +50,7 @@ class ExpensePolicySeeder extends Seeder
         */
 
         $confRule = ExpenseConfiguration::create([
+            'name' => 'Conference Meeting Allowance',
             'expense_type_id' => $conf->id,
             'calculation_strategy' => 'flat',
             'rate' => 1000,
@@ -61,7 +62,7 @@ class ExpensePolicySeeder extends Seeder
             'expense_configuration_id' => $confRule->id,
             'condition_key' => 'travel_type',
             'operator' => '=',
-            'value' => 'CONFERENCE',
+            'value' => 'conference',
         ]);
 
         /*
@@ -71,6 +72,7 @@ class ExpensePolicySeeder extends Seeder
         */
 
         $hill = ExpenseConfiguration::create([
+            'name' => 'Hill Station Daily Allowance Multiplier',
             'expense_type_id' => $da->id,
             'calculation_strategy' => 'multiplier',
             'rate' => 1.5,
@@ -92,6 +94,7 @@ class ExpensePolicySeeder extends Seeder
         */
 
         $travelRule = ExpenseConfiguration::create([
+            'name' => 'Travel Distance Slab Allowance',
             'expense_type_id' => $travel->id,
             'calculation_strategy' => 'slab',
             'priority' => 100,
@@ -118,6 +121,12 @@ class ExpensePolicySeeder extends Seeder
     protected function createFlatRule($expenseTypeId, $travelType, $amount, $priority)
     {
         $config = ExpenseConfiguration::create([
+            'name' => match ($travelType) {
+                'hq' => 'HQ Daily Allowance',
+                'ex_hq' => 'Ex-Station Daily Allowance',
+                'outstation' => 'Outstation Daily Allowance',
+                default => ucwords(str_replace('_', ' ', $travelType)).' Daily Allowance',
+            },
             'expense_type_id' => $expenseTypeId,
             'calculation_strategy' => 'flat',
             'rate' => $amount,

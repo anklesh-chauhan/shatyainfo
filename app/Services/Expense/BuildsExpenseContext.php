@@ -4,6 +4,7 @@ namespace App\Services\Expense;
 
 use App\Models\CityPinCode;
 use App\Models\SalesDcr;
+use App\Models\VisitPurpose;
 
 trait BuildsExpenseContext
 {
@@ -12,7 +13,8 @@ trait BuildsExpenseContext
         $dcr->loadMissing([
             'travelSegments.toAreaTown.city.cityClass',
             'travelSegments.fromAreaTown.city.cityClass',
-            'visits',
+            'visits.visitPurposes',
+            'visits.salesTourPlanDetail',
             'user.employee.positions',
         ]);
 
@@ -52,8 +54,29 @@ trait BuildsExpenseContext
         return $segment?->fromAreaTown;
     }
 
-    protected function resolveTravelType(SalesDcr $dcr): string
+    protected function resolveTravelType(SalesDcr $dcr): string|array
     {
+        $purposeCodes = $dcr->visits
+            ->flatMap(fn ($visit) => $visit->visitPurposes->pluck('code'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $plannedPurposeIds = $dcr->visits
+            ->filter(fn ($visit) => $visit->visitPurposes->isEmpty())
+            ->flatMap(fn ($visit) => $visit->salesTourPlanDetail?->visit_purpose_ids ?? [])
+            ->unique();
+
+        if ($plannedPurposeIds->isNotEmpty()) {
+            $purposeCodes = $purposeCodes->merge(
+                VisitPurpose::query()->whereIn('id', $plannedPurposeIds)->pluck('code'),
+            )->filter()->unique()->values();
+        }
+
+        if ($purposeCodes->isNotEmpty()) {
+            return $purposeCodes->all();
+        }
+
         $visitTerritoryIds = $dcr->visits
             ->pluck('territory_id')
             ->filter()

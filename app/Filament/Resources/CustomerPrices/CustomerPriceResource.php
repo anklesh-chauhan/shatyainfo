@@ -10,7 +10,6 @@ use App\Filament\Resources\CustomerPrices\Schemas\CustomerPriceForm;
 use App\Filament\Resources\CustomerPrices\Tables\CustomerPricesTable;
 use App\Models\CustomerPrice;
 use App\Traits\HasSafeGlobalSearch;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -21,7 +20,7 @@ class CustomerPriceResource extends BaseResource
 
     protected static ?string $model = CustomerPrice::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Sales';
 

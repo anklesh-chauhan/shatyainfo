@@ -2,39 +2,35 @@
 
 namespace App\Filament\Resources\SalesDocumentPreferences;
 
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\Toggle;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\SalesDocumentPreferenceResource\Pages;
+use App\Filament\Resources\SalesDocumentPreferences\Pages\EditSalesDocumentPreference;
+use App\Filament\Resources\SalesDocumentPreferences\Pages\ListSalesDocumentPreferences;
+use App\Models\SalesDocumentPreference;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use App\Filament\Resources\SalesDocumentPreferences\Pages\ListSalesDocumentPreferences;
-use App\Filament\Resources\SalesDocumentPreferences\Pages\EditSalesDocumentPreference;
-use App\Filament\Resources\SalesDocumentPreferenceResource\Pages;
-use App\Filament\Resources\SalesDocumentPreferenceResource\RelationManagers;
-use App\Models\SalesDocumentPreference;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDocumentPreferenceResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = SalesDocumentPreference::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-adjustments-horizontal';
-    protected static string | \UnitEnum | null $navigationGroup = 'Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+
     protected static ?int $navigationSort = 10;
 
     public static function form(Schema $schema): Schema
@@ -150,7 +146,7 @@ class SalesDocumentPreferenceResource extends BaseResource
                 ApprovalAction::make(),
             ])
             ->toolbarActions([]);
-            
+
     }
 
     public static function getRelations(): array

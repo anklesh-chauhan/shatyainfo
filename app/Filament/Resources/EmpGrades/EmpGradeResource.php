@@ -2,45 +2,40 @@
 
 namespace App\Filament\Resources\EmpGrades;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\EmpGrades\Pages\ListEmpGrades;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\EmpGradeResource\RelationManagers;
 use App\Filament\Resources\EmpGrades\Pages\CreateEmpGrade;
 use App\Filament\Resources\EmpGrades\Pages\EditEmpGrade;
-use App\Filament\Resources\EmpGradeResource\Pages;
-use App\Filament\Resources\EmpGradeResource\RelationManagers;
+use App\Filament\Resources\EmpGrades\Pages\ListEmpGrades;
+use App\Models\EmpDeparment;
 use App\Models\EmpGrade;
-use App\Models\EmpDeparment; // Make sure to import the Department model
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema; // Make sure to import the Department model
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
 
 class EmpGradeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = EmpGrade::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-chart-bar'; // Icon for grades
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedStar; // Icon for grades
 
     protected static ?string $cluster = EmployeeManagementCluster::class;
 
@@ -114,9 +109,9 @@ class EmpGradeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

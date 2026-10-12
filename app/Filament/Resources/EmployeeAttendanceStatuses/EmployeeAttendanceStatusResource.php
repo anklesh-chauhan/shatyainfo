@@ -3,19 +3,17 @@
 namespace App\Filament\Resources\EmployeeAttendanceStatuses;
 
 use App\Filament\Clusters\HR\AttendanceCluster;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Pages\CreateEmployeeAttendanceStatus;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Pages\EditEmployeeAttendanceStatus;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Pages\ListEmployeeAttendanceStatuses;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Schemas\EmployeeAttendanceStatusForm;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Tables\EmployeeAttendanceStatusesTable;
 use App\Models\EmployeeAttendanceStatus;
-use BackedEnum;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use App\Traits\HasSafeGlobalSearch;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use App\Traits\HasSafeGlobalSearch;
 
 class EmployeeAttendanceStatusResource extends BaseResource
 {
@@ -23,7 +21,7 @@ class EmployeeAttendanceStatusResource extends BaseResource
 
     protected static ?string $model = EmployeeAttendanceStatus::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckCircle;
 
     protected static ?string $cluster = AttendanceCluster::class;
 

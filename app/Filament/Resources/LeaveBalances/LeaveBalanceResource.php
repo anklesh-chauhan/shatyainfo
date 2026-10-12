@@ -10,7 +10,6 @@ use App\Filament\Resources\LeaveBalances\Schemas\LeaveBalanceForm;
 use App\Filament\Resources\LeaveBalances\Tables\LeaveBalancesTable;
 use App\Models\LeaveBalance;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +23,7 @@ class LeaveBalanceResource extends Resource
 
     protected static ?string $model = LeaveBalance::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalculator;
 
     protected static ?string $cluster = LeaveManagementCluster::class;
 

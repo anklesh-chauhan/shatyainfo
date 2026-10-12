@@ -10,7 +10,6 @@ use App\Filament\Resources\SgipLimits\Schemas\SgipLimitForm;
 use App\Filament\Resources\SgipLimits\Schemas\SgipLimitInfolist;
 use App\Filament\Resources\SgipLimits\Tables\SgipLimitsTable;
 use App\Models\SgipLimit;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -22,7 +21,7 @@ class SgipLimitResource extends Resource
 {
     protected static ?string $model = SgipLimit::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $recordTitleAttribute = 'item_type';
 

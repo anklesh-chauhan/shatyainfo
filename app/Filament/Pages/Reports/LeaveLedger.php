@@ -5,7 +5,6 @@ namespace App\Filament\Pages\Reports;
 use App\Filament\Exports\Reports\LeaveLedgerExporter;
 use App\Models\LeaveType;
 use App\Services\Reports\LeaveLedgerQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -17,7 +16,7 @@ class LeaveLedger extends BaseReportPage
 
     protected static ?string $exporter = LeaveLedgerExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
 
     protected static ?string $navigationLabel = 'Leave ledger';
 

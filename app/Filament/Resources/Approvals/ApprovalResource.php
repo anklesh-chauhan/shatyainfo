@@ -11,7 +11,6 @@ use App\Filament\Resources\Approvals\Schemas\ApprovalInfolist;
 use App\Filament\Resources\Approvals\Tables\ApprovalsTable;
 use App\Models\Approval;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -25,7 +24,7 @@ class ApprovalResource extends Resource
 
     protected static ?string $model = Approval::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckBadge;
 
     protected static ?string $recordTitleAttribute = 'module';
 

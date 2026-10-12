@@ -7,7 +7,6 @@ use App\Filament\Resources\DailyAttendances\DailyAttendanceResource;
 use App\Filament\Resources\Visits\VisitResource;
 use App\Models\PunchVsTourRow;
 use App\Services\Reports\PunchVsTourQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,7 +19,7 @@ class PunchVsTour extends BaseReportPage
 
     protected static ?string $exporter = PunchVsTourExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedExclamationTriangle;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedExclamationTriangle;
 
     protected static ?string $navigationLabel = 'Punch vs tour';
 

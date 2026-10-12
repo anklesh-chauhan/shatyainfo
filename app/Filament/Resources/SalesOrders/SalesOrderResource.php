@@ -2,42 +2,33 @@
 
 namespace App\Filament\Resources\SalesOrders;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\Filter;
-use Filament\Forms\Components\DatePicker;
-use Filament\Actions\EditAction;
-use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\SalesOrders\Pages\ListSalesOrders;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\SalesOrders\Pages\CreateSalesOrder;
 use App\Filament\Resources\SalesOrders\Pages\EditSalesOrder;
-use App\Filament\Resources\SalesOrderResource\Pages;
-use App\Filament\Resources\SalesOrderResource\RelationManagers;
-use App\Models\SalesOrder;
+use App\Filament\Resources\SalesOrders\Pages\ListSalesOrders;
+use App\Helpers\SalesDocumentHelper;
+use App\Models\Organization;
 use App\Models\SalesInvoice;
-use App\Models\NumberSeries;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\SalesOrder;
+use App\Traits\HasSafeGlobalSearch;
+use App\Traits\SalesDocumentResourceTrait;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\RecordActionsPosition;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Traits\SalesDocumentResourceTrait;
-use Filament\Actions\ActionGroup;
-use Illuminate\Support\Str;
-use Filament\Tables\Enums\RecordActionsPosition;
-use App\Helpers\SalesDocumentHelper;
 
 class SalesOrderResource extends BaseResource
 {
@@ -46,9 +37,12 @@ class SalesOrderResource extends BaseResource
 
     protected static ?string $model = SalesOrder::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingCart;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+
     protected static ?int $navigationSort = 20;
+
     protected static ?string $navigationLabel = 'Sales Orders';
 
     public static function getEloquentQuery(): Builder
@@ -159,20 +153,21 @@ class SalesOrderResource extends BaseResource
             ])
             ->recordActions([
                 ActionGroup::make([
-                EditAction::make(),
-                ApprovalAction::make(),
+                    EditAction::make(),
+                    ApprovalAction::make(),
 
-                Action::make('createInvoice')
-                    ->label('Create Invoice')
-                    ->icon('heroicon-o-document-text')
-                    ->requiresConfirmation()
-                    ->color('success')
-                    ->action(function (SalesOrder $record, $livewire) {
-                        $invoice = SalesDocumentHelper::createFrom($record, SalesInvoice::class);
-                        return redirect(route('filament.admin.resources.sales-invoices.edit', $invoice));
-                    }),
+                    Action::make('createInvoice')
+                        ->label('Create Invoice')
+                        ->icon('heroicon-o-document-text')
+                        ->requiresConfirmation()
+                        ->color('success')
+                        ->action(function (SalesOrder $record, $livewire) {
+                            $invoice = SalesDocumentHelper::createFrom($record, SalesInvoice::class);
 
-                Action::make('previewPdf')
+                            return redirect(route('filament.admin.resources.sales-invoices.edit', $invoice));
+                        }),
+
+                    Action::make('previewPdf')
                         ->icon('heroicon-o-eye')
                         ->label('Preview PDF')
                         ->modalHeading('PDF Preview')
@@ -186,15 +181,15 @@ class SalesOrderResource extends BaseResource
 
                             return view('components.pdf-preview', [
                                 'url' => $url,
-                                'organization' => \App\Models\Organization::first(),
+                                'organization' => Organization::first(),
                             ]);
                         }),
 
                     Action::make('downloadPdf')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->label('Download PDF')
-                        ->url(fn($record) => route('sales-documents.download', [
-                            strtolower(class_basename($record)), $record->id
+                        ->url(fn ($record) => route('sales-documents.download', [
+                            strtolower(class_basename($record)), $record->id,
                         ])),
                 ]),
 
@@ -202,9 +197,9 @@ class SalesOrderResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

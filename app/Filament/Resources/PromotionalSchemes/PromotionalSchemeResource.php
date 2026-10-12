@@ -8,7 +8,6 @@ use App\Filament\Resources\PromotionalSchemes\Pages\ListPromotionalSchemes;
 use App\Filament\Resources\PromotionalSchemes\Schemas\PromotionalSchemeForm;
 use App\Filament\Resources\PromotionalSchemes\Tables\PromotionalSchemesTable;
 use App\Models\PromotionalScheme;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -20,7 +19,7 @@ class PromotionalSchemeResource extends Resource
 {
     protected static ?string $model = PromotionalScheme::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTicket;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

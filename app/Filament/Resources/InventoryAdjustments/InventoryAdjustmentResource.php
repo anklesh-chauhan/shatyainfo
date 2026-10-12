@@ -9,7 +9,6 @@ use App\Filament\Resources\InventoryAdjustments\Pages\ListInventoryAdjustments;
 use App\Filament\Resources\InventoryAdjustments\Schemas\InventoryAdjustmentForm;
 use App\Filament\Resources\InventoryAdjustments\Tables\InventoryAdjustmentsTable;
 use App\Models\InventoryAdjustment;
-use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -21,7 +20,7 @@ class InventoryAdjustmentResource extends BaseResource
 {
     protected static ?string $model = InventoryAdjustment::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

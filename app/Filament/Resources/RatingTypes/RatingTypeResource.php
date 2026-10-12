@@ -2,41 +2,37 @@
 
 namespace App\Filament\Resources\RatingTypes;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\RatingTypes\Pages\ListRatingTypes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\RatingTypes\Pages\CreateRatingType;
 use App\Filament\Resources\RatingTypes\Pages\EditRatingType;
-use App\Filament\Resources\RatingTypeResource\Pages;
-use App\Filament\Resources\RatingTypeResource\RelationManagers;
+use App\Filament\Resources\RatingTypes\Pages\ListRatingTypes;
 use App\Models\RatingType;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class RatingTypeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = RatingType::class;
 
     protected static ?string $cluster = LeadConfigurationCluster::class;
+
     protected static ?int $navigationSort = 2;
+
     protected static ?string $navigationLabel = 'Rating Types';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedStar;
 
     public static function form(Schema $schema): Schema
     {
@@ -73,9 +69,9 @@ class RatingTypeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

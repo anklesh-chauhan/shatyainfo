@@ -69,6 +69,14 @@ class ExpenseConfigurationMatcher
         }
 
         $factValue = $facts[$condition->condition_key];
+        if (is_array($factValue)) {
+            return match ($condition->operator) {
+                '=' => in_array((string) $condition->value, $factValue, true),
+                '!=' => ! in_array((string) $condition->value, $factValue, true),
+                default => false,
+            };
+        }
+
         $conditionValue = $this->castConditionValue($condition->value, $factValue);
 
         if ($factValue === null) {

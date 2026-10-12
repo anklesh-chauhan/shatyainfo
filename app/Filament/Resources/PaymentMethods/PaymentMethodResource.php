@@ -2,17 +2,15 @@
 
 namespace App\Filament\Resources\PaymentMethods;
 
-use App\Traits\HasSafeGlobalSearch;
-
+use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\PaymentMethods\Pages\CreatePaymentMethod;
 use App\Filament\Resources\PaymentMethods\Pages\EditPaymentMethod;
 use App\Filament\Resources\PaymentMethods\Pages\ListPaymentMethods;
 use App\Filament\Resources\PaymentMethods\Schemas\PaymentMethodForm;
 use App\Filament\Resources\PaymentMethods\Tables\PaymentMethodsTable;
 use App\Models\PaymentMethod;
-use BackedEnum;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use App\Traits\HasSafeGlobalSearch;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -20,10 +18,12 @@ use Filament\Tables\Table;
 class PaymentMethodResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = PaymentMethod::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-    protected static string | \UnitEnum | null $navigationGroup = 'Accounting & Finance';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
+
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 
     public static function form(Schema $schema): Schema
     {

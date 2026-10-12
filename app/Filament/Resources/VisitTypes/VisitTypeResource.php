@@ -2,42 +2,37 @@
 
 namespace App\Filament\Resources\VisitTypes;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\VisitTypes\Pages\ListVisitTypes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\VisitTypes\Pages\CreateVisitType;
 use App\Filament\Resources\VisitTypes\Pages\EditVisitType;
-use App\Filament\Resources\VisitTypeResource\Pages;
-use App\Filament\Resources\VisitTypeResource\RelationManagers;
+use App\Filament\Resources\VisitTypes\Pages\ListVisitTypes;
 use App\Models\VisitType;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Dom\Text;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class VisitTypeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = VisitType::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
+
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     protected static ?int $navigationSort = 20;
+
     protected static ?string $navigationLabel = 'Visit Types';
 
     public static function form(Schema $schema): Schema
@@ -85,9 +80,9 @@ class VisitTypeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

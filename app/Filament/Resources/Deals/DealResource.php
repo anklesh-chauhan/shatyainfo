@@ -2,69 +2,55 @@
 
 namespace App\Filament\Resources\Deals;
 
-use App\Filament\Actions\BulkApprovalAction;
-
 use App\Filament\Actions\ApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-use App\Models\DealStage;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Textarea;
-use Filament\Actions\ActionGroup;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Deals\Pages\ListDeals;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\EditDeal;
-use App\Filament\Resources\DealResource\Pages;
-use App\Filament\Resources\DealResource\RelationManagers;
+use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Models\Deal;
+use App\Models\DealStage;
 use App\Models\TypeMaster;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasCustomerInteractionFields;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use App\Traits\HasCustomerInteractionFields;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\BadgeColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\GlobalSearch\GlobalSearchResult;
-use Illuminate\Support\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Filament\GlobalSearch\Actions\Action as GlobalSearchAction;
-
-
 
 class DealResource extends BaseResource
 {
     use HasCustomerInteractionFields;
     use HasSafeGlobalSearch;
 
-    protected static ?string $model =  Deal::class;
+    protected static ?string $model = Deal::class;
 
     /**
      * @var DealStage
      */
     protected static ?string $statusModel = DealStage::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Marketing & Field Sales';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
+
     protected static ?int $navigationSort = 20;
 
     protected static ?string $recordTitleAttribute = 'reference_code';
 
     protected static int $globalSearchResultsLimit = 10;
-
 
     public static function form(Schema $schema): Schema
     {
@@ -138,7 +124,6 @@ class DealResource extends BaseResource
                     ->sortable()
                     ->badge(),
 
-
                 TextColumn::make('amount')
                     ->money('usd', true)
                     ->sortable(),
@@ -173,7 +158,6 @@ class DealResource extends BaseResource
                     ->label('Status')
                     ->options(fn () => static::$statusModel::pluck('name', 'id')->toArray()) // ✅ safe
                     ->searchable(),
-
 
                 Filter::make('transaction_date')
                     ->label('Transaction Date Range')
@@ -214,15 +198,15 @@ class DealResource extends BaseResource
             ->recordActions([
                 ActionGroup::make([
                     EditAction::make(),
-                ApprovalAction::make(),
-                ])
+                    ApprovalAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('transaction_date', 'desc')

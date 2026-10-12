@@ -5,7 +5,6 @@ namespace App\Filament\Pages\Reports;
 use App\Filament\Clusters\Reports\ReportsCluster;
 use App\Filament\Pages\Reports\Concerns\AuthorizesReportAccess;
 use App\Filament\Resources\InventoryStocks\InventoryStockResource;
-use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 
@@ -15,7 +14,7 @@ class ReportsOverview extends Page
 
     protected static ?string $cluster = ReportsCluster::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
 
     protected static ?string $navigationLabel = 'Overview';
 

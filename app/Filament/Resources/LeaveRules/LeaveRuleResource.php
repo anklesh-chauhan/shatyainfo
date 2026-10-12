@@ -11,7 +11,6 @@ use App\Filament\Resources\LeaveRules\Schemas\LeaveRuleForm;
 use App\Filament\Resources\LeaveRules\Schemas\LeaveRuleInfolist;
 use App\Filament\Resources\LeaveRules\Tables\LeaveRulesTable;
 use App\Models\LeaveRule;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,7 +22,7 @@ class LeaveRuleResource extends Resource
 {
     protected static ?string $model = LeaveRule::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $recordTitleAttribute = 'name';
 

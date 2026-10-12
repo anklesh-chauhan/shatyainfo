@@ -7,12 +7,12 @@ use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
 use App\Services\IntegrationSettingsService;
 use App\Services\Travel\GoogleRoutesService;
 use Filament\Actions\Action;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
@@ -33,7 +33,7 @@ class IntegrationSettings extends Page implements HasForms
 
     protected static ?string $title = 'API Integrations';
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedKey;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedWrenchScrewdriver;
 
     protected string $view = 'filament.pages.integration-settings';
 

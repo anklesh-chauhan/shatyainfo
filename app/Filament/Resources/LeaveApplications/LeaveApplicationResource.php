@@ -10,7 +10,6 @@ use App\Filament\Resources\LeaveApplications\Pages\ListLeaveApplications;
 use App\Filament\Resources\LeaveApplications\Schemas\LeaveApplicationForm;
 use App\Filament\Resources\LeaveApplications\Tables\LeaveApplicationsTable;
 use App\Models\LeaveApplication;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -21,7 +20,7 @@ class LeaveApplicationResource extends BaseResource
 {
     protected static ?string $model = LeaveApplication::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentPlus;
 
     protected static ?string $recordTitleAttribute = 'reason';
 

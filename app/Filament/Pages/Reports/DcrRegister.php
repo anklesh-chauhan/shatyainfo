@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\DcrRegisterExporter;
 use App\Filament\Resources\SalesDcrs\SalesDcrResource;
 use App\Models\SalesDcr;
 use App\Services\Reports\DcrRegisterQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -19,7 +18,7 @@ class DcrRegister extends BaseReportPage
 
     protected static ?string $exporter = DcrRegisterExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
 
     protected static ?string $navigationLabel = 'DCR register';
 

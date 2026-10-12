@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\VisitCoverageExporter;
 use App\Models\SalesTourPlanDetail;
 use App\Services\Reports\VisitCoverageCalculator;
 use App\Services\Reports\VisitCoverageQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +16,7 @@ class VisitCoverage extends BaseReportPage
 
     protected static ?string $exporter = VisitCoverageExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     protected static ?string $navigationLabel = 'Visit coverage';
 

@@ -2,106 +2,129 @@
 
 namespace App\Jobs;
 
-use Exception;
 use App\Models\Tenant;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Spatie\Multitenancy\Jobs\NotTenantAware;
 
-class ManageCloudflareCname implements ShouldQueue
+class ManageCloudflareCname implements NotTenantAware, ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable;
 
-    protected $tenant;
-    protected $action;
-    protected $oldDomain;
+    public function __construct(
+        public int $tenantId,
+        public string $name,
+        public string $domain,
+        public string $action,
+        public ?string $cloudflareRecordId = null,
+        public ?string $oldDomain = null,
+    ) {}
 
-    public function __construct(Tenant $tenant, string $action, ?string $oldDomain = null)
+    public function handle(): void
     {
-        $this->tenant = $tenant;
-        $this->action = $action;
-        $this->oldDomain = $oldDomain;
-    }
+        $zoneId = config('multitenancy.cloudflare.zone_id');
+        $apiToken = config('multitenancy.cloudflare.api_token');
+        $target = config('multitenancy.cloudflare.target', 'iterp.in');
 
-    public function handle()
-    {
-        $zoneId = env('CLOUDFLARE_ZONE_ID');
-        $apiToken = env('CLOUDFLARE_API_TOKEN');
-        $target = env('CLOUDFLARE_TARGET', 'iterp.in');
-        $subdomain = $this->getSubdomain($this->tenant->domain);
-        Log::info("Managing Cloudflare CNAME for tenant: {$this->tenant->name}, action: {$this->action}, domain: {$this->tenant->domain}, subdomain: {$subdomain}");
-        $baseDomain = 'iterp.in'; // Add APP_DOMAIN to .env for your base domain
+        if (! is_string($zoneId) || $zoneId === '' || ! is_string($apiToken) || $apiToken === '') {
+            Log::info('Skipping Cloudflare DNS because it is not configured.', [
+                'tenant_id' => $this->tenantId,
+                'action' => $this->action,
+            ]);
+
+            return;
+        }
+
+        $recordName = $this->recordName();
+        if ($recordName === null || $recordName === '') {
+            Log::warning('Skipping Cloudflare DNS because the tenant domain has no record name.', [
+                'tenant_id' => $this->tenantId,
+                'domain' => $this->domain,
+            ]);
+
+            return;
+        }
 
         try {
             $headers = [
-                'Authorization' => 'Bearer ' . $apiToken,
+                'Authorization' => 'Bearer '.$apiToken,
                 'Content-Type' => 'application/json',
             ];
 
             if ($this->action === 'create') {
-                // Create CNAME record
                 $response = Http::withHeaders($headers)->post("https://api.cloudflare.com/client/v4/zones/{$zoneId}/dns_records", [
                     'type' => 'CNAME',
-                    'name' => "{$subdomain}",
-                    'content' => $target,
-                    'ttl' => 3600,
-                    'proxied' => true, // Set to false for DNS-only
-                ]);
-
-                if ($response->successful()) {
-                    $recordId = $response->json()['result']['id'];
-                    $this->tenant->update(['cloudflare_record_id' => $recordId]);
-                    Log::info("Created CNAME record forr {$subdomain}.{$baseDomain}, record ID: {$recordId}");
-                } else {
-                    Log::error("Failed to create CNAME: " . $response->body());
-                }
-            } elseif ($this->action === 'update' && $this->tenant->cloudflare_record_id) {
-                // Update CNAME record
-                $response = Http::withHeaders($headers)->patch("https://api.cloudflare.com/client/v4/zones/{$zoneId}/dns_records/{$this->tenant->cloudflare_record_id}", [
-                    'type' => 'CNAME',
-                    'name' => "{$subdomain}",
+                    'name' => $recordName,
                     'content' => $target,
                     'ttl' => 3600,
                     'proxied' => true,
                 ]);
 
                 if ($response->successful()) {
-                    Log::info("Updated CNAME record for {$subdomain}.{$baseDomain}, record ID: {$this->tenant->cloudflare_record_id}");
+                    $recordId = $response->json('result.id');
+                    Tenant::query()->whereKey($this->tenantId)->update([
+                        'cloudflare_record_id' => $recordId,
+                    ]);
+                    Log::info('Created Cloudflare CNAME.', [
+                        'tenant_id' => $this->tenantId,
+                        'name' => $recordName,
+                    ]);
                 } else {
-                    Log::error("Failed to update CNAME: " . $response->body());
+                    Log::error('Failed to create Cloudflare CNAME.', [
+                        'tenant_id' => $this->tenantId,
+                        'status' => $response->status(),
+                    ]);
                 }
-            } elseif ($this->action === 'delete' && $this->tenant->cloudflare_record_id) {
-                // Delete CNAME record
-                $response = Http::withHeaders($headers)->delete("https://api.cloudflare.com/client/v4/zones/{$zoneId}/dns_records/{$this->tenant->cloudflare_record_id}");
+            } elseif ($this->action === 'update' && $this->cloudflareRecordId) {
+                $response = Http::withHeaders($headers)->patch("https://api.cloudflare.com/client/v4/zones/{$zoneId}/dns_records/{$this->cloudflareRecordId}", [
+                    'type' => 'CNAME',
+                    'name' => $recordName,
+                    'content' => $target,
+                    'ttl' => 3600,
+                    'proxied' => true,
+                ]);
 
-                if ($response->successful()) {
-                    Log::info("Deleted CNAME record for {$subdomain}.{$baseDomain}, record ID: {$this->tenant->cloudflare_record_id}");
-                } else {
-                    Log::error("Failed to delete CNAME: " . $response->body());
+                if (! $response->successful()) {
+                    Log::error('Failed to update Cloudflare CNAME.', [
+                        'tenant_id' => $this->tenantId,
+                        'status' => $response->status(),
+                    ]);
+                }
+            } elseif ($this->action === 'delete' && $this->cloudflareRecordId) {
+                $response = Http::withHeaders($headers)->delete("https://api.cloudflare.com/client/v4/zones/{$zoneId}/dns_records/{$this->cloudflareRecordId}");
+
+                if (! $response->successful()) {
+                    Log::error('Failed to delete Cloudflare CNAME.', [
+                        'tenant_id' => $this->tenantId,
+                        'status' => $response->status(),
+                    ]);
                 }
             }
-        } catch (Exception $e) {
-            Log::error("Error processing Cloudflare {$this->action} for tenant {$this->tenant->name}: {$e->getMessage()}", ['exception' => $e->getTraceAsString()]);
+        } catch (Exception $exception) {
+            Log::error('Cloudflare DNS job failed.', [
+                'tenant_id' => $this->tenantId,
+                'action' => $this->action,
+                'message' => $exception->getMessage(),
+            ]);
         }
     }
 
-    protected function getSubdomain(string $fullDomain): ?string
+    protected function recordName(): ?string
     {
-        $baseDomain = env('APP_DOMAIN', 'iterp.in');
+        $baseDomain = (string) config('multitenancy.base_domain', 'iterp.in');
+        $domain = strtolower($this->domain);
 
-        // Ensure the base domain is stripped from the full domain
-        if (str_ends_with($fullDomain, $baseDomain)) {
-            $subdomainPart = str_replace('.' . $baseDomain, '', $fullDomain);
+        if ($baseDomain !== '' && str_ends_with($domain, '.'.$baseDomain)) {
+            $subdomain = substr($domain, 0, -1 * (strlen($baseDomain) + 1));
 
-            // If nothing remains, no subdomain exists
-            return $subdomainPart === $baseDomain ? null : $subdomainPart;
-            Log::info("Extracted subdomain: {$subdomainPart} from full domain: {$fullDomain}");
+            return $subdomain !== '' ? $subdomain : null;
         }
-        // No match found, return as-is (fallback)
-        return null;
+
+        return $domain !== '' ? $domain : null;
     }
 }

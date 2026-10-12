@@ -11,7 +11,6 @@ use App\Filament\Resources\DailyAttendances\Schemas\DailyAttendanceForm;
 use App\Filament\Resources\DailyAttendances\Tables\DailyAttendancesTable;
 use App\Models\DailyAttendance;
 use App\Traits\HasSafeGlobalSearch;
-use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +23,7 @@ class DailyAttendanceResource extends BaseResource
 
     protected static ?string $model = DailyAttendance::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
     protected static ?string $recordTitleAttribute = null;
 

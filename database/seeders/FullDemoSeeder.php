@@ -352,7 +352,7 @@ class FullDemoSeeder extends Seeder
             ],
         );
 
-        foreach ([now()->subMonth(), now()] as $month) {
+        foreach ([now()->subMonthNoOverflow(), now()] as $month) {
             $label = $month->format('Y-m');
             $plan = SalesTourPlan::query()
                 ->where('user_id', $sales->id)
@@ -484,6 +484,16 @@ class FullDemoSeeder extends Seeder
             : Carbon::parse($definition['date']);
         $patch = $graph['patches'][$definition['patch']];
         $account = $graph['accounts'][$definition['account']];
+
+        if (str_ends_with($definition['document_number'], '-TODAY')) {
+            $previous = Visit::query()->where('document_number', $definition['document_number'])->first();
+
+            if ($previous && ! Carbon::parse($previous->visit_date)->isSameDay($date)) {
+                $previous->update([
+                    'document_number' => $definition['document_number'].'-'.$previous->id,
+                ]);
+            }
+        }
 
         $dcr = SalesDcr::query()->firstOrCreate(
             [
@@ -864,7 +874,7 @@ class FullDemoSeeder extends Seeder
     private function samples(User $sales, array $graph, array $items, array $locations, Visit $pastVisit): void
     {
         foreach ([$items['sample'], $items['commercial']] as $item) {
-            InventoryStock::query()->updateOrCreate(
+            InventoryStock::query()->firstOrCreate(
                 [
                     'item_master_id' => $item->id,
                     'location_master_id' => $locations['hq']->id,
@@ -1098,7 +1108,6 @@ class FullDemoSeeder extends Seeder
             $cursor->addDay();
         }
 
-        $this->punch($employee, today(), 'in', '09:02:00');
     }
 
     private function punch(Employee $employee, Carbon $date, string $type, string $time): void

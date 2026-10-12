@@ -11,7 +11,6 @@ use App\Filament\Resources\ApprovalSettings\Tables\ApprovalSettingsTable;
 use App\Filament\Resources\BaseResource;
 use App\Models\ApprovalSetting;
 use App\Traits\HasSafeGlobalSearch;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -22,7 +21,7 @@ class ApprovalSettingResource extends BaseResource
 
     protected static ?string $model = ApprovalSetting::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCog6Tooth;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 

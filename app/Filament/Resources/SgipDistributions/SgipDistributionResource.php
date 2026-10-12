@@ -9,7 +9,6 @@ use App\Filament\Resources\SgipDistributions\Schemas\SgipDistributionForm;
 use App\Filament\Resources\SgipDistributions\Tables\SgipDistributionsTable;
 use App\Models\SgipDistribution;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,7 +22,7 @@ class SgipDistributionResource extends Resource
 
     protected static ?string $model = SgipDistribution::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
     protected static ?string $recordTitleAttribute = 'approval_status';
 

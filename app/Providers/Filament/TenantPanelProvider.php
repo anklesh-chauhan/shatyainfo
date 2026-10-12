@@ -4,7 +4,6 @@ namespace App\Providers\Filament;
 
 use App\Filament\Resources\TenantUsers\TenantUserResource;
 use App\Filament\Tenant\Pages\Dashboard;
-use App\Http\Middleware\IdentifyTenant;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
@@ -28,7 +27,7 @@ class TenantPanelProvider extends PanelProvider
         return $panel
             ->id('tenant')
             ->path('tenant')
-            ->brandName('Tenant CRM')
+            ->brandName('Shatya Info')
             ->login()
             ->globalSearch(true)
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
@@ -48,7 +47,6 @@ class TenantPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->middleware([
                 DispatchServingFilamentEvent::class,
-                IdentifyTenant::class,
                 'web',
             ])
             ->authGuard('tenant')

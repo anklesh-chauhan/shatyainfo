@@ -9,7 +9,6 @@ use App\Filament\Resources\ApprovalFlows\Pages\ListApprovalFlows;
 use App\Filament\Resources\ApprovalFlows\Schemas\ApprovalFlowForm;
 use App\Filament\Resources\ApprovalFlows\Tables\ApprovalFlowsTable;
 use App\Models\ApprovalFlow;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,7 +20,7 @@ class ApprovalFlowResource extends Resource
 {
     protected static ?string $model = ApprovalFlow::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 

@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\ExpenseSummaryExporter;
 use App\Filament\Resources\SalesDcrs\SalesDcrResource;
 use App\Models\SalesDcrExpense;
 use App\Services\Reports\ExpenseSummaryQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -21,7 +20,7 @@ class ExpenseSummary extends BaseReportPage
 
     protected static ?string $exporter = ExpenseSummaryExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
 
     protected static ?string $navigationLabel = 'Expense summary';
 

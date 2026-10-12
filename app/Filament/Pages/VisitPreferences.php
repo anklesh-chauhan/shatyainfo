@@ -18,6 +18,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 class VisitPreferences extends Page implements HasForms
 {
@@ -29,7 +30,7 @@ class VisitPreferences extends Page implements HasForms
 
     protected static ?string $title = 'Visit Preferences';
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 

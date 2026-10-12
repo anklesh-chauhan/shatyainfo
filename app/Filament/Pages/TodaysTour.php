@@ -19,6 +19,7 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -26,7 +27,7 @@ class TodaysTour extends Page implements HasActions, HasForms
 {
     use HasVisitManagement, InteractsWithActions, InteractsWithForms;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-map';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     protected static ?string $navigationLabel = 'Today’s Visits';
 

@@ -12,7 +12,6 @@ use App\Filament\Resources\WeekOffs\Schemas\WeekOffInfolist;
 use App\Filament\Resources\WeekOffs\Tables\WeekOffsTable;
 use App\Models\WeekOff;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -26,7 +25,7 @@ class WeekOffResource extends Resource
 
     protected static ?string $model = WeekOff::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
 
     protected static ?string $recordTitleAttribute = 'day_of_week';
 

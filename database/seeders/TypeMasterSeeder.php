@@ -2,99 +2,49 @@
 
 namespace Database\Seeders;
 
+use App\Models\AccountMaster;
+use App\Models\Address;
+use App\Models\Deal;
+use App\Models\LocationMaster;
+use App\Models\OrganizationalUnit;
+use App\Models\StandardFareChart;
 use App\Models\TypeMaster;
 use Illuminate\Database\Seeder;
 
 class TypeMasterSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        /* =====================================================
-         | ACCOUNT MASTER TYPES
-         ===================================================== */
-
-        $customer = TypeMaster::factory()
-            ->accountRoot()
-            ->create(['name' => 'Customer']);
-
-        $vendor = TypeMaster::factory()
-            ->accountRoot()
-            ->create(['name' => 'Vendor']);
-
-        $dealer = TypeMaster::factory()
-            ->accountRoot()
-            ->create(['name' => 'Dealer']);
-
-        $transporter = TypeMaster::factory()
-            ->accountRoot()
-            ->create(['name' => 'Transporter']);
-
-        // Account sub-types
-        TypeMaster::factory()->subType($customer)->create(['name' => 'Retail Customer']);
-        TypeMaster::factory()->subType($customer)->create(['name' => 'Corporate Customer']);
-        TypeMaster::factory()->subType($customer)->create(['name' => 'Government Customer']);
-
-        TypeMaster::factory()->subType($vendor)->create(['name' => 'Manufacturer Vendor']);
-        TypeMaster::factory()->subType($vendor)->create(['name' => 'Trader Vendor']);
-        TypeMaster::factory()->subType($vendor)->create(['name' => 'Service Vendor']);
-
-        TypeMaster::factory()->subType($dealer)->create(['name' => 'Authorized Dealer']);
-        TypeMaster::factory()->subType($dealer)->create(['name' => 'Channel Partner']);
-
-        TypeMaster::factory()->subType($transporter)->create(['name' => 'Fleet Transporter']);
-        TypeMaster::factory()->subType($transporter)->create(['name' => 'Individual Transporter']);
-
-        /* =====================================================
-         | ADDRESS TYPES
-         ===================================================== */
-
-        $office = TypeMaster::factory()
-            ->addressRoot()
-            ->create(['name' => 'Office Address']);
-
-        TypeMaster::factory()->subType($office)->create(['name' => 'Registered Office']);
-        TypeMaster::factory()->subType($office)->create(['name' => 'Head Office']);
-
-        /* =====================================================
-         | DEAL TYPES
-         ===================================================== */
-
-        $recurring = TypeMaster::factory()
-            ->dealRoot()
-            ->create(['name' => 'Recurring Revenue']);
-
-        TypeMaster::factory()->subType($recurring)->create(['name' => 'AMC Deal']);
-        TypeMaster::factory()->subType($recurring)->create(['name' => 'Subscription Deal']);
-
-        /* =====================================================
-         | LOCATION TYPES
-         ===================================================== */
-
-        $branch = TypeMaster::factory()
-            ->locationRoot()
-            ->create(['name' => 'Branch']);
-
-        $warehouse = TypeMaster::factory()
-            ->locationRoot()
-            ->create(['name' => 'Warehouse']);
-
-        TypeMaster::factory()->subType($branch)->create(['name' => 'Regional Branch']);
-        TypeMaster::factory()->subType($warehouse)->create(['name' => 'Cold Storage Warehouse']);
-
-        /* =====================================================
-         | SFC TYPES
-         ===================================================== */
-        $sfcTypes = [
-            'Local / HQ',
-            'Intra-District / Ex-Station / Ex-HQ',
-            'Out-Station',
+        $types = [
+            AccountMaster::class => [
+                'Customer' => ['Retail Customer', 'Corporate Customer', 'Government Customer'],
+                'Vendor' => ['Manufacturer Vendor', 'Trader Vendor', 'Service Vendor'],
+                'Dealer' => ['Authorized Dealer', 'Channel Partner'],
+                'Transporter' => ['Fleet Transporter', 'Individual Transporter'],
+            ],
+            Address::class => ['Office Address' => ['Registered Office', 'Head Office']],
+            Deal::class => ['Recurring Revenue' => ['AMC Deal', 'Subscription Deal']],
+            LocationMaster::class => ['Branch' => ['Regional Branch'], 'Warehouse' => ['Cold Storage Warehouse']],
+            OrganizationalUnit::class => ['Organizational Unit' => ['Head Office', 'Division', 'Plant', 'Department']],
+            StandardFareChart::class => ['Local / HQ' => [], 'Intra-District / Ex-Station / Ex-HQ' => [], 'Out-Station' => []],
         ];
 
-        foreach ($sfcTypes as $typeName) {
-            TypeMaster::factory()
-                ->standardFareChartRoot()
-                ->create(['name' => $typeName]);
-        }
+        foreach ($types as $model => $roots) {
+            foreach ($roots as $name => $children) {
+                $root = TypeMaster::query()->firstOrCreate([
+                    'name' => $name,
+                    'typeable_type' => $model,
+                    'parent_id' => null,
+                ], ['description' => $name]);
 
+                foreach ($children as $child) {
+                    TypeMaster::query()->firstOrCreate([
+                        'name' => $child,
+                        'typeable_type' => $model,
+                        'parent_id' => $root->id,
+                    ], ['description' => $child]);
+                }
+            }
+        }
     }
 }

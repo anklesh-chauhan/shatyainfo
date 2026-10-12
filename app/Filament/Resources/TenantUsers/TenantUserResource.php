@@ -2,41 +2,47 @@
 
 namespace App\Filament\Resources\TenantUsers;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\TenantUsers\Pages\ListTenantUsers;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TenantUsers\Pages\CreateTenantUser;
 use App\Filament\Resources\TenantUsers\Pages\EditTenantUser;
-use App\Filament\Resources\TenantUserResource\Pages;
-use App\Filament\Resources\TenantUserResource\RelationManagers;
+use App\Filament\Resources\TenantUsers\Pages\ListTenantUsers;
+use App\Models\Tenant;
 use App\Models\TenantUser;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TenantUserResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = TenantUser::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static string | \UnitEnum | null $navigationGroup = 'Global Config';
+    public static function canAccess(): bool
+    {
+        if (Tenant::checkCurrent()) {
+            return false;
+        }
+
+        return parent::canAccess();
+    }
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Global Config';
+
     protected static ?string $navigationParentItem = 'User Management';
+
     protected static ?int $navigationSort = 1000;
+
     protected static ?string $navigationLabel = 'Tenants Users';
 
     public static function form(Schema $schema): Schema
@@ -78,10 +84,10 @@ class TenantUserResource extends BaseResource
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    
-                        BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    BulkApprovalAction::make(),
+
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

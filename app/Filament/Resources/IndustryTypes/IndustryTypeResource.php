@@ -2,41 +2,37 @@
 
 namespace App\Filament\Resources\IndustryTypes;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\IndustryTypes\Pages\ListIndustryTypes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\IndustryTypes\Pages\CreateIndustryType;
 use App\Filament\Resources\IndustryTypes\Pages\EditIndustryType;
-use App\Filament\Resources\IndustryTypeResource\Pages;
-use App\Filament\Resources\IndustryTypeResource\RelationManagers;
+use App\Filament\Resources\IndustryTypes\Pages\ListIndustryTypes;
 use App\Models\IndustryType;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class IndustryTypeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = IndustryType::class;
 
     protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     protected static ?int $navigationSort = 2;
+
     protected static ?string $navigationLabel = 'Industry Types';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
     public static function form(Schema $schema): Schema
     {
@@ -73,9 +69,9 @@ class IndustryTypeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

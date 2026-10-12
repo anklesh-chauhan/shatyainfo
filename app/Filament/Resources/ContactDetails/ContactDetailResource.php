@@ -2,38 +2,31 @@
 
 namespace App\Filament\Resources\ContactDetails;
 
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Grid;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use App\Models\Designation;
-use App\Models\Department;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Hidden;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\ContactDetails\Pages\ListContactDetails;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ContactDetails\Pages\CreateContactDetail;
 use App\Filament\Resources\ContactDetails\Pages\EditContactDetail;
-use App\Filament\Resources\ContactDetailResource\Pages;
-use App\Models\ContactDetail;
+use App\Filament\Resources\ContactDetails\Pages\ListContactDetails;
 use App\Models\CityPinCode;
 use App\Models\Company;
-use Filament\Actions\Concerns\HasForm;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\ContactDetail;
+use App\Models\Department;
+use App\Models\Designation;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-
 
 class ContactDetailResource extends BaseResource
 {
@@ -41,9 +34,12 @@ class ContactDetailResource extends BaseResource
 
     protected static ?string $model = ContactDetail::class;
 
-    protected static string | \UnitEnum | null $navigationGroup = 'Contacts & Companies';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-user';
+    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
+
     protected static ?string $navigationLabel = 'Contacts';
+
     protected static ?int $navigationSort = 50;
 
     public static function form(Schema $schema): Schema
@@ -55,12 +51,12 @@ class ContactDetailResource extends BaseResource
                         // ✅ Salutation
                         Select::make('salutation')
                             ->options([
-                                'Mr.'   => 'Mr.',
-                                'Mrs.'  => 'Mrs.',
-                                'Ms.'   => 'Ms.',
-                                'Dr.'   => 'Dr.',
+                                'Mr.' => 'Mr.',
+                                'Mrs.' => 'Mrs.',
+                                'Ms.' => 'Ms.',
+                                'Dr.' => 'Dr.',
                                 'Prof.' => 'Prof.',
-                                'Er.'   => 'Er.',
+                                'Er.' => 'Er.',
                                 'Other' => 'Other',
                             ])
                             ->nullable()
@@ -75,7 +71,7 @@ class ContactDetailResource extends BaseResource
                         TextInput::make('last_name')
                             ->label('Last Name')
                             ->columnSpan(1),
-                        ])->columnSpanFull(),
+                    ])->columnSpanFull(),
                 Grid::make(3) // ✅ Three-column layout
                     ->schema([
                         TextInput::make('email')
@@ -94,23 +90,23 @@ class ContactDetailResource extends BaseResource
                             ->tel()
                             ->label('Alternate Phone'),
 
-                        ])->columnSpanFull(),
+                    ])->columnSpanFull(),
                 Grid::make(3) // ✅ Three-column layout
                     ->schema([
                         Select::make('designation_id')
                             ->label('Designation')
                             ->options(function () {
-                                return \App\Models\Designation::pluck('name', 'id')->toArray();
+                                return Designation::pluck('name', 'id')->toArray();
                             })
                             ->searchable()
                             ->nullable()
                             ->createOptionForm([
                                 TextInput::make('name')
                                     ->required()
-                                    ->label('New Designation')
+                                    ->label('New Designation'),
                             ])
                             ->createOptionUsing(function (array $data) {
-                                return \App\Models\Designation::create($data)->id;
+                                return Designation::create($data)->id;
                             })
                             ->preload(),
 
@@ -124,7 +120,7 @@ class ContactDetailResource extends BaseResource
                             ->createOptionForm([
                                 TextInput::make('name')
                                     ->required()
-                                    ->label('New Department')
+                                    ->label('New Department'),
                             ])
                             ->createOptionUsing(function (array $data) {
                                 return Department::create($data)->id;  // ✅ Create and return ID
@@ -135,101 +131,102 @@ class ContactDetailResource extends BaseResource
                             ->native(false)
                             ->label('Birthday'),
 
-                        ])->columnSpanFull(),
+                    ])->columnSpanFull(),
 
-                        Select::make('company_id')
-                            ->relationship('company', 'name')
-                            ->searchable()
-                            ->nullable()
-                            ->reactive() // ✅ Enables dynamic updates
-                            ->afterStateHydrated(function (callable $set, callable $get, $state) {
-                                // ✅ Ensure `company_id` persists after new company creation
-                                if ($state) {
-                                    $set('addresses', collect($get('addresses') ?? [])->map(function ($address) use ($state) {
-                                        $address['company_id'] = $state;
-                                        $address['address_type'] = $state ? 'Company' : ($address['address_type'] ?? 'Other');
-                                        return $address;
-                                    })->toArray());
-                                }
-                            })
-                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
-                                if ($state) {
-                                    $company = Company::with('addresses')->find($state);
+                Select::make('company_id')
+                    ->relationship('company', 'name')
+                    ->searchable()
+                    ->nullable()
+                    ->reactive() // ✅ Enables dynamic updates
+                    ->afterStateHydrated(function (callable $set, callable $get, $state) {
+                        // ✅ Ensure `company_id` persists after new company creation
+                        if ($state) {
+                            $set('addresses', collect($get('addresses') ?? [])->map(function ($address) use ($state) {
+                                $address['company_id'] = $state;
+                                $address['address_type'] = $state ? 'Company' : ($address['address_type'] ?? 'Other');
 
-                                    if ($company && $company->addresses->isNotEmpty()) {
-                                        $companyAddress = $company->addresses->first();
+                                return $address;
+                            })->toArray());
+                        }
+                    })
+                    ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                        if ($state) {
+                            $company = Company::with('addresses')->find($state);
 
-                                        // ✅ Auto-fill company address with `company_id`
-                                        $set('addresses', [
-                                            [
-                                                'street'       => $companyAddress->street,
-                                                'area_town'    => $companyAddress->area_town,
-                                                'pin_code'     => $companyAddress->pin_code,
-                                                'city_id'      => $companyAddress->city_id,
-                                                'state_id'     => $companyAddress->state_id,
-                                                'country_id'   => $companyAddress->country_id,
-                                                'address_type' => 'Company',
-                                                'company_id'   => $company->id, // ✅ Inject company_id directly
-                                            ],
-                                        ]);
-                                    }
-                                }
-                            })
-                            ->label('Company (Optional)')
-                            ->createOptionForm([
-                                Grid::make(2)
-                                ->schema([
-                                    TextInput::make('name')
-                                        ->required()
-                                        ->label('Company Name'),
+                            if ($company && $company->addresses->isNotEmpty()) {
+                                $companyAddress = $company->addresses->first();
 
-                                    TextInput::make('email')
-                                        ->email()
-                                        ->nullable()
-                                        ->label('Company Email'),
+                                // ✅ Auto-fill company address with `company_id`
+                                $set('addresses', [
+                                    [
+                                        'street' => $companyAddress->street,
+                                        'area_town' => $companyAddress->area_town,
+                                        'pin_code' => $companyAddress->pin_code,
+                                        'city_id' => $companyAddress->city_id,
+                                        'state_id' => $companyAddress->state_id,
+                                        'country_id' => $companyAddress->country_id,
+                                        'address_type' => 'Company',
+                                        'company_id' => $company->id, // ✅ Inject company_id directly
+                                    ],
+                                ]);
+                            }
+                        }
+                    })
+                    ->label('Company (Optional)')
+                    ->createOptionForm([
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('name')
+                                    ->required()
+                                    ->label('Company Name'),
 
-                                    TextInput::make('website')
-                                        ->url()
-                                        ->nullable()
-                                        ->label('Website'),
+                                TextInput::make('email')
+                                    ->email()
+                                    ->nullable()
+                                    ->label('Company Email'),
 
-                                    Select::make('industry_type_id')
-                                        ->relationship('industryType', 'name')
-                                        ->searchable()
-                                        ->nullable()
-                                        ->label('Industry Type')
-                                        ->preload(),
+                                TextInput::make('website')
+                                    ->url()
+                                    ->nullable()
+                                    ->label('Website'),
 
-                                    TextInput::make('no_of_employees')
-                                        ->maxLength(255),
+                                Select::make('industry_type_id')
+                                    ->relationship('industryType', 'name')
+                                    ->searchable()
+                                    ->nullable()
+                                    ->label('Industry Type')
+                                    ->preload(),
 
-                                    Textarea::make('description')
-                                        ->nullable()
-                                        ->label('Company Description'),
-                                ])->columnSpanFull()
-                            ])
-                            ->createOptionUsing(function (array $data, callable $set, callable $get) {
-                                $company = Company::create($data);
+                                TextInput::make('no_of_employees')
+                                    ->maxLength(255),
 
-                                // ✅ Force `.afterStateUpdated()` to run and apply logic
-                                $set('company_id', $company->id);
+                                Textarea::make('description')
+                                    ->nullable()
+                                    ->label('Company Description'),
+                            ])->columnSpanFull(),
+                    ])
+                    ->createOptionUsing(function (array $data, callable $set, callable $get) {
+                        $company = Company::create($data);
 
-                                // ✅ Inject newly created `company_id` into addresses array
-                                $set('addresses', collect($get('addresses') ?? [])->map(function ($address) use ($company) {
-                                    $address['company_id'] = $company->id;
-                                    $address['address_type'] = 'Company';
-                                    return $address;
-                                })->toArray());
+                        // ✅ Force `.afterStateUpdated()` to run and apply logic
+                        $set('company_id', $company->id);
 
-                                return $company->id; // ✅ Return the new company ID
-                            })
-                            ->preload(), // ✅ Preload data for faster search
+                        // ✅ Inject newly created `company_id` into addresses array
+                        $set('addresses', collect($get('addresses') ?? [])->map(function ($address) use ($company) {
+                            $address['company_id'] = $company->id;
+                            $address['address_type'] = 'Company';
 
+                            return $address;
+                        })->toArray());
 
-                        TextInput::make('whatsapp_number')
-                            ->tel()
-                            ->label('WhatsApp Number')
-                            ->placeholder('Same as phone number unless changed'),
+                        return $company->id; // ✅ Return the new company ID
+                    })
+                    ->preload(), // ✅ Preload data for faster search
+
+                TextInput::make('whatsapp_number')
+                    ->tel()
+                    ->label('WhatsApp Number')
+                    ->placeholder('Same as phone number unless changed'),
 
                 Grid::make(4) // ✅ Three-column layout
                     ->schema([
@@ -245,69 +242,69 @@ class ContactDetailResource extends BaseResource
                         Textarea::make('notes')
                             ->rows(3)
                             ->label('Additional Notes'),
-                        ])->columnSpanFull(),
+                    ])->columnSpanFull(),
 
                 Grid::make(1) // ✅ Three-column layout
-                ->schema([
-
-                    // 🔄 Add Address Repeater
-                    Repeater::make('addresses')
-                    ->relationship('addresses')
                     ->schema([
-                        Grid::make(3) // ✅ Three-column layout
-                        ->schema([
 
-                            Hidden::make('company_id')
-                                ->default(fn (callable $get) => $get('company_id')) // ✅ Auto-set when creating new records
-                                ->dehydrated(),
+                        // 🔄 Add Address Repeater
+                        Repeater::make('addresses')
+                            ->relationship('addresses')
+                            ->schema([
+                                Grid::make(3) // ✅ Three-column layout
+                                    ->schema([
 
-                            Select::make('address_type')
-                                ->options([
-                                    'Company' => 'Company',
-                                    'Home' => 'Home',
-                                    'Office' => 'Office',
-                                    'Other' => 'Other',
-                                ])
-                                ->required()
-                                ->label('Address Type'),
+                                        Hidden::make('company_id')
+                                            ->default(fn (callable $get) => $get('company_id')) // ✅ Auto-set when creating new records
+                                            ->dehydrated(),
 
-                            TextInput::make('street')->required(),
-                            TextInput::make('area_town')->required(),
+                                        Select::make('address_type')
+                                            ->options([
+                                                'Company' => 'Company',
+                                                'Home' => 'Home',
+                                                'Office' => 'Office',
+                                                'Other' => 'Other',
+                                            ])
+                                            ->required()
+                                            ->label('Address Type'),
 
-                            TextInput::make('pin_code')
-                                ->reactive()
-                                ->afterStateUpdated(function (callable $set, callable $get, $state) {
-                                    if (!$get('city_id')) {
-                                        $pinCodeDetails = CityPinCode::where('pin_code', $state)->first();
-                                        if ($pinCodeDetails) {
-                                            $set('area_town', $pinCodeDetails->area_town);
-                                            $set('city_id', $pinCodeDetails->city_id);
-                                            $set('state_id', $pinCodeDetails->state_id);
-                                            $set('country_id', $pinCodeDetails->country_id);
-                                        }
-                                    }
-                                }),
+                                        TextInput::make('street')->required(),
+                                        TextInput::make('area_town')->required(),
 
-                            Select::make('city_id')
-                                ->relationship('city', 'name')
-                                ->searchable(),
+                                        TextInput::make('pin_code')
+                                            ->reactive()
+                                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                                if (! $get('city_id')) {
+                                                    $pinCodeDetails = CityPinCode::where('pin_code', $state)->first();
+                                                    if ($pinCodeDetails) {
+                                                        $set('area_town', $pinCodeDetails->area_town);
+                                                        $set('city_id', $pinCodeDetails->city_id);
+                                                        $set('state_id', $pinCodeDetails->state_id);
+                                                        $set('country_id', $pinCodeDetails->country_id);
+                                                    }
+                                                }
+                                            }),
 
-                            Select::make('state_id')
-                                ->relationship('state', 'name')
-                                ->searchable(),
+                                        Select::make('city_id')
+                                            ->relationship('city', 'name')
+                                            ->searchable(),
 
-                            Select::make('country_id')
-                                ->relationship('country', 'name')
-                                ->searchable(),
-                        ])->columnSpanFull(),
-                    ])->columnSpanFull()
-                    ->collapsible() // Optional for better UI
-                    ->orderColumn() // Enables drag & drop sorting
-                    ->addActionLabel('Add Address') // ✅ Custom add button text
-                    ->default(function (callable $get) {
-                        return [['company_id' => $get('company_id')]]; // ✅ Ensures `company_id` is included by default
-                    })->columnSpanFull(),
-                ])->columnSpanFull(),
+                                        Select::make('state_id')
+                                            ->relationship('state', 'name')
+                                            ->searchable(),
+
+                                        Select::make('country_id')
+                                            ->relationship('country', 'name')
+                                            ->searchable(),
+                                    ])->columnSpanFull(),
+                            ])->columnSpanFull()
+                            ->collapsible() // Optional for better UI
+                            ->orderColumn() // Enables drag & drop sorting
+                            ->addActionLabel('Add Address') // ✅ Custom add button text
+                            ->default(function (callable $get) {
+                                return [['company_id' => $get('company_id')]]; // ✅ Ensures `company_id` is included by default
+                            })->columnSpanFull(),
+                    ])->columnSpanFull(),
             ]);
     }
 

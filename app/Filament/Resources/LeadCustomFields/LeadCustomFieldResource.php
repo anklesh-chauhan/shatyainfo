@@ -2,41 +2,37 @@
 
 namespace App\Filament\Resources\LeadCustomFields;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\LeadCustomFields\Pages\ListLeadCustomFields;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\LeadCustomFields\Pages\CreateLeadCustomField;
 use App\Filament\Resources\LeadCustomFields\Pages\EditLeadCustomField;
-use App\Filament\Resources\LeadCustomFieldResource\Pages;
-use App\Filament\Resources\LeadCustomFieldResource\RelationManagers;
+use App\Filament\Resources\LeadCustomFields\Pages\ListLeadCustomFields;
 use App\Models\LeadCustomField;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeadCustomFieldResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = LeadCustomField::class;
 
     protected static ?string $cluster = LeadConfigurationCluster::class;
+
     protected static ?string $navigationLabel = 'Lead Custom Fields';
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office';
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
+
     protected static ?int $navigationSort = 4;
 
     public static function form(Schema $schema): Schema
@@ -91,9 +87,9 @@ class LeadCustomFieldResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

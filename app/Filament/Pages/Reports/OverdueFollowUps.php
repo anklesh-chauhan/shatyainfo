@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\OverdueFollowUpExporter;
 use App\Filament\Resources\FollowUps\FollowUpResource;
 use App\Models\FollowUp;
 use App\Services\Reports\OverdueFollowUpQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -18,7 +17,7 @@ class OverdueFollowUps extends BaseReportPage
 
     protected static ?string $exporter = OverdueFollowUpExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
     protected static ?string $navigationLabel = 'Overdue follow-ups';
 

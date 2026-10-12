@@ -9,7 +9,6 @@ use App\Filament\Resources\JobRoles\Pages\ListJobRoles;
 use App\Filament\Resources\JobRoles\Schemas\JobRoleForm;
 use App\Filament\Resources\JobRoles\Tables\JobRolesTable;
 use App\Models\JobRole;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,7 +20,7 @@ class JobRoleResource extends Resource
 {
     protected static ?string $model = JobRole::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
     protected static ?string $recordTitleAttribute = 'name';
 

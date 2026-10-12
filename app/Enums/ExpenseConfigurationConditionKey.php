@@ -16,7 +16,7 @@ enum ExpenseConfigurationConditionKey: string implements HasLabel
     {
         return match ($this) {
             self::DISTANCE => 'Distance',
-            self::TRAVEL_TYPE => 'Type of Travel',
+            self::TRAVEL_TYPE => 'Visit Purpose',
             self::CITY_CLASS => 'City Classification',
             self::DURATION_HOURS => 'Duration (Hours)',
             self::IS_HILL_STATION => 'Is Hill Station',

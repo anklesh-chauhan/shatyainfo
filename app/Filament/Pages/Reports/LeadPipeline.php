@@ -7,7 +7,6 @@ use App\Filament\Resources\Leads\LeadResource;
 use App\Models\Lead;
 use App\Models\LeadStatus;
 use App\Services\Reports\LeadPipelineQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,7 +19,7 @@ class LeadPipeline extends BaseReportPage
 
     protected static ?string $exporter = LeadPipelineExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedFunnel;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFunnel;
 
     protected static ?string $navigationLabel = 'Lead pipeline';
 

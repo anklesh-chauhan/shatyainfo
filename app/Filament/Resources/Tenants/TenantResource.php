@@ -2,47 +2,47 @@
 
 namespace App\Filament\Resources\Tenants;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\UserAndAccessCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Tenants\Pages\ListTenants;
 use App\Filament\Resources\Tenants\Pages\CreateTenant;
 use App\Filament\Resources\Tenants\Pages\EditTenant;
-use App\Filament\Resources\TenantResource\Pages;
-use App\Filament\Resources\TenantResource\RelationManagers;
+use App\Filament\Resources\Tenants\Pages\ListTenants;
+use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
-use Filament\Forms;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Spatie\Multitenancy\Models\Tenant as BaseTenant;
 
 class TenantResource extends Resource
 {
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
+
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Tenant::class;
 
     protected static ?string $cluster = UserAndAccessCluster::class;
+
     protected static ?int $navigationSort = 1000;
+
     protected static ?string $navigationLabel = 'Tenants';
 
-
-    public static function shouldRegisterNavigation(): bool
+    public static function canAccess(): bool
     {
-        // Only register in the admin panel
-        return BaseTenant::checkCurrent() === false;
+        if (Tenant::checkCurrent()) {
+            return false;
+        }
+
+        return parent::canAccess();
     }
 
     public static function form(Schema $schema): Schema
@@ -54,10 +54,33 @@ class TenantResource extends Resource
                     ->maxLength(255),
                 TextInput::make('domain')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->unique(ignoreRecord: true),
                 TextInput::make('database')
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->visibleOn('edit'),
+                TextInput::make('owner_name')
+                    ->label('Owner name')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->visibleOn('create')
+                    ->dehydrated(false),
+                TextInput::make('owner_email')
+                    ->label('Owner email')
+                    ->email()
+                    ->required()
+                    ->maxLength(255)
+                    ->visibleOn('create')
+                    ->dehydrated(false),
+                TextInput::make('owner_password')
+                    ->label('Owner password')
+                    ->password()
+                    ->revealable()
+                    ->required()
+                    ->minLength(12)
+                    ->visibleOn('create')
+                    ->dehydrated(false),
             ]);
     }
 
@@ -71,6 +94,20 @@ class TenantResource extends Resource
                     ->searchable(),
                 TextColumn::make('database')
                     ->searchable(),
+                TextColumn::make('provisioning_status')
+                    ->label('Setup')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'ready' => 'success',
+                        'failed' => 'danger',
+                        'provisioning' => 'warning',
+                        default => 'gray',
+                    }),
+                TextColumn::make('provisioning_error')
+                    ->label('Setup error')
+                    ->limit(60)
+                    ->tooltip(fn (?string $state): ?string => $state)
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -83,16 +120,30 @@ class TenantResource extends Resource
             ->filters([
                 //
             ])
+            ->poll('5s')
             ->recordActions([
+                Action::make('retrySetup')
+                    ->label('Retry setup')
+                    ->icon('heroicon-o-arrow-path')
+                    ->visible(fn (Tenant $record): bool => $record->provisioning_status === 'failed')
+                    ->requiresConfirmation()
+                    ->action(function (Tenant $record): void {
+                        $record->forceFill([
+                            'provisioning_status' => 'pending',
+                            'provisioning_error' => null,
+                        ])->saveQuietly();
+
+                        ProvisionTenant::dispatch($record->id);
+                    }),
                 EditAction::make(),
                 ApprovalAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

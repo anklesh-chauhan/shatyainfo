@@ -2,40 +2,36 @@
 
 namespace App\Filament\Resources\ItemBrands;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\ItemConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\ItemBrands\Pages\ListItemBrands;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ItemBrands\Pages\CreateItemBrand;
 use App\Filament\Resources\ItemBrands\Pages\EditItemBrand;
-use App\Filament\Resources\ItemBrandResource\Pages;
-use App\Filament\Resources\ItemBrandResource\RelationManagers;
+use App\Filament\Resources\ItemBrands\Pages\ListItemBrands;
 use App\Models\ItemBrand;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ItemBrandResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = ItemBrand::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
+
     protected static ?string $cluster = ItemConfigurationCluster::class;
+
     protected static ?int $navigationSort = 1003;
+
     protected static ?string $navigationLabel = 'Item Brands';
 
     public static function form(Schema $schema): Schema
@@ -73,9 +69,9 @@ class ItemBrandResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

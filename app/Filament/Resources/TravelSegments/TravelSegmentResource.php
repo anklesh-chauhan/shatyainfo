@@ -9,7 +9,6 @@ use App\Filament\Resources\TravelSegments\Schemas\TravelSegmentForm;
 use App\Filament\Resources\TravelSegments\Tables\TravelSegmentsTable;
 use App\Models\TravelSegment;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,7 +22,7 @@ class TravelSegmentResource extends Resource
 
     protected static ?string $model = TravelSegment::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     protected static ?string $recordTitleAttribute = null;
 

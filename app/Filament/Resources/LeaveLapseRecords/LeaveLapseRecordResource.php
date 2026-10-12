@@ -10,7 +10,6 @@ use App\Filament\Resources\LeaveLapseRecords\Schemas\LeaveLapseRecordForm;
 use App\Filament\Resources\LeaveLapseRecords\Tables\LeaveLapseRecordsTable;
 use App\Models\LeaveLapseRecord;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -24,7 +23,7 @@ class LeaveLapseRecordResource extends Resource
 
     protected static ?string $model = LeaveLapseRecord::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
     protected static ?string $recordTitleAttribute = 'reason';
 

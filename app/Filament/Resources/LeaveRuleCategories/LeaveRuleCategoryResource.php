@@ -9,7 +9,6 @@ use App\Filament\Resources\LeaveRuleCategories\Pages\ListLeaveRuleCategories;
 use App\Filament\Resources\LeaveRuleCategories\Schemas\LeaveRuleCategoryForm;
 use App\Filament\Resources\LeaveRuleCategories\Tables\LeaveRuleCategoriesTable;
 use App\Models\LeaveRuleCategory;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,7 +20,7 @@ class LeaveRuleCategoryResource extends Resource
 {
     protected static ?string $model = LeaveRuleCategory::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFolderOpen;
 
     protected static ?string $recordTitleAttribute = 'name';
 

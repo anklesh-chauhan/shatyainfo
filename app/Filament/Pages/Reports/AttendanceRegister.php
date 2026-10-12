@@ -6,7 +6,6 @@ use App\Filament\Exports\Reports\AttendanceRegisterExporter;
 use App\Filament\Resources\DailyAttendances\DailyAttendanceResource;
 use App\Models\DailyAttendance;
 use App\Services\Reports\AttendanceRegisterQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -20,7 +19,7 @@ class AttendanceRegister extends BaseReportPage
 
     protected static ?string $exporter = AttendanceRegisterExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
     protected static ?string $navigationLabel = 'Attendance register';
 

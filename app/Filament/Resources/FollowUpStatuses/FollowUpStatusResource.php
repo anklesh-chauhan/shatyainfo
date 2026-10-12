@@ -2,40 +2,36 @@
 
 namespace App\Filament\Resources\FollowUpStatuses;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\FollowpConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\FollowUpStatuses\Pages\ListFollowUpStatuses;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUpStatuses\Pages\CreateFollowUpStatus;
 use App\Filament\Resources\FollowUpStatuses\Pages\EditFollowUpStatus;
-use App\Filament\Resources\FollowUpStatusResource\Pages;
-use App\Filament\Resources\FollowUpStatusResource\RelationManagers;
+use App\Filament\Resources\FollowUpStatuses\Pages\ListFollowUpStatuses;
 use App\Models\FollowUpStatus;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class FollowUpStatusResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = FollowUpStatus::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckCircle;
+
     protected static ?string $cluster = FollowpConfigurationCluster::class;
+
     protected static ?string $navigationLabel = 'Status';
+
     protected static ?int $navigationSort = 23;
 
     public static function form(Schema $schema): Schema
@@ -73,9 +69,9 @@ class FollowUpStatusResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

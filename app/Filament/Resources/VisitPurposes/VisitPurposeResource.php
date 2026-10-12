@@ -2,41 +2,38 @@
 
 namespace App\Filament\Resources\VisitPurposes;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\VisitPurposes\Pages\ListVisitPurposes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\VisitPurposes\Pages\CreateVisitPurpose;
 use App\Filament\Resources\VisitPurposes\Pages\EditVisitPurpose;
-use App\Filament\Resources\VisitPurposeResource\Pages;
-use App\Filament\Resources\VisitPurposeResource\RelationManagers;
+use App\Filament\Resources\VisitPurposes\Pages\ListVisitPurposes;
 use App\Models\VisitPurpose;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Dom\Text;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
-use Filament\Tables;
-use Filament\Tables\Table;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class VisitPurposeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = VisitPurpose::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFlag;
+
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     protected static ?int $navigationSort = 10;
+
     protected static ?string $navigationLabel = 'Visit Puroposes';
 
     public static function form(Schema $schema): Schema
@@ -88,9 +85,9 @@ class VisitPurposeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

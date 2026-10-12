@@ -9,7 +9,6 @@ use App\Filament\Resources\SampleRequests\Pages\ListSampleRequests;
 use App\Filament\Resources\SampleRequests\Schemas\SampleRequestForm;
 use App\Filament\Resources\SampleRequests\Tables\SampleRequestsTable;
 use App\Models\SampleRequest;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -20,7 +19,7 @@ class SampleRequestResource extends BaseResource
 {
     protected static ?string $model = SampleRequest::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBeaker;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

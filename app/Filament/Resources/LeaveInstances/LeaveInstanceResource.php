@@ -12,7 +12,6 @@ use App\Filament\Resources\LeaveInstances\Schemas\LeaveInstanceInfolist;
 use App\Filament\Resources\LeaveInstances\Tables\LeaveInstancesTable;
 use App\Models\LeaveInstance;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -26,7 +25,7 @@ class LeaveInstanceResource extends Resource
 
     protected static ?string $model = LeaveInstance::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
     protected static ?string $recordTitleAttribute = 'approval_status';
 

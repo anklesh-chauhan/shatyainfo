@@ -2,43 +2,36 @@
 
 namespace App\Filament\Resources\Attachments;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\OperationalConfigCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Attachments\Pages\ListAttachments;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\Attachments\Pages\CreateAttachment;
 use App\Filament\Resources\Attachments\Pages\EditAttachment;
-use App\Filament\Resources\AttachmentResource\Pages;
-use App\Filament\Resources\AttachmentResource\RelationManagers;
-use App\Models\Attachment;
-use Filament\Forms;
-use Filament\Resources\Resource;
+use App\Filament\Resources\Attachments\Pages\ListAttachments;
 use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Models\Attachment;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AttachmentResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Attachment::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedPaperClip;
 
     protected static bool $shouldRegisterNavigation = false;
 
     protected static ?int $navigationSort = 1005;
+
     protected static ?string $navigationLabel = 'Attachments';
 
     public static function form(Schema $schema): Schema
@@ -96,9 +89,9 @@ class AttachmentResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

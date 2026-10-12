@@ -8,27 +8,54 @@ use Spatie\Multitenancy\Concerns\UsesMultitenancyConfig;
 use Spatie\Multitenancy\Contracts\IsTenant;
 use Spatie\Multitenancy\Exceptions\InvalidConfiguration;
 use Spatie\Multitenancy\Tasks\SwitchTenantTask;
-use Illuminate\Support\Facades\Log;
 
 class CustomSwitchTenantDatabaseTask implements SwitchTenantTask
 {
     use UsesMultitenancyConfig;
 
+    public function __construct(
+        protected ?string $originalDefaultConnection = null,
+        protected ?string $landlordUsername = null,
+        protected ?string $landlordPassword = null,
+    ) {
+        $landlord = $this->landlordDatabaseConnectionName();
+
+        $this->originalDefaultConnection ??= (string) config('database.default');
+        $this->landlordUsername ??= (string) config("database.connections.{$landlord}.username");
+        $this->landlordPassword ??= (string) config("database.connections.{$landlord}.password");
+    }
+
     public function makeCurrent(IsTenant $tenant): void
     {
-        Log::info("Switching to tenant database: {$tenant->database}");
-        $this->setTenantConnectionDatabaseName($tenant->getDatabaseName());
-        Log::info("Default database connection set to: " . DB::getDefaultConnection()); // Added log for confirmation
-        Log::info("Database connection after switch: " . config('database.connections.tenant.database'));
+        $username = $tenant->getAttribute('db_username');
+        $password = $username
+            ? (string) $tenant->getAttribute('db_password')
+            : $this->landlordPassword;
+
+        $this->setTenantConnection(
+            databaseName: $tenant->getDatabaseName(),
+            username: $username ? (string) $username : (string) $this->landlordUsername,
+            password: $password,
+            defaultConnection: $this->tenantDatabaseConnectionName(),
+        );
     }
 
     public function forgetCurrent(): void
     {
-        $this->setTenantConnectionDatabaseName(null);
+        $this->setTenantConnection(
+            databaseName: null,
+            username: (string) $this->landlordUsername,
+            password: (string) $this->landlordPassword,
+            defaultConnection: (string) $this->originalDefaultConnection,
+        );
     }
 
-    protected function setTenantConnectionDatabaseName(?string $databaseName): void
-    {
+    protected function setTenantConnection(
+        ?string $databaseName,
+        string $username,
+        string $password,
+        string $defaultConnection,
+    ): void {
         $tenantConnectionName = $this->tenantDatabaseConnectionName();
 
         if ($tenantConnectionName === $this->landlordDatabaseConnectionName()) {
@@ -41,19 +68,20 @@ class CustomSwitchTenantDatabaseTask implements SwitchTenantTask
 
         config([
             "database.connections.{$tenantConnectionName}.database" => $databaseName,
+            "database.connections.{$tenantConnectionName}.username" => $username,
+            "database.connections.{$tenantConnectionName}.password" => $password,
         ]);
 
-        app('db')->extend($tenantConnectionName, function ($config, $name) use ($databaseName) {
+        app('db')->extend($tenantConnectionName, function ($config, $name) use ($databaseName, $username, $password) {
             $config['database'] = $databaseName;
+            $config['username'] = $username;
+            $config['password'] = $password;
+
             return app('db.factory')->make($config, $name);
         });
 
         DB::purge($tenantConnectionName);
-
-        // Explicitly set the default connection to the tenant connection
-        DB::setDefaultConnection($tenantConnectionName);
-
-        // Octane will have an old `db` instance in the Model::$resolver.
+        DB::setDefaultConnection($defaultConnection);
         Model::setConnectionResolver(app('db'));
     }
 }

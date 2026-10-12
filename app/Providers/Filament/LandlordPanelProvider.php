@@ -2,26 +2,23 @@
 
 namespace App\Providers\Filament;
 
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
+use App\Filament\Landlord\Pages\Dashboard;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages;
+use Filament\Http\Middleware\SetAuthDefaults;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
+use Filament\Widgets\AccountWidget;
+use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Filament\Http\Middleware\SetAuthDefaults;
-use Filament\Http\Middleware\RedirectIfAuthenticated;
-use App\Filament\Landlord\Pages\Dashboard;
 
 class LandlordPanelProvider extends PanelProvider
 {
@@ -30,7 +27,7 @@ class LandlordPanelProvider extends PanelProvider
         return $panel
             ->id('landlord')
             ->path('landlord')
-            ->brandName('Landlord CRM')
+            ->brandName('Shatya Info')
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -62,11 +59,11 @@ class LandlordPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
-            // ->resources([
-            //     UserResource::class, // Example Filament resource
-            // ])
-            // ->navigationGroups([
-            //     NavigationGroup::make()->label('Management'),
-            // ]);
+        // ->resources([
+        //     UserResource::class, // Example Filament resource
+        // ])
+        // ->navigationGroups([
+        //     NavigationGroup::make()->label('Management'),
+        // ]);
     }
 }

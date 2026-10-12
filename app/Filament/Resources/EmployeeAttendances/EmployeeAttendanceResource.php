@@ -13,7 +13,6 @@ use App\Filament\Resources\EmployeeAttendances\Schemas\EmployeeAttendanceInfolis
 use App\Filament\Resources\EmployeeAttendances\Tables\EmployeeAttendancesTable;
 use App\Models\EmployeeAttendance;
 use App\Traits\HasSafeGlobalSearch;
-use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -24,7 +23,7 @@ class EmployeeAttendanceResource extends BaseResource
 
     protected static ?string $model = EmployeeAttendance::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFingerPrint;
 
     protected static ?string $recordTitleAttribute = null;
 

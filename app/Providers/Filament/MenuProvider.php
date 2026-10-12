@@ -9,7 +9,7 @@ class MenuProvider
         return [
             ['label' => 'Leads', 'route' => 'filament.admin.resources.leads.index'],
             ['label' => 'Contacts', 'route' => 'filament.admin.resources.contacts.index'],
-            ['label' => 'Companies', 'route' => 'filament.admin.resources.company-masters.index'],
+            ['label' => 'Accounts', 'route' => 'filament.admin.resources.account-masters.index'],
             ['label' => 'Items', 'route' => 'filament.admin.resources.items.index'],
             ['label' => 'Sales DCR', 'route' => 'filament.admin.resources.sales-dcrs.index'],
             ['label' => 'Visit Routes', 'route' => 'filament.admin.resources.visit-routes.index'],

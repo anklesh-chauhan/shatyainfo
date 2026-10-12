@@ -7,7 +7,6 @@ use App\Filament\Exports\Reports\DoctorSampleLedgerExporter;
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
 use App\Models\SgipDistributionItem;
 use App\Services\Reports\DoctorSampleLedgerQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -22,7 +21,7 @@ class DoctorSampleLedger extends BaseReportPage
 
     protected static ?string $exporter = DoctorSampleLedgerExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
     protected static ?string $navigationLabel = 'Doctor sample ledger';
 

@@ -211,11 +211,11 @@ class ExpenseConfigurationForm
                                                         if ($keyValue === 'travel_type') {
                                                             return [
                                                                 Select::make('value')
-                                                                    ->label('Travel Type')
-                                                                    ->options(VisitPurpose::pluck('name', 'code')->toArray())
+                                                                    ->label('Visit Purpose')
+                                                                    ->options(fn (): array => VisitPurpose::query()->pluck('name', 'code')->all())
                                                                     ->searchable()
                                                                     ->required()
-                                                                    ->placeholder('Select Travel Type'),
+                                                                    ->placeholder('Select Visit Purpose'),
                                                             ];
                                                         }
 

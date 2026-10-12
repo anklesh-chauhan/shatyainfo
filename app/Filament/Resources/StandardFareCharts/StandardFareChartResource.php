@@ -12,6 +12,7 @@ use App\Models\StandardFareChart;
 use App\Traits\HasRelatedGlobalSearch;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -29,7 +30,7 @@ class StandardFareChartResource extends Resource
         'toAreaTown.area_town',
     ];
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
 
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 

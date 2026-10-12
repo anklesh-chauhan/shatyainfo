@@ -9,7 +9,6 @@ use App\Filament\Resources\ApprovalDelegations\Pages\ListApprovalDelegations;
 use App\Filament\Resources\ApprovalDelegations\Schemas\ApprovalDelegationForm;
 use App\Filament\Resources\ApprovalDelegations\Tables\ApprovalDelegationsTable;
 use App\Models\ApprovalDelegation;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -21,7 +20,7 @@ class ApprovalDelegationResource extends Resource
 {
     protected static ?string $model = ApprovalDelegation::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserPlus;
 
     protected static ?string $cluster = OperationalConfigCluster::class;
 

@@ -2,42 +2,35 @@
 
 namespace App\Filament\Resources\Taxes;
 
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\Taxes\Pages\ListTaxes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Taxes\Pages\CreateTax;
 use App\Filament\Resources\Taxes\Pages\EditTax;
+use App\Filament\Resources\Taxes\Pages\ListTaxes;
 use App\Models\Tax;
-use Filament\Forms;
-use Filament\Tables;
-use App\Models\TaxComponent;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Repeater;
-// use Filament\Resources\Table; // Remove this incorrect import
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Select;
+// use Filament\Resources\Table; // Remove this incorrect import
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Radio;
-use Filament\Tables\Columns\BadgeColumn;
-use App\Filament\Resources\TaxResource\Pages;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class TaxResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Tax::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-receipt-percent';
-    protected static string | \UnitEnum | null $navigationGroup = 'Tax Management';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedReceiptPercent;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Tax Management';
 
     public static function form(Schema $schema): Schema
     {
@@ -85,6 +78,7 @@ class TaxResource extends BaseResource
                     ->addActionLabel('Add Component'),
             ]);
     }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -110,7 +104,7 @@ class TaxResource extends BaseResource
                 DeleteBulkAction::make(),
             ]);
     }
-    
+
     public static function getRelations(): array
     {
         return []; // No separate relation managers needed

@@ -9,7 +9,6 @@ use App\Filament\Resources\PayrollLeaveSnapshots\Schemas\PayrollLeaveSnapshotFor
 use App\Filament\Resources\PayrollLeaveSnapshots\Tables\PayrollLeaveSnapshotsTable;
 use App\Models\PayrollLeaveSnapshot;
 use App\Traits\HasRelatedGlobalSearch;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -23,7 +22,7 @@ class PayrollLeaveSnapshotResource extends Resource
 
     protected static ?string $model = PayrollLeaveSnapshot::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
 
     protected static ?string $recordTitleAttribute = null;
 

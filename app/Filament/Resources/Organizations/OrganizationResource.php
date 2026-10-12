@@ -2,57 +2,52 @@
 
 namespace App\Filament\Resources\Organizations;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
-use Filament\Schemas\Schema;
+use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
+use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
+use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\Organizations\Pages\CreateOrganization;
+use App\Filament\Resources\Organizations\Pages\EditOrganization;
+use App\Filament\Resources\Organizations\Pages\ListOrganizations;
+use App\Models\Organization;
+use App\Traits\HasSafeGlobalSearch;
+use DateTimeZone;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\DatePicker;
-use DateTimeZone;
-use Filament\Schemas\Components\Fieldset;
-use Filament\Forms\Components\KeyValue;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
-use Filament\Actions\ViewAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
-use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
-use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
-use App\Filament\Resources\Organizations\Pages\ListOrganizations;
-use App\Filament\Resources\Organizations\Pages\CreateOrganization;
-use App\Filament\Resources\Organizations\Pages\EditOrganization;
-use App\Filament\Resources\OrganizationResource\Pages;
-use App\Filament\Resources\OrganizationResource\RelationManagers;
-use App\Models\Organization;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+// Import Fieldset
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope; // Import Fieldset
-use Filament\Forms\Components\Grid; // Import ViewAction
+
+ // Import ViewAction
 
 class OrganizationResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = Organization::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office-2'; // More relevant icon
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2; // More relevant icon
 
     protected static ?string $cluster = OrganizationAndCompanyCluster::class;
 
@@ -121,7 +116,7 @@ class OrganizationResource extends BaseResource
                                     ->numeric()
                                     ->prefix('INR')
                                     ->minValue(0),
-                                    // ->mask(RawJs::make('$money($event.target.value)')), // Use RawJs for currency masking
+                                // ->mask(RawJs::make('$money($event.target.value)')), // Use RawJs for currency masking
                                 TextInput::make('operation_hours')
                                     ->maxLength(255)
                                     ->placeholder('e.g., Mon-Fri, 9 AM - 5 PM'),
@@ -331,9 +326,9 @@ class OrganizationResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                     ForceDeleteBulkAction::make(), // For soft deletes
                     RestoreBulkAction::make(), // For soft deletes
                 ]),
@@ -357,5 +352,4 @@ DeleteBulkAction::make(),
             'edit' => EditOrganization::route('/{record}/edit'),
         ];
     }
-
 }

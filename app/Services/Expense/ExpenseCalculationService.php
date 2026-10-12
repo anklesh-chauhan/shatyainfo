@@ -25,13 +25,13 @@ class ExpenseCalculationService
             ->getApplicableConfigurations($dcr, context: $context)
             ->groupBy('expense_type_id');
 
+        $dcr->expenses()->autoCalculated()->delete();
+
         if ($configs->isEmpty()) {
             $dcr->recalculateTotalExpense();
 
             return;
         }
-
-        $dcr->expenses()->autoCalculated()->delete();
 
         $expenses = collect();
 

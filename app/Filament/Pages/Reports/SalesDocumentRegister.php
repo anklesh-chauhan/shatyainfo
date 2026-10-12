@@ -8,7 +8,6 @@ use App\Filament\Resources\SalesInvoices\SalesInvoiceResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\SalesDocumentRegisterRow;
 use App\Services\Reports\SalesDocumentRegisterQuery;
-use BackedEnum;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -21,7 +20,7 @@ class SalesDocumentRegister extends BaseReportPage
 
     protected static ?string $exporter = SalesDocumentRegisterExporter::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
     protected static ?string $navigationLabel = 'Sales documents';
 

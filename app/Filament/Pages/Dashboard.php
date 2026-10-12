@@ -10,6 +10,7 @@ use App\Models\EmployeeAttendanceStatus;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
+use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\Widget;
 use Filament\Widgets\WidgetConfiguration;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Request;
 
 class Dashboard extends BaseDashboard
 {
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedHome;
+
     /**
      * @return array<class-string<Widget>|WidgetConfiguration>
      */

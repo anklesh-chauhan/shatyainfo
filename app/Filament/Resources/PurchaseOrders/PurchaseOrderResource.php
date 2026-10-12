@@ -11,7 +11,6 @@ use App\Filament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use App\Filament\Resources\PurchaseOrders\Schemas\PurchaseOrderForm;
 use App\Filament\Resources\PurchaseOrders\Tables\PurchaseOrdersTable;
 use App\Models\PurchaseOrder;
-use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -23,7 +22,7 @@ class PurchaseOrderResource extends BaseResource
 {
     protected static ?string $model = PurchaseOrder::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingCart;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingBag;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
 

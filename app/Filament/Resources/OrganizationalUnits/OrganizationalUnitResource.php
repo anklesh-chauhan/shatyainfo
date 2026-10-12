@@ -2,52 +2,46 @@
 
 namespace App\Filament\Resources\OrganizationalUnits;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
-
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Filters\Filter;
-use Filament\Forms\Components\DatePicker;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\OrganizationalUnits\Pages\ListOrganizationalUnits;
+use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\HR\OrganizationStructureCluster;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\OrganizationalUnits\Pages\CreateOrganizationalUnit;
 use App\Filament\Resources\OrganizationalUnits\Pages\EditOrganizationalUnit;
-use App\Filament\Resources\OrganizationalUnitResource\Pages;
-use App\Filament\Resources\OrganizationalUnitResource\RelationManagers;
+use App\Filament\Resources\OrganizationalUnits\Pages\ListOrganizationalUnits;
 use App\Filament\Resources\UsersRelationManagerResource\RelationManagers\UsersRelationManager;
 use App\Models\OrganizationalUnit;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
-use Filament\Tables;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Notifications\Notification;
 use Illuminate\Support\Str;
-use App\Filament\Clusters\HR\OrganizationStructureCluster;
 
 class OrganizationalUnitResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = OrganizationalUnit::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-office-2';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
 
     protected static ?string $navigationLabel = 'Org Units';
 
@@ -171,9 +165,9 @@ class OrganizationalUnitResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make()
+                    DeleteBulkAction::make()
                         ->requiresConfirmation()
                         ->successNotification(
                             Notification::make()

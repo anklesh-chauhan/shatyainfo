@@ -2,42 +2,38 @@
 
 namespace App\Filament\Resources\TransportModes;
 
-use App\Filament\Actions\BulkApprovalAction;
-
-use App\Traits\HasSafeGlobalSearch;
-
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use App\Filament\Resources\TransportModes\Pages\ListTransportModes;
+use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TransportModes\Pages\CreateTransportMode;
 use App\Filament\Resources\TransportModes\Pages\EditTransportMode;
-use App\Filament\Resources\TransportModeResource\Pages;
-use App\Filament\Resources\TransportModeResource\RelationManagers;
+use App\Filament\Resources\TransportModes\Pages\ListTransportModes;
 use App\Models\TransportMode;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use App\Filament\Resources\BaseResource;
+use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TransportModeResource extends BaseResource
 {
     use HasSafeGlobalSearch;
+
     protected static ?string $model = TransportMode::class;
 
-    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
+
     protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     protected static ?int $navigationSort = 30;
+
     protected static ?string $navigationLabel = 'Transport Modes';
 
     public static function form(Schema $schema): Schema
@@ -68,9 +64,9 @@ class TransportModeResource extends BaseResource
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                        BulkApprovalAction::make(),
+                    BulkApprovalAction::make(),
 
-DeleteBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }

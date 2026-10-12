@@ -8,7 +8,6 @@ use App\Filament\Resources\MarketingCampaigns\Pages\ListMarketingCampaigns;
 use App\Filament\Resources\MarketingCampaigns\Schemas\MarketingCampaignForm;
 use App\Filament\Resources\MarketingCampaigns\Tables\MarketingCampaignsTable;
 use App\Models\MarketingCampaign;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -20,7 +19,7 @@ class MarketingCampaignResource extends Resource
 {
     protected static ?string $model = MarketingCampaign::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 

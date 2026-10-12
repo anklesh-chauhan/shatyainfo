@@ -9,6 +9,7 @@ use App\Models\EmployeeAttendanceStatus;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request;
 
@@ -16,7 +17,7 @@ class PunchIn extends Page
 {
     protected string $view = 'filament.pages.punch-in';
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFingerPrint;
 
     protected static ?string $title = 'Punch In/Out';
 
