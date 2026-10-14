@@ -25,7 +25,7 @@ class TenantDatabaseProvisioner
         $username = 'tu_'.bin2hex(random_bytes(8));
         $password = Str::password(40, symbols: false);
         $account = $this->quoteAccount($username);
-        $database = $this->quoteIdentifier($tenant->database);
+        $database = str_replace('_', '\\_', $this->quoteIdentifier($tenant->database));
         $quotedPassword = DB::connection($this->landlordConnection())->getPdo()->quote($password);
 
         $landlord = DB::connection($this->landlordConnection());
