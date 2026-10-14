@@ -29,7 +29,7 @@ class ManageCloudflareCname implements NotTenantAware, ShouldQueue
     {
         $zoneId = config('multitenancy.cloudflare.zone_id');
         $apiToken = config('multitenancy.cloudflare.api_token');
-        $target = config('multitenancy.cloudflare.target', 'iterp.in');
+        $target = config('multitenancy.cloudflare.target', 'shatyainfo.com');
 
         if (! is_string($zoneId) || $zoneId === '' || ! is_string($apiToken) || $apiToken === '') {
             Log::info('Skipping Cloudflare DNS because it is not configured.', [
@@ -116,7 +116,7 @@ class ManageCloudflareCname implements NotTenantAware, ShouldQueue
 
     protected function recordName(): ?string
     {
-        $baseDomain = (string) config('multitenancy.base_domain', 'iterp.in');
+        $baseDomain = (string) config('multitenancy.base_domain', 'shatyainfo.com');
         $domain = strtolower($this->domain);
 
         if ($baseDomain !== '' && str_ends_with($domain, '.'.$baseDomain)) {

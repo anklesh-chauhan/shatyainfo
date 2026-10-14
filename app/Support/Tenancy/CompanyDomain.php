@@ -14,7 +14,7 @@ class CompanyDomain
 
         $configured = LandlordDomains::normalize((string) config('multitenancy.base_domain'));
 
-        return $configured !== '' ? $configured : 'iterp.in';
+        return $configured !== '' ? $configured : 'shatyainfo.com';
     }
 
     public static function fromSlug(string $slug): string

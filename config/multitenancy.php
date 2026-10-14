@@ -140,7 +140,7 @@ return [
         explode(',', (string) env('LANDLORD_DOMAINS', 'crm.local,it-erp.test,localhost,127.0.0.1'))
     ))),
 
-    'base_domain' => env('APP_DOMAIN', 'iterp.in'),
+    'base_domain' => env('APP_DOMAIN', 'shatyainfo.com'),
 
     'geographic_reference_database' => env('GEOGRAPHIC_REFERENCE_DATABASE', 'it_erp_reference'),
 
@@ -153,6 +153,6 @@ return [
     'cloudflare' => [
         'zone_id' => env('CLOUDFLARE_ZONE_ID'),
         'api_token' => env('CLOUDFLARE_API_TOKEN'),
-        'target' => env('CLOUDFLARE_TARGET', 'iterp.in'),
+        'target' => env('CLOUDFLARE_TARGET', 'shatyainfo.com'),
     ],
 ];
