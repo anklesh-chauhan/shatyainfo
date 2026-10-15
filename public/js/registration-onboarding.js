@@ -12,7 +12,7 @@
             const messages = {
                 awaiting_verification: 'Check your inbox and verify your email to continue.',
                 pending: 'Email verified. Registration is queued…',
-                provisioning: 'Preparing your database and reference data…',
+                provisioning: 'Creating your database and sign-in account…',
                 failed: 'Registration could not finish. Refresh this page to retry.',
                 ready: 'Your company is ready. Opening your workspace…',
             };

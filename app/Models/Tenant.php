@@ -29,11 +29,17 @@ class Tenant extends BaseTenant
         'db_password',
         'provisioning_owner',
         'onboarding_data',
+        'master_setup_error',
     ];
 
     public function getDatabaseName(): string
     {
         return (string) $this->database;
+    }
+
+    public function accountIsConfigured(): bool
+    {
+        return ($this->master_setup_status ?? 'ready') === 'ready';
     }
 
     protected function casts(): array

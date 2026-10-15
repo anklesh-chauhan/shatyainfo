@@ -31,7 +31,7 @@ class GeographicReference
 
     protected function connection(): Connection
     {
-        return DB::connection((string) config('multitenancy.landlord_database_connection_name', 'mysql'));
+        return DB::connection((string) (config('multitenancy.geographic_reference_connection_name') ?? config('multitenancy.landlord_database_connection_name', 'mysql')));
     }
 
     public function initialize(): array

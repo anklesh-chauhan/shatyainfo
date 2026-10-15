@@ -3,6 +3,7 @@
 namespace App\Support\Tenancy;
 
 use App\Jobs\ManageCloudflareCname;
+use App\Models\Organization;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Console\OutputStyle;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -39,16 +41,19 @@ class TenantProvisioner
 
             $tenant->makeCurrent();
 
-            Artisan::call('migrate', [
+            $exitCode = Artisan::call('migrate', [
                 '--database' => 'tenant',
                 '--path' => 'database/migrations/tenant',
                 '--force' => true,
             ]);
+            if ($exitCode !== 0) {
+                throw new RuntimeException('Company database tables could not be created.');
+            }
 
-            $this->copyAccessControl();
             $this->createOwner($owner);
-            $this->seedReferenceData();
-            $this->deleteLandlordPermissions();
+            $organization = new OrganizationSeeder;
+            $organization->setContainer(app());
+            $organization->run();
 
             Log::info('Provisioned tenant database.', [
                 'tenant_id' => $tenant->id,
@@ -113,16 +118,70 @@ class TenantProvisioner
         }
     }
 
-    private function seedReferenceData(): void
+    /**
+     * Keep geography copies, reference seeders, and the completion marker in one transaction.
+     */
+    public function configureAccount(Tenant $tenant): void
     {
-        app('db')->setDefaultConnection('tenant');
+        $originalConnection = DB::getDefaultConnection();
+        $originalReferenceConnection = config('multitenancy.geographic_reference_connection_name');
+        try {
+            $tenant->makeCurrent();
+            $tenant->forceFill(['master_setup_step' => 'Configuring access permissions'])->saveQuietly();
+            $this->copyAccessControl();
+            $configuration = config('database.connections.'.$this->landlordConnection());
+            config([
+                'database.connections.tenant_setup' => array_merge($configuration, ['database' => $tenant->database, 'url' => null]),
+                'multitenancy.geographic_reference_connection_name' => 'tenant_setup',
+            ]);
+            DB::purge('tenant_setup');
+            DB::setDefaultConnection('tenant_setup');
+            DB::connection('tenant_setup')->transaction(function () use ($tenant): void {
+                $organization = Organization::query()->orderBy('id')->lockForUpdate()->firstOrFail();
+                if ($organization->metadata['master_data_ready'] ?? false) {
+                    return;
+                }
+                $tenant->forceFill(['master_setup_step' => 'Preparing master data'])->saveQuietly();
+                $this->seedReferenceData();
+                $organization->refresh();
+                $metadata = $organization->metadata ?? [];
+                $metadata['master_data_ready'] = true;
+                $organization->forceFill(['metadata' => $metadata])->saveQuietly();
+            });
+            $this->deleteLandlordPermissions();
+        } finally {
+            if ($tenant->isCurrent()) {
+                $tenant->forgetCurrent();
+            }
+            DB::setDefaultConnection($originalConnection);
+            config(['multitenancy.geographic_reference_connection_name' => $originalReferenceConnection]);
+            DB::purge('tenant_setup');
+            config(['database.connections.tenant_setup' => null]);
+        }
+    }
 
+    protected function seedReferenceData(): void
+    {
         $organization = new OrganizationSeeder;
         $organization->setContainer(app());
         $organization->setCommand($this->silentSeederCommand());
         $organization->run();
 
-        $seeder = new DatabaseSeeder;
+        $seeder = new class(Tenant::current()) extends DatabaseSeeder
+        {
+            public function __construct(private Tenant $tenant) {}
+
+            public function call($class, $silent = false, array $parameters = []): static
+            {
+                $classes = (array) $class;
+                foreach ($classes as $index => $seeder) {
+                    $this->tenant->forceFill(['master_setup_step' => 'Preparing master data ('.($index + 1).' of '.count($classes).')'])->saveQuietly();
+                    parent::call($seeder, $silent, $parameters);
+                }
+
+                return $this;
+            }
+        };
         $seeder->setContainer(app());
         $seeder->setCommand($this->silentSeederCommand());
         $seeder->run();
@@ -146,7 +205,7 @@ class TenantProvisioner
         };
     }
 
-    private function copyAccessControl(): void
+    protected function copyAccessControl(): void
     {
         $landlord = $this->landlordConnection();
 
@@ -222,7 +281,7 @@ class TenantProvisioner
         }
     }
 
-    private function deleteLandlordPermissions(): void
+    protected function deleteLandlordPermissions(): void
     {
         $ids = DB::connection('tenant')->table('permissions')
             ->pluck('name', 'id')

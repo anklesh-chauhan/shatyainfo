@@ -54,10 +54,14 @@ class ProvisionTenant implements NotTenantAware, ShouldQueue
 
         $tenant->forceFill([
             'provisioning_status' => 'ready',
+            'master_setup_status' => 'pending',
+            'master_setup_step' => 'Waiting to configure your account',
+            'master_setup_error' => null,
             'provisioning_error' => null,
             'provisioning_owner' => null,
         ])->saveQuietly();
 
+        SeedTenantMasters::dispatch($tenant->id);
     }
 
     public function failed(?Throwable $exception): void

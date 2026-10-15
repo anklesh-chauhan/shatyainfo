@@ -30,6 +30,7 @@ class CompanyOnboardingService
     public function saveOrganization(array $data): Organization
     {
         $this->authorize();
+        abort_unless((Tenant::current()?->accountIsConfigured() ?? true), 409, 'Your account is still being configured.');
         $data = Validator::make($data, [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
@@ -47,6 +48,8 @@ class CompanyOnboardingService
 
     public function mark(string $key): void
     {
+        $this->authorize();
+        abort_unless((Tenant::current()?->accountIsConfigured() ?? true), 409, 'Your account is still being configured.');
         $organization = $this->organization();
         abort_unless($organization, 422, 'Save organization information first.');
         $metadata = $organization->metadata ?? [];
@@ -98,6 +101,7 @@ class CompanyOnboardingService
     public function saveEmployees(array $rows): int
     {
         $this->authorize();
+        abort_unless((Tenant::current()?->accountIsConfigured() ?? true), 409, 'Your account is still being configured.');
         abort_unless($this->organization()?->metadata['company_setup']['organization_saved'] ?? false, 422, 'Save organization information first.');
         $rows = array_map(function (array $row): array {
             $row = array_intersect_key($row, array_flip(self::EMPLOYEE_COLUMNS));

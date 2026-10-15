@@ -47,7 +47,7 @@ class RegistrationAccessController extends Controller
             return;
         }
         $token = Str::random(64);
-        Cache::put('registration.verify.'.hash('sha256', $token), $tenant->id, now()->addHour());
+        Cache::store('registration')->put('registration.verify.'.hash('sha256', $token), $tenant->id, now()->addHour());
         $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['token' => $token]);
         Mail::raw('Verify your email to create '.$tenant->name.': '.$url.' This link expires in one hour.', function ($message) use ($tenant): void {
             $message->to($tenant->provisioning_owner['email'])->subject('Verify your company registration');
@@ -65,8 +65,8 @@ class RegistrationAccessController extends Controller
     {
         $key = 'registration.verify.'.hash('sha256', $token);
 
-        return Cache::lock($key.'.lock', 10)->block(5, function () use ($request, $key): RedirectResponse {
-            $tenantId = Cache::pull($key);
+        return Cache::store('registration')->lock($key.'.lock', 10)->block(5, function () use ($request, $key): RedirectResponse {
+            $tenantId = Cache::store('registration')->pull($key);
             abort_unless($tenantId, 410, 'Verification link expired or already used.');
             $tenant = Tenant::query()->findOrFail($tenantId);
             $tenant->getConnection()->transaction(function () use ($tenant): void {
@@ -97,9 +97,9 @@ class RegistrationAccessController extends Controller
         if (! is_string($token)) {
             $token = Str::random(64);
             $request->session()->put('registration_login_token', $token);
-            Cache::put('registration.login.'.hash('sha256', $token), ['tenant_id' => $tenant->id, 'email' => $request->session()->get('verified_registration_email')], now()->addMinutes(5));
+            Cache::store('registration')->put('registration.login.'.hash('sha256', $token), ['tenant_id' => $tenant->id, 'email' => $request->session()->get('verified_registration_email')], now()->addMinutes(5));
         }
-        if (! Cache::has('registration.login.'.hash('sha256', $token))) {
+        if (! Cache::store('registration')->has('registration.login.'.hash('sha256', $token))) {
             return null;
         }
 
@@ -112,11 +112,11 @@ class RegistrationAccessController extends Controller
         abort_unless($tenant && $tenant->provisioning_status === 'ready', 403);
         $key = 'registration.login.'.hash('sha256', $token);
 
-        return Cache::lock($key.'.lock', 10)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
-            $handoff = Cache::get($key);
+        return Cache::store('registration')->lock($key.'.lock', 10)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
+            $handoff = Cache::store('registration')->get($key);
             abort_unless(is_array($handoff) && (string) $handoff['tenant_id'] === (string) $tenant->id, 403);
             $user = User::query()->where('email', $handoff['email'])->whereNotNull('email_verified_at')->firstOrFail();
-            Cache::forget($key);
+            Cache::store('registration')->forget($key);
             Auth::guard('web')->login($user);
             $request->session()->regenerate();
 

@@ -20,7 +20,7 @@
             @elseif($status === 'failed')
                 Registration could not finish. Please retry.
             @else
-                Email verified. Preparing your database and reference data…
+                Email verified. Creating your database and sign-in account…
             @endif
         </p>
         @if($status === 'awaiting_verification')

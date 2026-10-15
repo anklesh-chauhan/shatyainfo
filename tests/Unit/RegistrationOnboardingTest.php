@@ -10,12 +10,13 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Spatie\Multitenancy\Tasks\PrefixCacheTask;
 use Tests\TestCase;
 
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'session.driver' => 'array', 'cache.default' => 'array']);
+    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'session.driver' => 'array', 'cache.default' => 'array', 'cache.stores.registration' => ['driver' => 'array']]);
     DB::purge('mysql');
     Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
         $table->id();
@@ -84,7 +85,7 @@ test('registration waits for email verification without dispatching provisioning
 test('email verification queues provisioning once and rejects replay', function () {
     $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification', 'provisioning_owner' => ['name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'long-password-1']])->saveQuietly();
     $token = str_repeat('a', 64);
-    Cache::put('registration.verify.'.hash('sha256', $token), $this->tenant->id, now()->addHour());
+    Cache::store('registration')->put('registration.verify.'.hash('sha256', $token), $this->tenant->id, now()->addHour());
     $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['token' => $token]);
     $this->get($url)->assertRedirect()->assertSessionHas('verified_registration', $this->tenant->id);
     expect($this->tenant->fresh()->provisioning_status)->toBe('pending')->and($this->tenant->fresh()->provisioning_owner['email_verified_at'])->not->toBeNull();
@@ -120,7 +121,7 @@ test('company handoff signs in only the verified owner and cannot be replayed', 
     DB::connection('tenant')->table('users')->insert(['id' => 1, 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'hashed', 'email_verified_at' => now()]);
     $this->tenant->forceFill(['provisioning_status' => 'ready'])->saveQuietly();
     $token = str_repeat('b', 64);
-    Cache::put('registration.login.'.hash('sha256', $token), ['tenant_id' => $this->tenant->id, 'email' => 'owner@example.test'], now()->addMinutes(5));
+    Cache::store('registration')->put('registration.login.'.hash('sha256', $token), ['tenant_id' => $this->tenant->id, 'email' => 'owner@example.test'], now()->addMinutes(5));
     $url = 'http://northwind.test/registration/complete/'.$token;
     $this->get($url)->assertRedirect('/admin')->assertSessionHas(Auth::guard('web')->getName(), 1);
     $this->get($url)->assertForbidden();
@@ -128,4 +129,48 @@ test('company handoff signs in only the verified owner and cannot be replayed', 
 
 test('registration form renders its required captcha and refresh button', function () {
     $this->get(route('signup.create'))->assertOk()->assertSee('name="captcha"', false)->assertSee('Refresh CAPTCHA');
+});
+
+test('verified owners can enter before masters finish even when tenant cache prefixes change', function () {
+    config([
+        'multitenancy.switch_tenant_tasks' => [PrefixCacheTask::class],
+        'cache.default' => 'database',
+        'cache.prefix' => 'landlord:',
+        'cache.stores.database' => ['driver' => 'database', 'connection' => 'mysql', 'table' => 'cache', 'lock_connection' => 'mysql', 'lock_table' => 'cache_locks'],
+        'cache.stores.registration' => ['driver' => 'database', 'connection' => 'mysql', 'table' => 'cache', 'lock_connection' => 'mysql', 'lock_table' => 'cache_locks', 'prefix' => 'registration:'],
+        'database.connections.tenant' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''],
+    ]);
+    Cache::forgetDriver('registration');
+    Schema::connection('mysql')->create('cache', function (Blueprint $table): void {
+        $table->string('key')->primary();
+        $table->text('value');
+        $table->integer('expiration');
+    });
+    Schema::connection('mysql')->create('cache_locks', function (Blueprint $table): void {
+        $table->string('key')->primary();
+        $table->string('owner');
+        $table->integer('expiration');
+    });
+    Schema::connection('mysql')->table('tenants', function (Blueprint $table): void {
+        $table->string('master_setup_status')->default('pending');
+    });
+    DB::purge('tenant');
+    Schema::connection('tenant')->create('users', function (Blueprint $table): void {
+        $table->id();
+        $table->string('name');
+        $table->string('email');
+        $table->string('password');
+        $table->timestamp('email_verified_at')->nullable();
+        $table->rememberToken();
+        $table->timestamps();
+    });
+    DB::connection('tenant')->table('users')->insert(['id' => 1, 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'hashed', 'email_verified_at' => now()]);
+    $this->tenant->forceFill(['provisioning_status' => 'ready'])->saveQuietly();
+    $statusUrl = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
+    $response = $this->withSession(['verified_registration' => $this->tenant->id, 'verified_registration_email' => 'owner@example.test'])->getJson($statusUrl)->assertOk();
+    $url = $response->json('redirect_url');
+    expect($url)->toContain('/registration/complete/');
+    $this->get($url)->assertRedirect('/admin')->assertSessionHas(Auth::guard('web')->getName(), 1);
+    expect($this->tenant->fresh()->master_setup_status)->toBe('pending');
+    $this->get($url)->assertForbidden();
 });

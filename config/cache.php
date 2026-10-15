@@ -33,6 +33,15 @@ return [
 
     'stores' => [
 
+        'registration' => [
+            'driver' => 'database',
+            'connection' => env('DB_CACHE_CONNECTION') ?: 'mysql',
+            'table' => env('DB_CACHE_TABLE', 'cache'),
+            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION') ?: 'mysql',
+            'lock_table' => env('DB_CACHE_LOCK_TABLE'),
+            'prefix' => 'registration:',
+        ],
+
         'array' => [
             'driver' => 'array',
             'serialize' => false,
