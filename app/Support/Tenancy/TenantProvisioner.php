@@ -99,12 +99,12 @@ class TenantProvisioner
             'email_verified_at' => $owner['email_verified_at'] ?? null,
         ])->save();
 
-        $roles = Role::query()
-            ->where('name', 'super_admin')
-            ->whereIn('guard_name', ['web', 'tenant'])
-            ->get();
+        foreach (['web', 'tenant'] as $guard) {
+            $role = Role::on('tenant')->firstOrCreate([
+                'name' => 'super_admin',
+                'guard_name' => $guard,
+            ]);
 
-        foreach ($roles as $role) {
             DB::connection('tenant')->table('model_has_roles')->insertOrIgnore([
                 'role_id' => $role->id,
                 'model_type' => User::class,
