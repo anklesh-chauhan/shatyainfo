@@ -68,6 +68,15 @@ class OrganizationalUnitResource extends BaseResource
                             ->maxLength(50)
                             ->unique(ignoreRecord: true)
                             ->placeholder('Enter unique code'),
+                        Select::make('type_master_id')
+                            ->label('Type')
+                            ->relationship('typeMaster', 'name', modifyQueryUsing: fn (Builder $query): Builder => $query
+                                ->where('typeable_type', OrganizationalUnit::class)
+                                ->whereNotNull('parent_id'))
+                            ->required()
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Choose Division to make this unit available in employee and position Division selections.'),
                     ])
                     ->columns(2),
                 Section::make('Additional Details')
@@ -111,6 +120,10 @@ class OrganizationalUnitResource extends BaseResource
                     ->searchable()
                     ->default('None')
                     ->label('Parent Unit'),
+                TextColumn::make('typeMaster.name')
+                    ->label('Type')
+                    ->searchable()
+                    ->sortable(),
                 IconColumn::make('is_active')
                     ->boolean()
                     ->label('Active')
@@ -128,6 +141,11 @@ class OrganizationalUnitResource extends BaseResource
                     ->label('Updated'),
             ])
             ->filters([
+                SelectFilter::make('type_master_id')
+                    ->label('Type')
+                    ->relationship('typeMaster', 'name', modifyQueryUsing: fn (Builder $query): Builder => $query
+                        ->where('typeable_type', OrganizationalUnit::class)
+                        ->whereNotNull('parent_id')),
                 SelectFilter::make('parent_id')
                     ->relationship('parent', 'name')
                     ->label('Parent Unit')

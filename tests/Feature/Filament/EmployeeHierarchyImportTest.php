@@ -2,7 +2,9 @@
 
 use App\Filament\Pages\DataImport;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\OrganizationalUnits\Pages\CreateOrganizationalUnit;
 use App\Filament\Resources\Positions\Pages\EditPosition;
+use App\Models\Address;
 use App\Models\EmpDepartment;
 use App\Models\Employee;
 use App\Models\EmploymentDetail;
@@ -57,6 +59,22 @@ function hierarchyUpload(array $rows): ImportResult
         unlink($path);
     }
 }
+
+it('creates a division from the organizational unit form and requires a valid OU type', function () {
+    foreach (['ViewAny:OrganizationalUnit', 'Create:OrganizationalUnit'] as $permission) {
+        auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $divisionType = TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Division')->sole();
+    $page = Livewire::test(CreateOrganizationalUnit::class)
+        ->assertSuccessful()
+        ->fillForm(['name' => 'West Division', 'code' => 'WEST', 'type_master_id' => null])
+        ->call('create')
+        ->assertHasFormErrors(['type_master_id' => 'required']);
+    $wrongType = TypeMaster::where('typeable_type', Address::class)->where('name', 'Head Office')->sole();
+    $page->fillForm(['type_master_id' => $wrongType->id])->call('create')->assertHasFormErrors(['type_master_id']);
+    $page->fillForm(['type_master_id' => $divisionType->id])->call('create')->assertHasNoFormErrors();
+    expect(OrganizationalUnit::where('code', 'WEST')->sole()->type_master_id)->toBe($divisionType->id);
+});
 
 it('resolves an out of order hierarchy and preserves it on repeat imports', function () {
     $rows = app(EmployeeImportTemplate::class)->examples();
