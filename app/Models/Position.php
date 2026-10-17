@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use App\Enums\PositionStatus;
+use App\Services\EmployeeReportingService;
 use App\Traits\HasApprovalWorkflow;
 use App\Traits\HasVisibilityScope;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import the new enum
+use Illuminate\Database\Eloquent\Factories\HasFactory; // Import the new enum
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
@@ -144,6 +145,8 @@ class Position extends BaseModel
     public function employees(): BelongsToMany
     {
         return $this->belongsToMany(Employee::class, 'employee_position_pivot', 'position_id', 'employee_id')
+            ->using(EmployeePosition::class)
+            ->withPivot('is_primary')
             ->withTimestamps();
     }
 
@@ -163,5 +166,13 @@ class Position extends BaseModel
     public function getRecordTitle(): string
     {
         return $this->name;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(fn (Position $position) => app(EmployeeReportingService::class)->validatePosition($position));
+        static::saved(fn () => app(EmployeeReportingService::class)->synchronize());
+        static::deleted(fn () => app(EmployeeReportingService::class)->synchronize());
+        static::restored(fn () => app(EmployeeReportingService::class)->synchronize());
     }
 }

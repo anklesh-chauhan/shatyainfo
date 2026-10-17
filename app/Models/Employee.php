@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\UserAccountCreated;
+use App\Services\EmployeeReportingService;
 use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -114,6 +115,7 @@ class Employee extends BaseModel
     public function positions(): BelongsToMany
     {
         return $this->belongsToMany(Position::class, 'employee_position_pivot', 'employee_id', 'position_id')
+            ->using(EmployeePosition::class)
             ->withPivot('is_primary')
             ->withTimestamps();
     }
@@ -144,6 +146,13 @@ class Employee extends BaseModel
 
     protected static function booted(): void
     {
+        static::saved(function (Employee $employee): void {
+            if ($employee->wasChanged('is_active')) {
+                app(EmployeeReportingService::class)->synchronize();
+            }
+        });
+        static::deleted(fn () => app(EmployeeReportingService::class)->synchronize());
+        static::restored(fn () => app(EmployeeReportingService::class)->synchronize());
         static::saved(function (Employee $employee) {
 
             if (! $employee->provisionLoginOnSave) {

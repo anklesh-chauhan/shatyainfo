@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Models\Employee;
+use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\ImportableModule;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
@@ -19,7 +20,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use OpenSpout\Common\Entity\Row;
-use OpenSpout\Writer\XLSX\Writer;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -98,7 +98,7 @@ class DataImport extends Page implements HasForms
                     ])
                     ->maxSize(20480)
                     ->required()
-                    ->helperText('Upload .xlsx (first worksheet) or UTF-8 CSV with a header row. Download the template first. Format employee codes and phone numbers as Text in Excel.'),
+                    ->helperText('Upload .xlsx or UTF-8 CSV. Employee imports read the Employees sheet; other modules read the first sheet. Read the template Instructions before uploading.'),
             ])
             ->statePath('data');
     }
@@ -129,14 +129,10 @@ class DataImport extends Page implements HasForms
 
         $csv = $importer->exampleCsv($module);
         if ($module->modelClass === Employee::class) {
-            return response()->streamDownload(function () use ($module): void {
+            return response()->streamDownload(function (): void {
                 $path = tempnam(sys_get_temp_dir(), 'employee-template-');
                 try {
-                    $writer = new Writer;
-                    $writer->openToFile($path);
-                    $writer->addRow(Row::fromValues(array_map(fn ($column): string => $column->header, $module->columns)));
-                    $writer->addRow(Row::fromValues(array_map(fn ($column): string => $column->example, $module->columns)));
-                    $writer->close();
+                    app(EmployeeImportTemplate::class)->write($path);
                     readfile($path);
                 } finally {
                     unlink($path);

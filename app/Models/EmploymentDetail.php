@@ -2,22 +2,19 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use App\Services\EmployeeReportingService;
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmploymentDetail extends BaseModel
 {
-    use SoftDeletes, HasApprovalWorkflow;
+    use HasApprovalWorkflow, SoftDeletes;
 
     protected $fillable = [
         'employee_id', 'ticket_no', 'department_id', 'job_title_id', 'grade_id',
         'division_ou_id', 'organizational_unit_id', 'hire_date', 'employment_type',
         'employment_status', 'resign_offer_date', 'last_working_date', 'probation_date',
-        'confirm_date', 'fnf_retiring_date', 'last_increment_date', 'work_location_id', 'remarks'
+        'confirm_date', 'fnf_retiring_date', 'last_increment_date', 'work_location_id', 'remarks',
     ];
 
     protected $casts = [
@@ -75,7 +72,7 @@ class EmploymentDetail extends BaseModel
             'is_primary',
             'role',
             'effective_from',
-            'effective_to'
+            'effective_to',
         ]);
     }
 
@@ -110,39 +107,10 @@ class EmploymentDetail extends BaseModel
                 }
             }
 
-            /* ===============================
-            | AUTO-DERIVE REPORTING MANAGER
-            =============================== */
-
-            // Resolve employee
             $employee = $model->employee;
-
-            if (! $employee) {
-                $model->reporting_manager_id = null;
-                return;
-            }
-
-            // Get employee positions (supports multi-position)
-            $positions = $employee->positions()->with('reportsTo.employees')->get();
-
-            // Pick the FIRST valid reporting manager found
-            foreach ($positions as $position) {
-                $managerPosition = $position->reportsTo;
-
-                if (! $managerPosition) {
-                    continue;
-                }
-
-                $managerEmployee = $managerPosition->employees()->first();
-
-                if ($managerEmployee) {
-                    $model->reporting_manager_id = $managerEmployee->id;
-                    return;
-                }
-            }
-
-            // No reporting position found
-            $model->reporting_manager_id = null;
+            $model->reporting_manager_id = $employee
+                ? app(EmployeeReportingService::class)->resolve($employee)['manager']
+                : null;
         });
     }
 }

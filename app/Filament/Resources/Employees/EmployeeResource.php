@@ -399,6 +399,10 @@ class EmployeeResource extends BaseResource
 
                                         $syncData = [];
 
+                                        if ($existingPrimaryId && ! in_array($existingPrimaryId, $state)) {
+                                            $existingPrimaryId = null;
+                                        }
+
                                         foreach ($state as $index => $id) {
                                             $isPrimary = false;
 

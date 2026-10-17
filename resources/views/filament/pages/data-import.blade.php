@@ -26,8 +26,8 @@
                     Each row is added as a new record. A blank cell is skipped.
                 @endif
                 @if ($module->modelClass === \App\Models\Employee::class)
-                    Replace the example row with your team. Departments, job roles, positions, grades, job titles and org units are created from the same file. Existing setup is reused; conflicting details are reported for correction.
-                    Position code identifies a position and requires a position name and job role. Org unit type must match an existing type (for example, Division). Blank cells preserve existing details. Employee records are imported without sending login invitations.
+                    Fill the Employees sheet and follow the Instructions and Examples tabs. Each employee needs exactly one primary position. Reporting links use position codes; an expected manager employee code is optional.
+                    The entire employee file is saved together. Any error saves nothing. Blank cells preserve existing details; use clear or remove for explicit changes. Employee records are imported without sending login invitations.
                 @else
                     Related columns must match an existing record, usually by name or code. Import those lists first.
                 @endif
@@ -62,6 +62,18 @@
                 @if (count($result['failed']) > 50)
                     <p class="mt-3 text-sm text-gray-500">Showing the first 50 failed rows.</p>
                 @endif
+            @endif
+            @if (!empty($result['hierarchy']))
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead><tr><th class="p-2">Employee</th><th class="p-2">Primary position</th><th class="p-2">Reports to position</th><th class="p-2">Manager</th><th class="p-2">Status</th></tr></thead>
+                        <tbody>
+                            @foreach ($result['hierarchy'] as $entry)
+                                <tr><td class="p-2">{{ $entry['employee'] }}</td><td class="p-2">{{ $entry['position'] }}</td><td class="p-2">{{ $entry['reports_to_position'] }}</td><td class="p-2">{{ $entry['manager'] }}</td><td class="p-2">{{ $entry['status'] }}</td></tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             @endif
         </section>
     @endif

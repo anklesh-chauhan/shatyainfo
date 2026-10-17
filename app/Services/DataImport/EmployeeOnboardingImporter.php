@@ -29,6 +29,8 @@ class EmployeeOnboardingImporter
             'position_code' => 'SR-WEST', 'grade' => 'G1', 'job_title' => 'Sales Executive',
             'org_unit' => 'West Division', 'org_unit_type' => 'Division',
             'hire_date' => '2026-10-01', 'employment_type' => 'Permanent',
+            'is_primary_position' => 'Yes', 'reports_to_position_code' => '',
+            'reports_to_employee_code' => '', 'reporting_action' => '', 'assignment_action' => '',
         ];
 
         return collect($examples)->map(fn (string $example, string $header): ImportColumnDefinition => new ImportColumnDefinition(
@@ -38,7 +40,7 @@ class EmployeeOnboardingImporter
     }
 
     /** @param array<string, mixed> $row */
-    public function importRow(array $row): string
+    public function importRow(array $row, bool $deferAssignments = false): string
     {
         $row = array_filter($row, fn (mixed $value): bool => filled($value));
         $employee = Employee::query()->firstOrNew(['employee_id' => $row['employee_id'] ?? '']);
@@ -74,10 +76,11 @@ class EmployeeOnboardingImporter
         $role = isset($row['job_role']) ? $this->master(JobRole::class, ['name' => $row['job_role']], ['code' => 'ROLE-'.Str::uuid(), 'level' => $row['job_role_level'] ?? 1], isset($row['job_role_level']) ? ['level'] : []) : null;
         $position = null;
         if (isset($row['position']) || isset($row['position_code'])) {
-            if (! isset($row['position'], $row['position_code']) || ! $role) {
+            $existingPosition = isset($row['position_code']) ? Position::query()->where('code', $row['position_code'])->first() : null;
+            if (! isset($row['position_code']) || (! $existingPosition && (! isset($row['position']) || ! $role))) {
                 throw new ImportRowException('Position requires position, position_code and job_role.');
             }
-            $attributes = array_filter(['name' => $row['position'], 'job_role_id' => $role->id, 'department_id' => $department?->id, 'job_title_id' => $title?->id, 'job_grade_id' => $grade?->id, 'organizational_unit_id' => $unit?->id]);
+            $attributes = array_filter(['name' => $row['position'] ?? null, 'job_role_id' => $role?->id, 'department_id' => $department?->id, 'job_title_id' => $title?->id, 'job_grade_id' => $grade?->id, 'organizational_unit_id' => $unit?->id]);
             $position = $this->master(Position::class, ['code' => $row['position_code']], $attributes, array_keys($attributes));
         } elseif ($role) {
             throw new ImportRowException('Add position and position_code to assign the job role to this employee.');
@@ -85,7 +88,7 @@ class EmployeeOnboardingImporter
         $employee->fill(array_intersect_key($row, array_flip(['employee_id', 'first_name', 'last_name', 'mobile_number', 'email'])));
         $employee->provisionLoginOnSave = false;
         $employee->save();
-        if ($position) {
+        if ($position && ! $deferAssignments) {
             if (! $employee->positions()->whereKey($position->id)->exists()) {
                 $employee->positions()->attach($position->id, ['is_primary' => ! $employee->positions()->wherePivot('is_primary', true)->exists()]);
             }
@@ -94,7 +97,7 @@ class EmployeeOnboardingImporter
             }
         }
         $employment = array_filter(['department_id' => $department?->id, 'grade_id' => $grade?->id, 'job_title_id' => $title?->id, 'organizational_unit_id' => $unit?->id, 'hire_date' => $row['hire_date'] ?? null, 'employment_type' => $row['employment_type'] ?? null], fn (mixed $value): bool => $value !== null);
-        if ($employment !== []) {
+        if ($employment !== [] && ! $deferAssignments) {
             $detail = $employee->employmentDetail()->updateOrCreate([], $employment);
             if ($unit) {
                 $detail->organizationalUnits()->syncWithoutDetaching([$unit->id]);
@@ -126,7 +129,7 @@ class EmployeeOnboardingImporter
         return $class::query()->create([...$key, ...$defaults]);
     }
 
-    private function authorize(string $ability, Model|string $record): void
+    public function authorize(string $ability, Model|string $record): void
     {
         $user = auth()->user();
         if ($user && ($user->hasRole('super_admin') || $user->hasRole('administration_admin') || $user->can('AccessAllRecords'))) {

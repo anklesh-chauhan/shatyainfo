@@ -64,16 +64,16 @@ it('imports all employee setup from excel and reuses records on repeat upload', 
     }
 });
 
-it('rolls back setup for invalid rows and imports the following valid row', function () {
+it('rolls back the whole employee file when a row is invalid', function () {
     $path = tempnam(sys_get_temp_dir(), 'employee-test-');
     file_put_contents($path, "employee_id,first_name,last_name,mobile_number,department,job_role\nEMP1,Asha,Shah,9000000001,Temporary Sales,Sales Rep\nEMP2,Ravi,Shah,9000000002,,\n");
     try {
         $result = app(ResourceCsvImporter::class)->import(app(ResourceImportCatalog::class)->findByModel(Employee::class), $path);
-        expect($result->created)->toBe(1)->and($result->failed)->toHaveCount(1)
+        expect($result->created)->toBe(0)->and($result->failed)->toHaveCount(1)
             ->and($result->failed[0]['row'])->toBe(2)
             ->and(EmpDepartment::query()->count())->toBe(0)
             ->and(JobRole::query()->count())->toBe(0)
-            ->and(Employee::query()->sole()->employee_id)->toBe('EMP2');
+            ->and(Employee::query()->count())->toBe(0);
     } finally {
         unlink($path);
     }

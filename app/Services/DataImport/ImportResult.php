@@ -6,11 +6,13 @@ final class ImportResult
 {
     /**
      * @param  list<array{row: int, message: string}>  $failed
+     * @param  list<array{employee: string, position: string, reports_to_position: string, manager: string, status: string}>  $hierarchy
      */
     public function __construct(
         public int $created = 0,
         public int $updated = 0,
         public array $failed = [],
+        public array $hierarchy = [],
     ) {}
 
     public function importedCount(): int
@@ -19,7 +21,7 @@ final class ImportResult
     }
 
     /**
-     * @return array{created: int, updated: int, failed: list<array{row: int, message: string}>}
+     * @return array{created: int, updated: int, failed: list<array{row: int, message: string}>, hierarchy: array}
      */
     public function toArray(): array
     {
@@ -27,6 +29,7 @@ final class ImportResult
             'created' => $this->created,
             'updated' => $this->updated,
             'failed' => $this->failed,
+            'hierarchy' => $this->hierarchy,
         ];
     }
 }

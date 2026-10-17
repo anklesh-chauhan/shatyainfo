@@ -22,7 +22,9 @@ class ResourceCsvImporter
     {
         if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'xlsx') {
             try {
-                $csv = app(SpreadsheetFile::class)->toCsv($path);
+                $csv = app(SpreadsheetFile::class)->toCsv($path, $module->modelClass === Employee::class ? 'Employees' : null);
+            } catch (ImportRowException $exception) {
+                return new ImportResult(failed: [['row' => 1, 'message' => $exception->getMessage()]]);
             } catch (Throwable $exception) {
                 return new ImportResult(failed: [['row' => 1, 'message' => 'Unable to read this Excel workbook. Upload a valid .xlsx file.']]);
             }
@@ -74,6 +76,26 @@ class ResourceCsvImporter
                 'row' => 1,
                 'message' => 'Add these columns: '.implode(', ', $missing).'.',
             ]]);
+        }
+
+        if ($module->modelClass === Employee::class) {
+            $allowed = array_map(fn (ImportColumnDefinition $column): string => $column->header, $module->columns);
+            $unknown = array_diff($headers, $allowed);
+            if ($unknown !== []) {
+                return new ImportResult(failed: [['row' => 1, 'message' => 'Unknown columns: '.implode(', ', $unknown).'. Use the employee template headers.']]);
+            }
+            $rows = [];
+            foreach ($reader->getRecords() as $offset => $record) {
+                $row = [];
+                foreach ($record as $header => $value) {
+                    $row[$this->normalizeHeader((string) $header)] = is_string($value) ? trim($value) : $value;
+                }
+                if (! collect($row)->every(fn (mixed $value): bool => blank($value))) {
+                    $rows[$offset + 1] = $row;
+                }
+            }
+
+            return app(EmployeeHierarchyImport::class)->import($rows);
         }
 
         $result = new ImportResult;
