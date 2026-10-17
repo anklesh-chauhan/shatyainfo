@@ -23,6 +23,10 @@
                 Email verified. Creating your database and sign-in account…
             @endif
         </p>
+        <div @if($status === 'awaiting_verification') hidden @endif id="registration-progress-bar">
+            <progress style="width: 100%;" id="registration-progress" max="100" value="{{ $tenant->provisioningProgress() }}" aria-label="Registration progress"></progress>
+            <p id="registration-percentage">{{ $tenant->provisioningProgress() }}% complete</p>
+        </div>
         @if($status === 'awaiting_verification')
             <form method="post" action="{{ $resendUrl }}">
                 @csrf

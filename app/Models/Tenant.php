@@ -37,6 +37,16 @@ class Tenant extends BaseTenant
         return (string) $this->database;
     }
 
+    public function provisioningProgress(): int
+    {
+        return $this->provisioning_status === 'ready' ? 100 : max(0, min(99, (int) ($this->provisioning_progress ?? 0)));
+    }
+
+    public function masterSetupProgress(): int
+    {
+        return $this->accountIsConfigured() ? 100 : max(0, min(99, (int) ($this->master_setup_progress ?? 0)));
+    }
+
     public function accountIsConfigured(): bool
     {
         return ($this->master_setup_status ?? 'ready') === 'ready';

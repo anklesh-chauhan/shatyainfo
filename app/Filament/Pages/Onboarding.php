@@ -22,6 +22,16 @@ class Onboarding extends Page
 
     public array $organization = [];
 
+    public function getLayout(): string
+    {
+        return 'filament-panels::components.layout.simple';
+    }
+
+    protected function getLayoutData(): array
+    {
+        return ['hasTopbar' => false];
+    }
+
     public static function canAccess(): bool
     {
         return Tenant::checkCurrent() && (auth()->user()?->hasAnyRole(['super_admin', 'administration_admin']) ?? false);
@@ -47,7 +57,7 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->authorize();
         $tenant = Tenant::current();
         $updated = Tenant::query()->whereKey($tenant->id)->where('master_setup_status', 'failed')
-            ->update(['master_setup_status' => 'pending', 'master_setup_error' => null]);
+            ->update(['master_setup_status' => 'pending', 'master_setup_progress' => 0, 'master_setup_error' => null]);
         if ($updated) {
             SeedTenantMasters::dispatch($tenant->id);
         }

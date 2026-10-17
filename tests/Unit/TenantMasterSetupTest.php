@@ -10,10 +10,10 @@ use App\Models\User;
 use App\Services\CompanyOnboardingService;
 use App\Support\Tenancy\TenantDatabaseProvisioner;
 use App\Support\Tenancy\TenantProvisioner;
+use App\Support\Tenancy\TenantSchemaMigrator;
 use Filament\Facades\Filament;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -32,6 +32,9 @@ beforeEach(function () {
         $table->string('domain');
         $table->string('database');
         $table->string('provisioning_status')->default('pending');
+        $table->unsignedTinyInteger('provisioning_progress')->nullable();
+        $table->string('provisioning_step')->nullable();
+        $table->unsignedTinyInteger('master_setup_progress')->nullable();
         $table->text('provisioning_owner')->nullable();
         $table->text('provisioning_error')->nullable();
         $table->string('master_setup_status')->default('ready');
@@ -141,6 +144,8 @@ function transactionalMasterProvisioner(): TenantProvisioner
 
         public int $seedRuns = 0;
 
+        protected function migrateSchema(array $paths, callable $progress): void {}
+
         protected function copyAccessControl(): void {}
 
         protected function deleteLandlordPermissions(): void {}
@@ -233,47 +238,12 @@ test('onboarding retry queues only one new master job', function () {
     expect($this->tenant->fresh()->master_setup_status)->toBe('pending');
 });
 
-test('initial provisioning creates an authorized owner without running master seeders', function () {
+test('initial provisioning uses five real migrations and renders setup without business tables', function () {
     config(['database.connections.tenant' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
     DB::purge('tenant');
-    Schema::connection('tenant')->create('users', function (Blueprint $table): void {
-        $table->id();
-        $table->string('name');
-        $table->string('email');
-        $table->string('password');
-        $table->timestamp('email_verified_at')->nullable();
-        $table->timestamps();
-    });
-    Schema::connection('tenant')->create('roles', function (Blueprint $table): void {
-        $table->id();
-        $table->string('name');
-        $table->string('guard_name');
-        $table->timestamps();
-        $table->softDeletes();
-    });
-    Schema::connection('tenant')->create('model_has_roles', function (Blueprint $table): void {
-        $table->unsignedBigInteger('role_id');
-        $table->string('model_type');
-        $table->unsignedBigInteger('model_id');
-        $table->unique(['role_id', 'model_type', 'model_id']);
-    });
-    Schema::connection('tenant')->create('organizations', function (Blueprint $table): void {
-        $table->id();
-        $table->string('name');
-        $table->string('email')->nullable();
-        $table->string('status')->nullable();
-        $table->string('timezone')->nullable();
-        $table->string('language')->nullable();
-        $table->text('metadata')->nullable();
-        $table->unsignedBigInteger('created_by')->nullable();
-        $table->unsignedBigInteger('updated_by')->nullable();
-        $table->timestamps();
-        $table->softDeletes();
-    });
     $databases = Mockery::mock(TenantDatabaseProvisioner::class);
     $databases->shouldReceive('createDatabase')->once();
     $databases->shouldReceive('createDedicatedUser')->once()->andReturnUsing(fn () => DB::setDefaultConnection('tenant'));
-    Artisan::shouldReceive('call')->once()->with('migrate', Mockery::type('array'))->andReturn(0);
     $provisioner = new class($databases) extends TenantProvisioner
     {
         protected function seedReferenceData(): void
@@ -288,10 +258,61 @@ test('initial provisioning creates an authorized owner without running master se
     };
     $owner = ['name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'password-value', 'email_verified_at' => now()->toDateTimeString()];
     $provisioner->provision($this->tenant, $owner);
+    $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'pending', 'master_setup_progress' => 0])->saveQuietly();
     $this->tenant->makeCurrent();
     $user = User::query()->firstOrFail();
     expect($user->email)->toBe('owner@example.test')->and($user->email_verified_at)->not->toBeNull()
         ->and($user->canAccessPanel(Filament::getPanel('admin')))->toBeTrue()
-        ->and(DB::connection('tenant')->table('organizations')->count())->toBe(1);
-    Queue::assertNotPushed(SeedTenantMasters::class);
+        ->and(DB::connection('tenant')->table('migrations')->count())->toBe(5)
+        ->and(Schema::connection('tenant')->hasTable('employees'))->toBeFalse()
+        ->and(Schema::connection('tenant')->hasTable('visits'))->toBeFalse();
+    $this->actingAs($user, 'web');
+    $this->get('http://new.shatyainfo.com/admin')->assertRedirect(route('filament.admin.pages.onboarding'));
+    $this->get('http://new.shatyainfo.com/admin/onboarding')->assertOk()->assertSee('We are configuring your account')->assertSee('0% complete');
+});
+
+test('schema progress counts completed migrations and skips them on retry', function () {
+    config(['database.connections.tenant' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+    DB::purge('tenant');
+    $updates = [];
+    $schema = app(TenantSchemaMigrator::class);
+    $schema->run(TenantSchemaMigrator::LOGIN_MIGRATIONS, function (int $completed, int $total) use (&$updates): void {
+        $updates[] = [$completed, $total];
+    });
+    expect($updates)->toBe([[0, 5], [1, 5], [2, 5], [3, 5], [4, 5], [5, 5]])
+        ->and(DB::getDefaultConnection())->toBe('mysql');
+    $updates = [];
+    $schema->run(TenantSchemaMigrator::LOGIN_MIGRATIONS, function (int $completed, int $total) use (&$updates): void {
+        $updates[] = [$completed, $total];
+    });
+    expect($updates)->toBe([[0, 0]])->and(DB::connection('tenant')->table('migrations')->count())->toBe(5);
+});
+
+test('background schema failure stops before copying permissions or seeding masters', function () {
+    createMasterSetupDatabase();
+    $schema = Mockery::mock(TenantSchemaMigrator::class);
+    $schema->shouldReceive('run')->once()->with(['database/migrations/tenant'], Mockery::type('callable'))->andThrow(new RuntimeException('DDL failed'));
+    app()->instance(TenantSchemaMigrator::class, $schema);
+    $provisioner = new class(app(TenantDatabaseProvisioner::class)) extends TenantProvisioner
+    {
+        protected function copyAccessControl(): void
+        {
+            throw new LogicException('Permissions ran before tables');
+        }
+
+        protected function seedReferenceData(): void
+        {
+            throw new LogicException('Seeding ran before tables');
+        }
+    };
+    expect(fn () => $provisioner->configureAccount($this->tenant))->toThrow(RuntimeException::class, 'DDL failed');
+    expect(DB::connection('tenant')->table('sample_masters')->count())->toBe(0)
+        ->and(DB::getDefaultConnection())->toBe('mysql')->and(Tenant::checkCurrent())->toBeFalse();
+});
+
+test('only completed setup reports one hundred percent', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'provisioning', 'provisioning_progress' => 40, 'master_setup_status' => 'running', 'master_setup_progress' => 63]);
+    expect($this->tenant->provisioningProgress())->toBe(40)->and($this->tenant->masterSetupProgress())->toBe(63);
+    $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'ready']);
+    expect($this->tenant->provisioningProgress())->toBe(100)->and($this->tenant->masterSetupProgress())->toBe(100);
 });

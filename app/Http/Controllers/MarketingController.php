@@ -73,6 +73,8 @@ class MarketingController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => $tenant->provisioning_status,
+                'progress' => $tenant->provisioningProgress(),
+                'step' => $tenant->provisioning_step,
                 'redirect_url' => app(RegistrationAccessController::class)->redirectUrl($request, $tenant),
                 'login_url' => $tenant->provisioning_status === 'ready'
                     ? CompanyDomain::loginUrl((string) $tenant->domain)

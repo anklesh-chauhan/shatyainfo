@@ -16,7 +16,11 @@
                 failed: 'Registration could not finish. Refresh this page to retry.',
                 ready: 'Your company is ready. Opening your workspace…',
             };
-            document.getElementById('setup-progress').textContent = messages[data.status] || 'Preparing your workspace…';
+            document.getElementById('setup-progress').textContent = (data.status === 'provisioning' && data.step) || messages[data.status] || 'Preparing your workspace…';
+            const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
+            document.getElementById('registration-progress-bar').hidden = data.status === 'awaiting_verification';
+            document.getElementById('registration-progress').value = progress;
+            document.getElementById('registration-percentage').textContent = progress + '% complete';
             document.getElementById('company-login').hidden = data.status !== 'ready';
             if (data.redirect_url) {
                 clearInterval(timer);

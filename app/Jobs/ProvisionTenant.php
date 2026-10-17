@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Support\Tenancy\TenantProvisioner;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 use Spatie\Multitenancy\Jobs\NotTenantAware;
 use Throwable;
 
@@ -17,8 +18,11 @@ class ProvisionTenant implements NotTenantAware, ShouldQueue
 
     public int $tries = 1;
 
+    public float $queuedAt = 0;
+
     public function __construct(public int $tenantId)
     {
+        $this->queuedAt = microtime(true);
         $this->afterCommit();
         $this->onConnection('database');
     }
@@ -31,8 +35,15 @@ class ProvisionTenant implements NotTenantAware, ShouldQueue
             return;
         }
 
+        $startedAt = microtime(true);
+        Log::info('Tenant sign-in provisioning started.', [
+            'tenant_id' => $tenant->id,
+            'queue_wait_seconds' => $this->queuedAt > 0 ? round($startedAt - $this->queuedAt, 3) : null,
+        ]);
         $tenant->forceFill([
             'provisioning_status' => 'provisioning',
+            'provisioning_progress' => 0,
+            'provisioning_step' => 'Creating your database',
             'provisioning_error' => null,
         ])->saveQuietly();
 
@@ -54,13 +65,17 @@ class ProvisionTenant implements NotTenantAware, ShouldQueue
 
         $tenant->forceFill([
             'provisioning_status' => 'ready',
+            'provisioning_progress' => 100,
+            'provisioning_step' => 'Opening your workspace',
             'master_setup_status' => 'pending',
+            'master_setup_progress' => 0,
             'master_setup_step' => 'Waiting to configure your account',
             'master_setup_error' => null,
             'provisioning_error' => null,
             'provisioning_owner' => null,
         ])->saveQuietly();
 
+        Log::info('Tenant sign-in provisioning completed.', ['tenant_id' => $tenant->id, 'duration_seconds' => round(microtime(true) - $startedAt, 3)]);
         SeedTenantMasters::dispatch($tenant->id);
     }
 

@@ -174,3 +174,14 @@ test('verified owners can enter before masters finish even when tenant cache pre
     expect($this->tenant->fresh()->master_setup_status)->toBe('pending');
     $this->get($url)->assertForbidden();
 });
+
+test('registration polling exposes provisioning percentage and current step', function () {
+    Schema::connection('mysql')->table('tenants', function (Blueprint $table): void {
+        $table->unsignedTinyInteger('provisioning_progress')->nullable();
+        $table->string('provisioning_step')->nullable();
+    });
+    $this->tenant->forceFill(['provisioning_status' => 'provisioning', 'provisioning_progress' => 42, 'provisioning_step' => 'Creating sign-in tables (2 of 5)'])->saveQuietly();
+    $url = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->getJson($url)->assertOk()->assertJsonPath('progress', 42)->assertJsonPath('step', 'Creating sign-in tables (2 of 5)');
+    $this->get($url)->assertOk()->assertSee('42% complete');
+});

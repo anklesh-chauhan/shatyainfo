@@ -11,10 +11,8 @@ use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\OrganizationSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -38,17 +36,17 @@ class TenantProvisioner
             $this->databases->createDatabase($tenant);
             $databaseCreated = true;
             $this->databases->createDedicatedUser($tenant);
+            $tenant->forceFill(['provisioning_progress' => 10, 'provisioning_step' => 'Creating sign-in tables'])->saveQuietly();
 
             $tenant->makeCurrent();
 
-            $exitCode = Artisan::call('migrate', [
-                '--database' => 'tenant',
-                '--path' => 'database/migrations/tenant',
-                '--force' => true,
-            ]);
-            if ($exitCode !== 0) {
-                throw new RuntimeException('Company database tables could not be created.');
-            }
+            $this->migrateSchema(TenantSchemaMigrator::LOGIN_MIGRATIONS, function (int $completed, int $total) use ($tenant): void {
+                $tenant->forceFill([
+                    'provisioning_progress' => 10 + (int) floor(80 * $completed / max(1, $total)),
+                    'provisioning_step' => 'Creating sign-in tables ('.$completed.' of '.$total.')',
+                ])->saveQuietly();
+            });
+            $tenant->forceFill(['provisioning_progress' => 92, 'provisioning_step' => 'Creating your sign-in account'])->saveQuietly();
 
             $this->createOwner($owner);
             $organization = new OrganizationSeeder;
@@ -127,7 +125,13 @@ class TenantProvisioner
         $originalReferenceConnection = config('multitenancy.geographic_reference_connection_name');
         try {
             $tenant->makeCurrent();
-            $tenant->forceFill(['master_setup_step' => 'Configuring access permissions'])->saveQuietly();
+            $this->migrateSchema(['database/migrations/tenant'], function (int $completed, int $total) use ($tenant): void {
+                $tenant->forceFill([
+                    'master_setup_progress' => $total > 0 ? (int) floor(70 * $completed / $total) : 70,
+                    'master_setup_step' => 'Creating workspace tables ('.$completed.' of '.$total.')',
+                ])->saveQuietly();
+            });
+            $tenant->forceFill(['master_setup_step' => 'Configuring access permissions', 'master_setup_progress' => 72])->saveQuietly();
             $this->copyAccessControl();
             $configuration = config('database.connections.'.$this->landlordConnection());
             config([
@@ -141,7 +145,7 @@ class TenantProvisioner
                 if ($organization->metadata['master_data_ready'] ?? false) {
                     return;
                 }
-                $tenant->forceFill(['master_setup_step' => 'Preparing master data'])->saveQuietly();
+                $tenant->forceFill(['master_setup_step' => 'Preparing master data', 'master_setup_progress' => 75])->saveQuietly();
                 $this->seedReferenceData();
                 $organization->refresh();
                 $metadata = $organization->metadata ?? [];
@@ -160,6 +164,11 @@ class TenantProvisioner
         }
     }
 
+    protected function migrateSchema(array $paths, callable $progress): void
+    {
+        app(TenantSchemaMigrator::class)->run($paths, $progress);
+    }
+
     protected function seedReferenceData(): void
     {
         $organization = new OrganizationSeeder;
@@ -175,7 +184,7 @@ class TenantProvisioner
             {
                 $classes = (array) $class;
                 foreach ($classes as $index => $seeder) {
-                    $this->tenant->forceFill(['master_setup_step' => 'Preparing master data ('.($index + 1).' of '.count($classes).')'])->saveQuietly();
+                    $this->tenant->forceFill(['master_setup_step' => 'Preparing master data ('.($index + 1).' of '.count($classes).')', 'master_setup_progress' => 75 + (int) floor(24 * $index / max(1, count($classes)))])->saveQuietly();
                     parent::call($seeder, $silent, $parameters);
                 }
 
