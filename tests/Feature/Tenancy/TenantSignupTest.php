@@ -28,8 +28,8 @@ it('registers a company and keeps the owner off the public tenant columns', func
         'slug' => 'North-Wind',
         'name' => 'Asha Rao',
         'email' => 'asha@northwind.test',
-        'password' => 'long-password-1',
-        'password_confirmation' => 'long-password-1',
+        'password' => 'Long-password-1',
+        'password_confirmation' => 'Long-password-1',
     ]);
 
     $tenant = Tenant::query()->where('domain', CompanyDomain::fromSlug('north-wind'))->first();
@@ -70,9 +70,37 @@ it('rejects a reserved or taken company address', function () {
     expect(Tenant::query()->count())->toBe(1);
 });
 
-it('requires a long password', function () {
+it('requires a long mixed-case password', function () {
     $this->post('/register', tenantSignupPayload('short-pass', ['password' => 'short', 'password_confirmation' => 'short']))
         ->assertSessionHasErrors('password');
+    $this->post('/register', tenantSignupPayload('lower-pass', ['password' => 'long-password-1', 'password_confirmation' => 'long-password-1']))
+        ->assertSessionHasErrors('password');
+});
+
+it('checks company address availability while typing', function () {
+    Tenant::withoutEvents(function () {
+        $tenant = new Tenant;
+        $tenant->forceFill([
+            'name' => 'Taken',
+            'domain' => CompanyDomain::fromSlug('taken'),
+            'database' => 'tenant_taken_lookup',
+            'provisioning_status' => 'ready',
+        ])->save();
+    });
+
+    $this->getJson('/register/address-availability?slug=ab')
+        ->assertOk()
+        ->assertJson(['available' => false, 'status' => 'invalid']);
+    $this->getJson('/register/address-availability?slug=admin')
+        ->assertOk()
+        ->assertJson(['available' => false, 'status' => 'reserved', 'message' => 'That address is reserved.']);
+    $this->getJson('/register/address-availability?slug=taken')
+        ->assertOk()
+        ->assertJson(['available' => false, 'status' => 'taken']);
+    $this->getJson('/register/address-availability?slug=Fresh-Co')
+        ->assertOk()
+        ->assertJsonPath('available', true)
+        ->assertJsonPath('domain', CompanyDomain::fromSlug('fresh-co'));
 });
 
 it('hides registration on a company host', function () {
@@ -135,7 +163,7 @@ function tenantSignupPayload(string $slug, array $overrides = []): array
         'slug' => $slug,
         'name' => 'Owner',
         'email' => $slug.'@example.test',
-        'password' => 'long-password-1',
-        'password_confirmation' => 'long-password-1',
+        'password' => 'Long-password-1',
+        'password_confirmation' => 'Long-password-1',
     ], $overrides);
 }

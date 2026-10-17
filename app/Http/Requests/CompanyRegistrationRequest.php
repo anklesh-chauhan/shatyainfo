@@ -2,10 +2,10 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Tenant;
 use App\Support\Tenancy\CompanyDomain;
-use App\Support\Tenancy\LandlordDomains;
+use App\Support\Tenancy\RegistrationCaptcha;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Password;
 
 class CompanyRegistrationRequest extends FormRequest
 {
@@ -24,37 +24,34 @@ class CompanyRegistrationRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'captcha' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+        $rules = [
+            'company' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+                $result = CompanyDomain::checkSlug((string) $value);
+                if (! $result['available']) {
+                    $fail($result['message']);
+                }
+            }],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'password' => ['required', 'string', 'confirmed', Password::min(12)->mixedCase()],
+        ];
+
+        if (RegistrationCaptcha::usesTurnstile()) {
+            $rules['cf-turnstile-response'] = ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! RegistrationCaptcha::verifyTurnstile(is_string($value) ? $value : null, $this->ip())) {
+                    $fail('Please complete the CAPTCHA again.');
+                }
+            }];
+        } else {
+            $rules['captcha'] = ['required', 'string', function (string $attribute, mixed $value, \Closure $fail): void {
                 $challenge = $this->session()->pull('registration_captcha');
                 if (! is_array($challenge) || $challenge['expires'] < time() || ! hash_equals($challenge['answer'], strtoupper(trim((string) $value)))) {
                     $fail('Please complete the CAPTCHA again.');
                 }
-            }],
-            'company' => ['required', 'string', 'max:255'],
-            'slug' => [
-                'required',
-                'string',
-                'min:3',
-                'max:32',
-                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (in_array($value, CompanyDomain::reserved(), true)) {
-                        $fail('That address is reserved.');
+            }];
+        }
 
-                        return;
-                    }
-
-                    $domain = CompanyDomain::fromSlug((string) $value);
-
-                    if (LandlordDomains::isLandlordHost($domain) || Tenant::query()->where('domain', $domain)->exists()) {
-                        $fail('That company address is already in use.');
-                    }
-                },
-            ],
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'min:12', 'confirmed'],
-        ];
+        return $rules;
     }
 }

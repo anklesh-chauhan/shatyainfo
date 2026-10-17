@@ -52,6 +52,11 @@ return [
         'sender_id' => env('SMS_SENDER_ID'),
     ],
 
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
     'attendance_device' => [
         'api_url' => env('ATTENDANCE_DEVICE_API_URL'),
         'api_key' => env('ATTENDANCE_DEVICE_API_KEY'),

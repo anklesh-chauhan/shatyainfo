@@ -93,7 +93,17 @@
         input:focus { outline: 2px solid rgba(13, 107, 76, .35); border-color: var(--green); }
         .hint, .error { font-weight: 500; font-size: .82rem; }
         .hint { color: var(--muted); }
+        .hint.ok { color: var(--green); }
+        .hint.bad { color: var(--danger); }
         .error { color: var(--danger); }
+        .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+        .rules li { font-weight: 500; font-size: .82rem; color: var(--muted); }
+        .rules li::before { content: "○ "; }
+        .rules li.met { color: var(--green); }
+        .rules li.met::before { content: "✓ "; }
+        .rules li.unmet { color: var(--danger); }
+        .rules li.unmet::before { content: "✕ "; }
+        .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
         .alert { background: var(--danger-bg); color: var(--danger); border-radius: 12px; padding: 10px 12px; }
         .slug-row { display: flex; align-items: center; gap: 0; }
         .slug-row input { border-top-right-radius: 0; border-bottom-right-radius: 0; }

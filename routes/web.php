@@ -12,6 +12,7 @@ Route::middleware('landlord')->group(function () {
     Route::get('/register/captcha', [RegistrationAccessController::class, 'captcha'])->middleware('throttle:30,1')->name('signup.captcha');
     Route::get('/register/verify/{token}', [RegistrationAccessController::class, 'verify'])->middleware(['signed', 'throttle:8,1'])->name('signup.verify');
     Route::post('/register/{tenant}/resend', [RegistrationAccessController::class, 'resend'])->middleware(['signed', 'throttle:2,1'])->name('signup.resend');
+    Route::get('/register/address-availability', [MarketingController::class, 'addressAvailability'])->middleware('throttle:30,1')->name('signup.address');
     Route::get('/register', [MarketingController::class, 'create'])->name('signup.create');
     Route::post('/register', [MarketingController::class, 'store'])
         ->middleware('throttle:8,1')

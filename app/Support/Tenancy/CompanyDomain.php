@@ -2,6 +2,8 @@
 
 namespace App\Support\Tenancy;
 
+use App\Models\Tenant;
+
 class CompanyDomain
 {
     public static function base(): string
@@ -20,6 +22,42 @@ class CompanyDomain
     public static function fromSlug(string $slug): string
     {
         return LandlordDomains::normalize($slug).'.'.self::base();
+    }
+
+    /**
+     * @return array{status: string, available: bool, message: string, domain: string|null}
+     */
+    public static function checkSlug(string $slug): array
+    {
+        $slug = LandlordDomains::normalize($slug);
+
+        if (strlen($slug) < 3) {
+            return self::slugResult('invalid', false, 'Use at least 3 characters.', null);
+        }
+
+        if (strlen($slug) > 32 || preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug) !== 1) {
+            return self::slugResult('invalid', false, 'Use letters, numbers, and single hyphens.', null);
+        }
+
+        if (in_array($slug, self::reserved(), true)) {
+            return self::slugResult('reserved', false, 'That address is reserved.', null);
+        }
+
+        $domain = self::fromSlug($slug);
+
+        if (LandlordDomains::isLandlordHost($domain) || Tenant::query()->where('domain', $domain)->exists()) {
+            return self::slugResult('taken', false, 'That company address is already in use.', $domain);
+        }
+
+        return self::slugResult('available', true, $domain.' is available.', $domain);
+    }
+
+    /**
+     * @return array{status: string, available: bool, message: string, domain: string|null}
+     */
+    private static function slugResult(string $status, bool $available, string $message, ?string $domain): array
+    {
+        return ['status' => $status, 'available' => $available, 'message' => $message, 'domain' => $domain];
     }
 
     public static function resolve(string $input): string

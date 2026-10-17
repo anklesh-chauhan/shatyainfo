@@ -6,6 +6,7 @@ use App\Http\Requests\CompanyRegistrationRequest;
 use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
 use App\Support\Tenancy\CompanyDomain;
+use App\Support\Tenancy\RegistrationCaptcha;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -31,7 +32,13 @@ class MarketingController extends Controller
     {
         return view('marketing.register', [
             'baseDomain' => CompanyDomain::base(),
+            'turnstileSiteKey' => RegistrationCaptcha::usesTurnstile() ? config('services.turnstile.site_key') : null,
         ]);
+    }
+
+    public function addressAvailability(Request $request): JsonResponse
+    {
+        return response()->json(CompanyDomain::checkSlug((string) $request->query('slug', '')));
     }
 
     public function store(CompanyRegistrationRequest $request): RedirectResponse

@@ -2,10 +2,12 @@
 
 use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
+use App\Support\Tenancy\CompanyDomain;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -76,7 +78,7 @@ test('captcha returns a noncached image and stores an expiring challenge', funct
 test('registration waits for email verification without dispatching provisioning', function () {
     Mail::fake();
     $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
-        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'long-password-1', 'password_confirmation' => 'long-password-1', 'captcha' => 'abc234',
+        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234',
     ])->assertRedirect();
     expect(Tenant::query()->where('name', 'Example')->first()->provisioning_status)->toBe('awaiting_verification');
     Queue::assertNothingPushed();
@@ -128,7 +130,61 @@ test('company handoff signs in only the verified owner and cannot be replayed', 
 });
 
 test('registration form renders its required captcha and refresh button', function () {
-    $this->get(route('signup.create'))->assertOk()->assertSee('name="captcha"', false)->assertSee('Refresh CAPTCHA');
+    $this->get(route('signup.create'))->assertOk()
+        ->assertSee('name="captcha"', false)
+        ->assertSee('Refresh CAPTCHA')
+        ->assertSee('One lowercase letter')
+        ->assertSee('One uppercase letter')
+        ->assertSee('id="slug-status"', false);
+});
+
+test('cloudflare turnstile replaces the image captcha when it is configured', function () {
+    config(['services.turnstile.site_key' => 'site-key', 'services.turnstile.secret' => 'secret-key']);
+    $this->get(route('signup.create'))->assertOk()
+        ->assertSee('challenges.cloudflare.com/turnstile/v0/api.js', false)
+        ->assertSee('site-key', false)
+        ->assertDontSee('Refresh CAPTCHA');
+});
+
+test('cloudflare turnstile must pass before a company is created', function () {
+    config(['services.turnstile.site_key' => 'site-key', 'services.turnstile.secret' => 'secret-key']);
+    Http::fake([
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response(['success' => false]),
+    ]);
+    $this->post('/register', [
+        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
+    ])->assertSessionHasErrors('cf-turnstile-response');
+    expect(Tenant::query()->where('name', 'Example')->exists())->toBeFalse();
+});
+
+test('a passing cloudflare turnstile allows company registration', function () {
+    Mail::fake();
+    config(['services.turnstile.site_key' => 'site-key', 'services.turnstile.secret' => 'secret-key']);
+    Http::fake([
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response(['success' => true]),
+    ]);
+    $this->post('/register', [
+        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect(Tenant::query()->where('name', 'Example')->exists())->toBeTrue();
+});
+
+test('company address availability is reported before registration', function () {
+    $this->getJson(route('signup.address', ['slug' => 'ab']))->assertOk()->assertJson(['available' => false, 'status' => 'invalid']);
+    $this->getJson(route('signup.address', ['slug' => 'admin']))->assertJsonPath('status', 'reserved')->assertJsonPath('message', 'That address is reserved.');
+    $this->tenant->forceFill(['domain' => CompanyDomain::fromSlug('taken')])->saveQuietly();
+    $this->getJson(route('signup.address', ['slug' => 'taken']))->assertJsonPath('available', false)->assertJsonPath('status', 'taken');
+    $this->getJson(route('signup.address', ['slug' => 'Fresh-Co']))->assertJsonPath('available', true)->assertJsonPath('domain', CompanyDomain::fromSlug('fresh-co'));
+});
+
+test('registration rejects a password without both letter cases', function () {
+    $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
+        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'password' => 'long-password-1', 'password_confirmation' => 'long-password-1', 'captcha' => 'abc234',
+    ])->assertSessionHasErrors('password');
+    expect(Tenant::query()->where('name', 'Example')->exists())->toBeFalse();
 });
 
 test('verified owners can enter before masters finish even when tenant cache prefixes change', function () {
