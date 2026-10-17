@@ -4,7 +4,7 @@ namespace App\Filament\Resources\OrganizationalUnits;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\HR\OrganizationStructureCluster;
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\OrganizationalUnits\Pages\CreateOrganizationalUnit;
 use App\Filament\Resources\OrganizationalUnits\Pages\EditOrganizationalUnit;
@@ -45,7 +45,7 @@ class OrganizationalUnitResource extends BaseResource
 
     protected static ?string $navigationLabel = 'Org Units';
 
-    protected static ?string $cluster = OrganizationStructureCluster::class;
+    protected static ?string $cluster = EmployeeManagementCluster::class;
 
     protected static ?int $navigationSort = 30;
 

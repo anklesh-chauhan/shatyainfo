@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Positions;
 
 use App\Enums\PositionStatus;
 use App\Filament\Actions\ApprovalAction;
-use App\Filament\Clusters\HR\OrganizationStructureCluster;
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Positions\Pages\CreatePosition;
 use App\Filament\Resources\Positions\Pages\EditPosition;
@@ -38,7 +38,7 @@ class PositionResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
-    protected static ?string $cluster = OrganizationStructureCluster::class;
+    protected static ?string $cluster = EmployeeManagementCluster::class;
 
     protected static ?string $navigationLabel = 'Positions';
 
