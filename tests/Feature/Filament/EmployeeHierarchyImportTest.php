@@ -2,8 +2,10 @@
 
 use App\Filament\Pages\DataImport;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Models\EmpDepartment;
 use App\Models\Employee;
+use App\Models\EmploymentDetail;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\TypeMaster;
@@ -13,11 +15,13 @@ use App\Services\DataImport\EmployeeOnboardingImporter;
 use App\Services\DataImport\ImportResult;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
+use App\Services\OrganizationalUnitService;
 use Database\Seeders\TypeMasterSeeder;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -60,7 +64,81 @@ it('resolves an out of order hierarchy and preserves it on repeat imports', func
     expect($result->failed)->toBe([])->and($result->created)->toBe(4)->and($result->hierarchy)->toHaveCount(4);
     expect(Employee::where('employee_id', 'EMP004')->first()->employmentDetail->reportingManager->employee_id)->toBe('EMP003');
     expect(Employee::where('employee_id', 'EMP001')->first()->employmentDetail->reporting_manager_id)->toBeNull();
+    $division = OrganizationalUnit::where('name', 'West Division')->sole();
+    expect(Position::where('code', 'MR-MUM-01')->sole()->division_ou_id)->toBe($division->id)
+        ->and(Employee::where('employee_id', 'EMP004')->sole()->employmentDetail->division_ou_id)->toBe($division->id);
     expect(hierarchyUpload($rows)->updated)->toBe(4)->and(Employee::count())->toBe(4);
+});
+
+it('derives the nearest division for nested organizational units', function () {
+    $type = fn (string $name) => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', $name)->sole()->id;
+    $division = OrganizationalUnit::create(['name' => 'West Division', 'code' => 'WEST', 'type_master_id' => $type('Division')]);
+    $plant = OrganizationalUnit::create(['name' => 'Mumbai Plant', 'code' => 'MUM', 'type_master_id' => $type('Plant'), 'parent_id' => $division->id]);
+    $unit = OrganizationalUnit::create(['name' => 'Mumbai Team', 'code' => 'TEAM', 'type_master_id' => $type('Department'), 'parent_id' => $plant->id]);
+    $rows = app(EmployeeImportTemplate::class)->examples();
+    $rows[0]['org_unit'] = $unit->name;
+    $rows[0]['org_unit_type'] = 'Department';
+    expect(hierarchyUpload($rows)->failed)->toBe([])
+        ->and(Position::where('code', 'MR-MUM-01')->sole()->division_ou_id)->toBe($division->id)
+        ->and(Employee::where('employee_id', 'EMP004')->sole()->employmentDetail->division_ou_id)->toBe($division->id)
+        ->and(OrganizationalUnitService::divisionUnitIds($division->id))->toContain($unit->id, $plant->id, $division->id);
+    $detail = Employee::where('employee_id', 'EMP004')->sole()->employmentDetail;
+    $detail->load('organizationalUnits');
+    $detail->save();
+});
+
+it('repairs missing division fields on repeat imports and clears division outside a division hierarchy', function () {
+    $rows = app(EmployeeImportTemplate::class)->examples();
+    expect(hierarchyUpload($rows)->failed)->toBe([]);
+    Position::query()->update(['division_ou_id' => null]);
+    EmploymentDetail::query()->update(['division_ou_id' => null]);
+    expect(hierarchyUpload($rows)->failed)->toBe([]);
+    $position = Position::where('code', 'MR-MUM-01')->sole();
+    expect($position->division_ou_id)->not->toBeNull();
+    $headOffice = OrganizationalUnit::create(['name' => 'Head Office', 'code' => 'HQ', 'type_master_id' => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Head Office')->sole()->id]);
+    $position->update(['organizational_unit_id' => $headOffice->id]);
+    expect($position->division_ou_id)->toBeNull();
+});
+
+it('rejects a non division selected as a division', function () {
+    $unit = OrganizationalUnit::create(['name' => 'Plant', 'code' => 'PLANT', 'type_master_id' => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Plant')->sole()->id]);
+    expect(fn () => Position::create(['name' => 'Invalid', 'code' => 'INVALID', 'division_ou_id' => $unit->id]))->toThrow(ValidationException::class);
+});
+
+it('rejects organizational units outside the selected division on the position form', function () {
+    foreach (['ViewAny:Position', 'View:Position', 'Update:Position'] as $permission) {
+        auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
+    $position = Position::where('code', 'MR-MUM-01')->sole();
+    $other = OrganizationalUnit::create(['name' => 'East Division', 'code' => 'EAST', 'type_master_id' => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Division')->sole()->id]);
+    Livewire::test(EditPosition::class, ['record' => $position->getRouteKey()])
+        ->assertSuccessful()
+        ->fillForm(['division_ou_id' => $other->id, 'organizationalUnits' => [$position->organizational_unit_id]])
+        ->call('save')
+        ->assertHasFormErrors(['organizationalUnits']);
+    $position->update(['division_ou_id' => $other->id]);
+    expect($position->organizational_unit_id)->toBeNull()->and($position->division_ou_id)->toBe($other->id);
+});
+
+it('rejects cycles when resolving a child organizational unit division', function () {
+    $type = TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Plant')->sole()->id;
+    $unit = OrganizationalUnit::create(['name' => 'Cycle', 'code' => 'CYCLE', 'type_master_id' => $type]);
+    $unit->update(['parent_id' => $unit->id]);
+    expect(fn () => OrganizationalUnitService::divisionId($unit->id))->toThrow(ValidationException::class);
+});
+
+it('backfills OU division fields and removes the legacy division schema', function () {
+    expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
+    Position::query()->update(['division_ou_id' => null]);
+    EmploymentDetail::query()->update(['division_ou_id' => null]);
+    $migration = require database_path('migrations/tenant/2026_10_17_230759_standardize_divisions_as_organizational_units.php');
+    $migration->up();
+    $division = OrganizationalUnit::where('name', 'West Division')->sole();
+    expect(Position::where('code', 'MR-MUM-01')->sole()->division_ou_id)->toBe($division->id)
+        ->and(Employee::where('employee_id', 'EMP004')->sole()->employmentDetail->division_ou_id)->toBe($division->id)
+        ->and(Schema::hasTable('emp_divisions'))->toBeFalse()
+        ->and(Schema::hasColumn('employment_details', 'division_id'))->toBeFalse();
 });
 
 it('reuses Sales without changing its organizational unit', function (bool $hasUnit) {

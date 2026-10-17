@@ -10,6 +10,7 @@ use App\Models\JobRole;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\TypeMaster;
+use App\Services\OrganizationalUnitService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
@@ -85,6 +86,13 @@ class EmployeeOnboardingImporter
         } elseif ($role) {
             throw new ImportRowException('Add position and position_code to assign the job role to this employee.');
         }
+        if ($position && $unit) {
+            $divisionId = OrganizationalUnitService::divisionId($unit->id);
+            if ($position->division_ou_id !== $divisionId) {
+                $this->authorize('update', $position);
+                $position->update(['division_ou_id' => $divisionId]);
+            }
+        }
         $employee->fill(array_intersect_key($row, array_flip(['employee_id', 'first_name', 'last_name', 'mobile_number', 'email'])));
         $employee->provisionLoginOnSave = false;
         $employee->save();
@@ -97,6 +105,9 @@ class EmployeeOnboardingImporter
             }
         }
         $employment = array_filter(['department_id' => $department?->id, 'grade_id' => $grade?->id, 'job_title_id' => $title?->id, 'organizational_unit_id' => $unit?->id, 'hire_date' => $row['hire_date'] ?? null, 'employment_type' => $row['employment_type'] ?? null], fn (mixed $value): bool => $value !== null);
+        if ($unit) {
+            $employment['division_ou_id'] = OrganizationalUnitService::divisionId($unit->id);
+        }
         if ($employment !== [] && ! $deferAssignments) {
             $detail = $employee->employmentDetail()->updateOrCreate([], $employment);
             if ($unit) {

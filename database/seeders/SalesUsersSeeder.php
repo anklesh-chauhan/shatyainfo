@@ -2,15 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Faker\Factory as Faker;
-
-use App\Models\User;
 use App\Models\Employee;
 use App\Models\EmploymentDetail;
 use App\Models\OrganizationalUnit;
 use App\Models\Territory;
+use App\Models\User;
+use App\Services\OrganizationalUnitService;
+use Faker\Factory as Faker;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class SalesUsersSeeder extends Seeder
 {
@@ -20,23 +20,22 @@ class SalesUsersSeeder extends Seeder
         $systemUserId = 1;
 
         /* ================= ORGANIZATIONAL UNITS ================= */
-        $ho        = OrganizationalUnit::where('code', 'HO')->first();
-        $sales     = OrganizationalUnit::where('code', 'SALES')->first();
-        $salesN    = OrganizationalUnit::where('code', 'SALES-N')->first();
-        $salesS    = OrganizationalUnit::where('code', 'SALES-S')->first();
+        $ho = OrganizationalUnit::where('code', 'HO')->first();
+        $sales = OrganizationalUnit::where('code', 'SALES')->first();
+        $salesN = OrganizationalUnit::where('code', 'SALES-N')->first();
+        $salesS = OrganizationalUnit::where('code', 'SALES-S')->first();
 
         if (! $sales || ! $salesN || ! $salesS) {
             $this->command->error('Sales OUs not found. Run OrganizationalUnitSeeder first.');
+
             return;
         }
 
         /* ================= TERRITORIES ================= */
-        $northTerritories = Territory::whereHas('divisions', fn ($q) =>
-            $q->where('organizational_units.id', $salesN->id)
+        $northTerritories = Territory::whereHas('divisions', fn ($q) => $q->where('organizational_units.id', $salesN->id)
         )->pluck('id')->toArray();
 
-        $southTerritories = Territory::whereHas('divisions', fn ($q) =>
-            $q->where('organizational_units.id', $salesS->id)
+        $southTerritories = Territory::whereHas('divisions', fn ($q) => $q->where('organizational_units.id', $salesS->id)
         )->pluck('id')->toArray();
 
         /* ================= SALES EXECUTIVES ================= */
@@ -110,13 +109,13 @@ class SalesUsersSeeder extends Seeder
         for ($i = 1; $i <= $count; $i++) {
 
             /* ---------------- USER ---------------- */
-            $email = strtolower(str_replace(' ', '.', $title)) . "{$i}.{$ou->code}@company.com";
+            $email = strtolower(str_replace(' ', '.', $title))."{$i}.{$ou->code}@company.com";
 
             $user = User::updateOrCreate(
                 ['email' => $email],
                 [
-                    'name'       => "{$title} {$i}",
-                    'password'   => Hash::make('password'),
+                    'name' => "{$title} {$i}",
+                    'password' => Hash::make('password'),
                     'created_by' => $systemUserId,
                     'updated_by' => $systemUserId,
                 ]
@@ -130,24 +129,24 @@ class SalesUsersSeeder extends Seeder
             $employee = Employee::updateOrCreate(
                 ['login_id' => $user->id],
                 [
-                    'employee_id'=> $user->id,
+                    'employee_id' => $user->id,
                     'first_name' => "{$title}",
-                    'last_name'  => "{$i}",
-                    'email'      => $user->email,
+                    'last_name' => "{$i}",
+                    'email' => $user->email,
                     'mobile_number' => $faker->numerify('9#########'),
-                    'is_active'  => true,
+                    'is_active' => true,
                     'created_by' => $systemUserId,
                     'updated_by' => $systemUserId,
                 ]
             );
 
             /* ---------------- EMPLOYMENT DETAIL ---------------- */
-            $divisionOu = $ou->parent_id ? $ou->parent : $ou;
+            $divisionId = OrganizationalUnitService::divisionId($ou->id);
 
             $employment = EmploymentDetail::updateOrCreate(
                 ['employee_id' => $employee->id],
                 [
-                    'division_ou_id' => $divisionOu->id, // 🔥 IMPORTANT
+                    'division_ou_id' => $divisionId,
                     'hire_date' => now()->subYears(rand(1, 8)),
                     'employment_type' => 'Permanent',
                     'employment_status' => 'Active',

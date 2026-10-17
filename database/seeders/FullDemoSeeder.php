@@ -58,6 +58,7 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitOutcome;
 use App\Models\VisitType;
+use App\Services\OrganizationalUnitService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -157,7 +158,7 @@ class FullDemoSeeder extends Seeder
         $employment = EmploymentDetail::query()->updateOrCreate(
             ['employee_id' => $employee->id],
             [
-                'division_ou_id' => $ou?->id,
+                'division_ou_id' => OrganizationalUnitService::divisionId($ou?->id),
                 'hire_date' => now()->subYears(2)->toDateString(),
                 'employment_type' => 'Permanent',
                 'employment_status' => 'Active',

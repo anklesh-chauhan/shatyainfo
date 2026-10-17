@@ -4,9 +4,10 @@ namespace App\Models;
 
 use App\Enums\PositionStatus;
 use App\Services\EmployeeReportingService;
+use App\Services\OrganizationalUnitService;
 use App\Traits\HasApprovalWorkflow;
-use App\Traits\HasVisibilityScope;
-use Illuminate\Database\Eloquent\Factories\HasFactory; // Import the new enum
+use App\Traits\HasVisibilityScope; // Import the new enum
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -170,6 +171,7 @@ class Position extends BaseModel
 
     protected static function booted(): void
     {
+        static::saving(fn (Position $position) => OrganizationalUnitService::normalizeDivision($position));
         static::saving(fn (Position $position) => app(EmployeeReportingService::class)->validatePosition($position));
         static::saved(fn () => app(EmployeeReportingService::class)->synchronize());
         static::deleted(fn () => app(EmployeeReportingService::class)->synchronize());

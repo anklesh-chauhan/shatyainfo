@@ -13,6 +13,7 @@ use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\Territory;
+use App\Services\OrganizationalUnitService;
 use App\Traits\HasSafeGlobalSearch;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -29,6 +30,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Validation\ValidationException;
 
 class PositionResource extends BaseResource
 {
@@ -142,11 +144,19 @@ class PositionResource extends BaseResource
                         ->afterStateUpdated(function (callable $set) {
                             // 🔥 RESET dependent field
                             $set('organizational_unit_id', null);
+                            $set('organizationalUnits', []);
                         }),
 
                     Select::make('organizationalUnits')
                         ->label('Organizational Units')
                         ->multiple()
+                        ->rules([fn (callable $get) => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                            try {
+                                OrganizationalUnitService::validateSelection($get('division_ou_id') ? (int) $get('division_ou_id') : null, (array) $value);
+                            } catch (ValidationException $exception) {
+                                $fail('Choose organizational units within the selected Division.');
+                            }
+                        }])
                         ->relationship(
                             name: 'organizationalUnits',
                             titleAttribute: 'name',
@@ -159,10 +169,7 @@ class PositionResource extends BaseResource
                                     return;
                                 }
 
-                                $query->where(function ($q) use ($divisionId) {
-                                    $q->where('organizational_units.id', $divisionId)
-                                        ->orWhere('organizational_units.parent_id', $divisionId);
-                                });
+                                $query->whereIn('organizational_units.id', OrganizationalUnitService::divisionUnitIds((int) $divisionId));
                             }
                         )
                         ->searchable()
@@ -289,9 +296,9 @@ class PositionResource extends BaseResource
                     ->searchable()
                     ->preload(),
 
-                SelectFilter::make('division_id')
+                SelectFilter::make('division_ou_id')
                     ->label('Division')
-                    ->relationship('division', 'name')
+                    ->relationship('division', 'name', modifyQueryUsing: fn ($query) => $query->whereHas('typeMaster', fn ($type) => $type->where('name', 'Division')))
                     ->searchable()
                     ->preload(),
 

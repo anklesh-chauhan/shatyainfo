@@ -10,7 +10,6 @@ use App\Filament\Resources\EmpDepartments\Pages\CreateEmpDeparment;
 use App\Filament\Resources\EmpDepartments\Pages\EditEmpDeparment;
 use App\Filament\Resources\EmpDepartments\Pages\ListEmpDeparments;
 use App\Filament\Resources\EmpDepartments\Pages\ViewEmpDeparment;
-use App\Filament\Resources\EmpDepartments\RelationManagers\DivisionsRelationManager;
 use App\Filament\Resources\EmpDepartments\RelationManagers\EmploymentDetailsRelationManager;
 use App\Filament\Resources\EmpDepartments\RelationManagers\GradesRelationManager;
 use App\Filament\Resources\EmpDepartments\RelationManagers\JobTitlesRelationManager;
@@ -157,7 +156,6 @@ class EmpDepartmentResource extends BaseResource
     {
         return [
             GradesRelationManager::class,
-            DivisionsRelationManager::class,
             JobTitlesRelationManager::class,
             EmploymentDetailsRelationManager::class,
         ];

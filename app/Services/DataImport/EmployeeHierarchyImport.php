@@ -5,6 +5,7 @@ namespace App\Services\DataImport;
 use App\Models\Employee;
 use App\Models\Position;
 use App\Services\EmployeeReportingService;
+use App\Services\OrganizationalUnitService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -163,6 +164,9 @@ class EmployeeHierarchyImport
                     $employee->unsetRelation('positions');
                     $primaryPosition = $employee->positions()->wherePivot('is_primary', true)->firstOrFail();
                     $employment = array_filter(['department_id' => $primaryPosition->department_id, 'grade_id' => $primaryPosition->job_grade_id, 'job_title_id' => $primaryPosition->job_title_id, 'organizational_unit_id' => $primaryPosition->organizational_unit_id], fn ($value): bool => $value !== null);
+                    if ($primaryPosition->organizational_unit_id) {
+                        $employment['division_ou_id'] = OrganizationalUnitService::divisionId($primaryPosition->organizational_unit_id);
+                    }
                     foreach ($employeeRows[$code] as $line => $row) {
                         if (strtolower($row['position_code'] ?? '') !== strtolower($primaryPosition->code) && filled($row['position_code'] ?? null)) {
                             continue;

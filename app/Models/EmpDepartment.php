@@ -2,22 +2,19 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmpDepartment extends BaseModel
 {
-    use SoftDeletes, HasApprovalWorkflow;
+    use HasApprovalWorkflow, SoftDeletes;
 
     protected $table = 'emp_departments';
 
     protected $fillable = [
         'department_name', 'department_code', 'description', 'organizational_unit_id',
         'created_by_user_id', 'updated_by_user_id', 'deleted_by_user_id',
-        'is_active', 'is_deleted', 'remark', 'department_head_id'
+        'is_active', 'is_deleted', 'remark', 'department_head_id',
     ];
 
     protected $casts = [
@@ -53,11 +50,6 @@ class EmpDepartment extends BaseModel
     public function grades()
     {
         return $this->hasMany(EmpGrade::class, 'department_id');
-    }
-
-    public function divisions()
-    {
-        return $this->hasMany(EmpDivision::class, 'department_id');
     }
 
     public function jobTitles()

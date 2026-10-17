@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Services\EmployeeReportingService;
+use App\Services\OrganizationalUnitService;
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmploymentDetail extends BaseModel
@@ -61,6 +63,11 @@ class EmploymentDetail extends BaseModel
         );
     }
 
+    public function organizationalUnit(): BelongsTo
+    {
+        return $this->belongsTo(OrganizationalUnit::class);
+    }
+
     public function organizationalUnits()
     {
         return $this->belongsToMany(
@@ -89,17 +96,18 @@ class EmploymentDetail extends BaseModel
     protected static function booted(): void
     {
         static::saving(function ($model) {
+            OrganizationalUnitService::normalizeDivision($model);
 
             /* ===============================
             | Validate Division / OU (existing)
             =============================== */
-            if (
+            if (! $model->isDirty('division_ou_id') &&
                 $model->division_ou_id &&
                 $model->relationLoaded('organizationalUnits') &&
                 $model->organizationalUnits->isNotEmpty()
             ) {
                 foreach ($model->organizationalUnits as $ou) {
-                    if ($ou->parent_id !== $model->division_ou_id) {
+                    if (OrganizationalUnitService::divisionId($ou->id) !== $model->division_ou_id) {
                         throw new \InvalidArgumentException(
                             'Selected Organizational Unit does not belong to the selected Division.'
                         );

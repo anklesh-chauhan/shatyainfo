@@ -14,6 +14,7 @@ use App\Filament\Resources\Employees\RelationManagers\PositionsRelationManager;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
+use App\Services\OrganizationalUnitService;
 use App\Traits\HasSafeGlobalSearch;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -37,13 +38,14 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 // Import Tabs
-use Filament\Tables\Filters\TernaryFilter; // Import Tab
+use Filament\Tables\Filters\SelectFilter; // Import Tab
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Validation\Rules\Unique;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeResource extends BaseResource
 {
@@ -294,12 +296,20 @@ class EmployeeResource extends BaseResource
                                             ->reactive()
                                             ->afterStateUpdated(function (callable $set) {
                                                 // 🔥 RESET dependent field
-                                                $set('organizationalUnits', null);
+                                                $set('organizationalUnits', []);
+                                                $set('organizational_unit_id', null);
                                             }),
 
                                         Select::make('organizationalUnits')
                                             ->label('Organizational Units')
                                             ->multiple()
+                                            ->rules([fn (callable $get) => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                                try {
+                                                    OrganizationalUnitService::validateSelection($get('division_ou_id') ? (int) $get('division_ou_id') : null, (array) $value);
+                                                } catch (ValidationException $exception) {
+                                                    $fail('Choose organizational units within the selected Division.');
+                                                }
+                                            }])
                                             ->relationship(
                                                 name: 'organizationalUnits',
                                                 titleAttribute: 'name',
@@ -312,10 +322,7 @@ class EmployeeResource extends BaseResource
                                                         return;
                                                     }
 
-                                                    $query->where(function ($q) use ($divisionId) {
-                                                        $q->where('organizational_units.id', $divisionId)
-                                                            ->orWhere('organizational_units.parent_id', $divisionId);
-                                                    });
+                                                    $query->whereIn('organizational_units.id', OrganizationalUnitService::divisionUnitIds((int) $divisionId));
                                                 }
                                             )
                                             ->searchable()

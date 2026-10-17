@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Enums\PositionStatus;
+use App\Models\JobRole;
+use App\Models\OrganizationalUnit;
+use App\Models\Position;
+use App\Models\Territory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\Position;
-use App\Models\JobRole;
-use App\Models\Territory;
-use App\Models\OrganizationalUnit;
-use App\Enums\PositionStatus;
 
 class PositionSeeder extends Seeder
 {
@@ -18,11 +18,12 @@ class PositionSeeder extends Seeder
 
             /* ================= LOAD BASE DATA ================= */
             $roles = JobRole::all()->keyBy('code');
-            $ous   = OrganizationalUnit::all()->keyBy('code');
+            $ous = OrganizationalUnit::all()->keyBy('code');
             $territories = Territory::all();
 
             if ($roles->isEmpty() || $ous->isEmpty() || $territories->isEmpty()) {
                 $this->command?->warn('Missing JobRoles / OUs / Territories');
+
                 return;
             }
 
@@ -31,7 +32,7 @@ class PositionSeeder extends Seeder
                 'name' => 'Chief Executive Officer',
                 'code' => 'POS-CEO',
                 'job_role_id' => $roles['CEO']->id,
-                'division_ou_id' => $ous['HO']->id,
+                'division_ou_id' => null,
                 'organizational_unit_id' => $ous['HO']->id,
                 'level' => 1,
             ]);
