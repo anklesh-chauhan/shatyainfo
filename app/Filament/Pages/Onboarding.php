@@ -7,8 +7,10 @@ use App\Models\Tenant;
 use App\Services\CompanyOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\Locked;
 
 class Onboarding extends Page
 {
@@ -24,6 +26,9 @@ class Onboarding extends Page
 
     public array $organization = [];
 
+    #[Locked]
+    public int $step = 0;
+
     public function getLayout(): string
     {
         return 'filament-panels::components.layout.simple';
@@ -31,7 +36,7 @@ class Onboarding extends Page
 
     protected function getLayoutData(): array
     {
-        return ['hasTopbar' => false];
+        return ['hasTopbar' => false, 'maxContentWidth' => Width::FiveExtraLarge];
     }
 
     public static function canAccess(): bool
@@ -95,6 +100,35 @@ class Onboarding extends Page
             'email' => $organization?->email ?? auth()->user()->email,
             'phone' => $organization?->phone ?? '',
         ];
+        if ($organization?->metadata['company_setup']['organization_saved'] ?? false) {
+            $this->step = 2;
+        }
+    }
+
+    public function next(): void
+    {
+        $service = app(CompanyOnboardingService::class);
+        $service->authorize();
+        abort_unless(Tenant::current()->accountIsConfigured(), 409);
+        $this->resetErrorBag();
+        if ($this->step === 0) {
+            $this->step = 1;
+        } elseif ($this->step === 2) {
+            $checklist = $service->checklist();
+            if (! $checklist['company'] || ! $checklist['employees']) {
+                $this->addError('checklist', 'Add at least one employee to continue, or choose Continue later.');
+
+                return;
+            }
+            $this->step = 3;
+        }
+    }
+
+    public function back(): void
+    {
+        app(CompanyOnboardingService::class)->authorize();
+        $this->resetErrorBag();
+        $this->step = max(0, $this->step - 1);
     }
 
     public function saveOrganization(): void
@@ -106,6 +140,7 @@ class Onboarding extends Page
         ]);
         $service = app(CompanyOnboardingService::class);
         $service->saveOrganization($this->organization);
+        $this->step = 2;
         Notification::make()->title('Company information saved')->success()->send();
     }
 

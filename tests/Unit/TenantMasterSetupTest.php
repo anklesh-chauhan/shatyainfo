@@ -219,11 +219,13 @@ test('onboarding shows configuration progress then reveals the organization form
     $organization->forceFill(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890']);
     $service->shouldReceive('organization')->andReturn($organization);
     $companySaved = false;
-    $service->shouldReceive('checklist')->andReturnUsing(function () use (&$companySaved): array {
-        return ['company' => $companySaved, 'structure' => false, 'employees' => false, 'review' => false, 'unit_count' => 0, 'employee_count' => 0];
+    $employeesAdded = false;
+    $service->shouldReceive('checklist')->andReturnUsing(function () use (&$companySaved, &$employeesAdded): array {
+        return ['company' => $companySaved, 'structure' => false, 'employees' => $employeesAdded, 'review' => false, 'unit_count' => 0, 'employee_count' => $employeesAdded ? 4 : 0];
     });
     $service->shouldReceive('saveOrganization')->once()->with(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890'])->andReturnUsing(function () use (&$companySaved, $organization): Organization {
         $companySaved = true;
+        $organization->metadata = ['company_setup' => ['organization_saved' => true]];
 
         return $organization;
     });
@@ -232,10 +234,16 @@ test('onboarding shows configuration progress then reveals the organization form
     $page = Livewire::test(Onboarding::class)
         ->assertSee('We are configuring your account')->assertDontSee('Finish onboarding');
     $this->tenant->forceFill(['master_setup_status' => 'ready'])->saveQuietly();
-    $page->call('refreshSetup')->assertSee('Save company information')->assertSee('Organization Structure')->assertSee('Employees')->assertDontSee('We are configuring your account')
+    $page->call('refreshSetup')->assertSee('Get started')->assertDontSee('Save and continue')->assertDontSee('We are configuring your account')
         ->assertSet('organization.name', 'New Company');
+    $page->call('next')->assertSet('step', 1)->assertSee('Save and continue')->assertDontSee('Import employees from Excel');
     $page->call('saveOrganization')->assertHasNoErrors()->assertNoRedirect()->assertNotified('Company information saved')
-        ->assertSee('Import employees from Excel')->assertSee('Review positions and reporting')->assertSee('Continue later');
+        ->assertSet('step', 2)->assertSee('Import employees from Excel')->assertDontSee('Review positions and reporting')->assertSee('Continue later');
+    $page->call('next')->assertSet('step', 2)->assertHasErrors(['checklist']);
+    $employeesAdded = true;
+    $page->call('next')->assertSet('step', 3)->assertHasNoErrors()->assertSee('Open my workspace')->assertSee('Review positions and reporting');
+    $page->call('back')->assertSet('step', 2)->assertSee('Import employees from Excel');
+    Livewire::test(Onboarding::class)->assertSet('step', 2)->assertSee('4 employees added');
 });
 
 test('onboarding queues master setup once while the account is still waiting', function () {

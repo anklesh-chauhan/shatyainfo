@@ -1,15 +1,19 @@
-<x-filament-panels::page>
+<div class="setup-shell">
+    <style>
+        .setup-shell{color:#202124}.setup-wizard{display:grid;grid-template-columns:0.9fr 1.1fr;gap:56px;padding:24px 12px;min-height:520px}.setup-brand{font-size:20px;font-weight:600;margin-bottom:48px}.setup-brand span{display:inline-grid;place-items:center;background:#e8f0fe;color:#1967d2;border-radius:12px;width:38px;height:38px;margin-right:8px}.setup-eyebrow,.setup-step-label{font-size:11px;letter-spacing:1.4px;font-weight:600;color:#5f6368;margin-bottom:20px}.setup-intro h1{font-size:36px;line-height:1.2;font-weight:400;letter-spacing:-1px;margin:0 0 20px}.setup-description,.setup-content>p{font-size:15px;line-height:1.7;color:#5f6368}.setup-steps{list-style:none;padding:0;margin:32px 0}.setup-steps li{display:flex;align-items:center;gap:12px;color:#5f6368;margin:16px 0;font-size:14px}.setup-step-number{border:1px solid #dadce0;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:12px}.setup-steps .is-current{color:#1967d2;font-weight:600}.is-current .setup-step-number{background:#e8f0fe;border-color:#e8f0fe}.setup-account{font-size:12px;line-height:1.7;color:#5f6368;overflow-wrap:anywhere}.setup-content{padding-top:10px;min-width:0}.setup-content h2{font-size:24px;font-weight:400;line-height:1.3;margin:0 0 12px}.setup-content .setup-step-label{font-size:11px;margin-bottom:22px}.setup-form{margin-top:28px}.setup-field{margin-bottom:22px}.setup-field label{display:block;font-size:13px;margin-bottom:8px}.setup-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:36px;flex-wrap:wrap}.setup-actions>div{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.setup-text-button,.setup-review-link,.setup-optional a{color:#1967d2;font-size:14px;font-weight:500;cursor:pointer}.setup-text-button{padding:10px 0}.setup-text-button:focus-visible,.setup-option:focus-visible{outline:2px solid #1967d2;outline-offset:4px}.setup-option{display:flex;align-items:center;gap:14px;border:1px solid #dadce0;border-radius:12px;padding:20px;margin-top:18px;color:inherit;text-decoration:none}.setup-option:hover{border-color:#1967d2;background:#f8faff}.setup-option strong{font-size:14px;font-weight:600;display:block}.setup-option small{font-size:12px;line-height:1.6;color:#5f6368;display:block;margin-top:5px}.setup-option-icon{color:#1967d2;font-size:24px}.setup-option>span:nth-child(2){flex:1}.setup-optional{margin-top:24px;font-size:13px;line-height:1.7}.setup-optional summary{cursor:pointer}.setup-optional p{margin:10px 0}.setup-hint{font-size:12px!important;margin-top:20px}.setup-note{background:#f8f9fa;border-radius:12px;padding:18px;font-size:13px;line-height:1.7;margin-top:24px;color:#5f6368}.setup-error{color:#b3261e;background:#fce8e6;padding:14px;border-radius:8px;font-size:13px;margin-bottom:20px}.setup-success{color:#137333;background:#e6f4ea;border-radius:8px;padding:12px;font-size:13px;margin-top:18px}.setup-success-icon{width:52px;height:52px;background:#e6f4ea;color:#137333;border-radius:50%;display:grid;place-items:center;font-size:26px;margin-bottom:20px}.setup-review{margin:24px 0}.setup-review>div{display:flex;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid #e8eaed;font-size:14px}.setup-review dt{color:#5f6368}.setup-review dd{font-weight:500;text-align:right;overflow-wrap:anywhere}.setup-footer{border-top:1px solid #e8eaed;margin-top:20px;padding-top:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;color:#5f6368;font-size:12px}.setup-welcome-art{display:flex;align-items:center;gap:14px;margin:22px 0 34px}.setup-welcome-art span{display:grid;place-items:center;width:62px;height:70px;border-radius:16px;background:#e8f0fe;color:#1967d2;font-size:30px;transform:rotate(-8deg)}.setup-welcome-art span:nth-child(2){background:#e6f4ea;color:#137333;transform:rotate(5deg)}.setup-welcome-art span:nth-child(3){background:#fef7e0;color:#b06000;transform:rotate(-4deg)}
+        .dark .setup-shell{color:#e8eaed}.dark .setup-description,.dark .setup-content>p,.dark .setup-steps li,.dark .setup-account,.dark .setup-option small,.dark .setup-review dt,.dark .setup-footer{color:#bdc1c6}.dark .setup-option,.dark .setup-review>div,.dark .setup-footer{border-color:#5f6368}.dark .setup-note,.dark .setup-option:hover{background:#292a2d;color:#bdc1c6}.dark .setup-text-button,.dark .setup-review-link,.dark .setup-optional a,.dark .setup-steps .is-current{color:#8ab4f8}
+        @media(max-width:700px){.setup-wizard{grid-template-columns:1fr;gap:24px;padding:4px;min-height:0}.setup-brand{margin-bottom:24px}.setup-intro h1{font-size:28px}.setup-description,.setup-account,.setup-eyebrow{display:none}.setup-steps{display:flex;gap:12px;margin:20px 0 0;flex-wrap:wrap}.setup-steps li{font-size:11px;margin:0;gap:6px}.setup-step-number{width:23px;height:23px;flex-shrink:0}.setup-content h2{font-size:22px}.setup-option{padding:16px}.setup-content{padding-top:0}.setup-actions{margin-top:26px}}
+    </style>
     @if (! \App\Models\Tenant::current()->accountIsConfigured())
         <div wire:poll.3s="refreshSetup" role="status" aria-live="polite">
             <x-filament::section>
-                <progress style="width: 100%;" max="100" value="{{ \App\Models\Tenant::current()->masterSetupProgress() }}" aria-label="Account setup progress"></progress>
-                <p>{{ \App\Models\Tenant::current()->masterSetupProgress() }}% complete</p>
                 <x-slot name="heading">We are configuring your account</x-slot>
+                <progress style="width:100%" max="100" value="{{ \App\Models\Tenant::current()->masterSetupProgress() }}" aria-label="Account setup progress"></progress>
+                <p>{{ \App\Models\Tenant::current()->masterSetupProgress() }}% complete</p>
                 @if (\App\Models\Tenant::current()->master_setup_status === 'failed')
-                    <p>We could not finish configuring your account. Your login and company details are safe. Please try again.</p>
+                    <p>We could not finish configuring your account. Your details are safe.</p>
                     <x-filament::button wire:click="retrySetup" wire:loading.attr="disabled">Try again</x-filament::button>
                 @else
-                    <p>It will take a moment to prepare your master data. This page will update automatically when your account is ready.</p>
                     <p>{{ \App\Models\Tenant::current()->master_setup_step ?: 'Preparing your account…' }}</p>
                 @endif
             </x-filament::section>
@@ -17,88 +21,55 @@
     @else
         @php
             $checklist = $this->checklist();
-            $completed = collect(['company', 'employees', 'review'])->filter(fn ($step) => $checklist[$step])->count();
+            $titles = ['A great place to start.', 'Tell us about your company.', 'Bring your team together.', 'Ready for your first day.'];
+            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Add employees and give everyone a place in your organization.', 'Review your setup, then open your workspace.'];
         @endphp
-        <x-filament::section>
-            <x-slot name="heading">Set up your workspace</x-slot>
-            <x-slot name="description">Work through this checklist at your own pace. Your progress is saved, and you can return from Setup Checklist.</x-slot>
-            <div class="space-y-3">
-                <p>{{ $completed }} of 3 required steps complete · Organization structure is optional</p>
-                <progress style="width: 100%;" max="3" value="{{ $completed }}" aria-label="Onboarding checklist progress"></progress>
-                <ol class="space-y-2" aria-label="Setup checklist">
-                    @foreach (['company' => 'Company Information', 'structure' => 'Organization Structure (optional)', 'employees' => 'Employees', 'review' => 'Review & Finish'] as $key => $label)
-                        <li><a href="#setup-{{ $key }}">{{ $loop->iteration }}. {{ $label }}</a> — <strong>{{ $checklist[$key] ? 'Complete' : 'To do' }}</strong></li>
+        <div class="setup-wizard">
+            <aside class="setup-intro">
+                <div class="setup-brand"><span aria-hidden="true">✦</span>{{ filament()->getBrandName() }}</div>
+                <p class="setup-eyebrow">YOUR WORKSPACE, YOUR TEAM</p>
+                <h1>{{ $titles[$step] }}</h1>
+                <p class="setup-description">{{ $descriptions[$step] }}</p>
+                <ol class="setup-steps" aria-label="Setup progress">
+                    @foreach (['Company information', 'Add employees', 'Review & finish'] as $label)
+                        <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
-            </div>
-        </x-filament::section>
-        <x-filament::section id="setup-company">
-            <x-slot name="heading">1. Company Information</x-slot>
-            <x-slot name="description">Required · Save your company name and contact details first.</x-slot>
-            @if ($errors->any())
-                <div role="alert"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-            @endif
-            <form wire:submit="saveOrganization" class="space-y-4">
-                @foreach (['name' => 'Company name', 'email' => 'Company email', 'phone' => 'Phone number'] as $field => $label)
-                    <div>
-                        <label for="org-{{ $field }}">{{ $label }} *</label>
-                        <x-filament::input.wrapper>
-                            <x-filament::input id="org-{{ $field }}" type="{{ $field === 'email' ? 'email' : 'text' }}" wire:model="organization.{{ $field }}" required />
-                        </x-filament::input.wrapper>
-                    </div>
-                @endforeach
-                <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="saveOrganization">Save company information</x-filament::button>
-            </form>
-        </x-filament::section>
-        <x-filament::section id="setup-structure">
-            <x-slot name="heading">2. Organization Structure</x-slot>
-            <x-slot name="description">Optional · Set up divisions and any child organizational units.</x-slot>
-            <div class="space-y-3">
-                <p>{{ $checklist['unit_count'] }} organizational units added. Create a unit with Type = Division, then add child units where needed.</p>
-                <p>You can also create divisions, departments, job roles, positions, grades and job titles in the employee Excel import. Create parent/child OU relationships here before importing child units.</p>
-                @if ($checklist['company'])
-                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin')">Set up organization structure</x-filament::button>
+                <p class="setup-account">Signed in as<br>{{ auth()->user()->email }}</p>
+            </aside>
+            <section class="setup-content" aria-label="Current setup step" wire:key="setup-step-{{ $step }}">
+                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 3' }}</p>
+                @if ($errors->any())<div class="setup-error" role="alert"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+                @if ($step === 0)
+                    <div class="setup-welcome-art" aria-hidden="true"><span>✦</span><span>✓</span><span>＋</span></div>
+                    <h2>Let’s set things up</h2>
+                    <p>Start with your company details. Then add your employees and review how your team is organized.</p>
+                    <div class="setup-note">You can continue later after saving your company information.</div>
+                    <div class="setup-actions"><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Get started</x-filament::button></div>
+                @elseif ($step === 1)
+                    <h2>Company information</h2><p>Confirm the details below to personalize your workspace.</p>
+                    <form wire:submit="saveOrganization" class="setup-form">
+                        @foreach (['name' => 'Company name', 'email' => 'Company email', 'phone' => 'Phone number'] as $field => $label)
+                            <div class="setup-field"><label for="org-{{ $field }}">{{ $label }}</label><x-filament::input.wrapper :valid="! $errors->has('organization.'.$field)"><x-filament::input id="org-{{ $field }}" type="{{ $field === 'email' ? 'email' : ($field === 'phone' ? 'tel' : 'text') }}" wire:model="organization.{{ $field }}" required maxlength="{{ $field === 'phone' ? 30 : 255 }}" /></x-filament::input.wrapper></div>
+                        @endforeach
+                        <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button type="submit" wire:loading.attr="disabled" size="lg">Save and continue</x-filament::button></div>
+                    </form>
+                @elseif ($step === 2)
+                    <h2>Who’s joining your workspace?</h2><p>Add employees one at a time, or bring your whole team in with an Excel file.</p>
+                    @if ($checklist['employee_count'] > 0)<div class="setup-success" role="status">✓ {{ $checklist['employee_count'] }} employees added. You can add more whenever you need.</div>@endif
+                    <a class="setup-option" href="{{ \App\Filament\Pages\DataImport::getUrl(['module' => 'employees'], panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">↑</span><span><strong>Import employees from Excel</strong><small>One template for employee details, positions and reporting relationships.</small></span><span aria-hidden="true">→</span></a>
+                    <a class="setup-option" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('create', panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">＋</span><span><strong>Add an employee</strong><small>Enter a team member’s details yourself.</small></span><span aria-hidden="true">→</span></a>
+                    <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
+                    <p class="setup-hint">After adding employees, return to Setup Checklist to continue.</p>
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @else
-                    <p>Save Company Information to start this step.</p>
+                    <div class="setup-success-icon" aria-hidden="true">✓</div><h2>Your workspace is taking shape</h2><p>Check your team’s details and reporting managers before you finish.</p>
+                    <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
+                    <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Open my workspace</x-filament::button></div>
                 @endif
-            </div>
-        </x-filament::section>
-        <x-filament::section id="setup-employees">
-            <x-slot name="heading">3. Employees</x-slot>
-            <x-slot name="description">Required · Add your team, positions and reporting relationships.</x-slot>
-            <div class="space-y-3">
-                <p>{{ $checklist['employee_count'] }} employees added. Download the Excel template, read its Instructions sheet, and upload your completed Employees sheet.</p>
-                <p>Use position codes for reporting relationships. Managers and their team members can appear in any row order.</p>
-                @if ($checklist['company'])
-                    <div class="flex flex-wrap gap-3">
-                        <x-filament::button tag="a" :href="\App\Filament\Pages\DataImport::getUrl(['module' => 'employees'], panel: 'admin')">Import employees from Excel</x-filament::button>
-                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin')">Manage employees</x-filament::button>
-                    </div>
-                @else
-                    <p>Save Company Information to start this step.</p>
-                @endif
-            </div>
-        </x-filament::section>
-        <x-filament::section id="setup-review">
-            <x-slot name="heading">4. Review &amp; Finish</x-slot>
-            <x-slot name="description">Required · Confirm your team and reporting structure are ready.</x-slot>
-            <div class="space-y-3">
-                <p>Check employee details, primary positions and reporting managers. Top-level positions can have no reporting manager.</p>
-                @if ($checklist['company'])
-                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin')">Review positions and reporting</x-filament::button>
-                    <div class="flex flex-wrap gap-3">
-                        <x-filament::button wire:click="finish" wire:loading.attr="disabled" :disabled="! $checklist['employees']">Finish onboarding</x-filament::button>
-                        <x-filament::button color="gray" wire:click="skip" wire:loading.attr="disabled">Continue later</x-filament::button>
-                    </div>
-                    <p>Continue later opens your workspace. Your unfinished checklist remains available.</p>
-                @else
-                    <p>Complete Company Information and Employees before finishing setup.</p>
-                @endif
-            </div>
-        </x-filament::section>
+            </section>
+        </div>
     @endif
-    <form method="post" action="{{ route('filament.admin.auth.logout') }}">
-        @csrf
-        <x-filament::button type="submit" color="gray">Sign out</x-filament::button>
-    </form>
-</x-filament-panels::page>
+    <footer class="setup-footer"><span>Continue at your own pace.</span><form method="post" action="{{ route('filament.admin.auth.logout') }}">@csrf<button type="submit" class="setup-text-button">Sign out</button></form></footer>
+</div>
