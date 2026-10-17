@@ -70,7 +70,7 @@ class EmployeeOnboardingImporter
             }
             $unit = $this->master(OrganizationalUnit::class, ['name' => $row['org_unit']], ['code' => 'OU-'.Str::uuid(), 'type_master_id' => $type->id], ['type_master_id']);
         }
-        $department = isset($row['department']) ? $this->master(EmpDepartment::class, ['department_name' => $row['department']], array_filter(['department_code' => 'DEP-'.Str::uuid(), 'organizational_unit_id' => $unit?->id]), ['organizational_unit_id']) : null;
+        $department = isset($row['department']) ? $this->master(EmpDepartment::class, ['department_name' => $row['department']], ['department_code' => 'DEP-'.Str::uuid()], []) : null;
         $grade = isset($row['grade']) ? $this->master(EmpGrade::class, ['grade_name' => $row['grade']], array_filter(['department_id' => $department?->id]), ['department_id']) : null;
         $title = isset($row['job_title']) ? $this->master(EmpJobTitle::class, ['title' => $row['job_title']], array_filter(['department_id' => $department?->id]), ['department_id']) : null;
         $role = isset($row['job_role']) ? $this->master(JobRole::class, ['name' => $row['job_role']], ['code' => 'ROLE-'.Str::uuid(), 'level' => $row['job_role_level'] ?? 1], isset($row['job_role_level']) ? ['level'] : []) : null;

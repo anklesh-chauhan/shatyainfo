@@ -1,7 +1,12 @@
 <?php
 
+use App\Filament\Pages\DataImport;
+use App\Filament\Resources\Employees\EmployeeResource;
+use App\Models\EmpDepartment;
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\Position;
+use App\Models\TypeMaster;
 use App\Models\User;
 use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\EmployeeOnboardingImporter;
@@ -10,8 +15,12 @@ use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use Database\Seeders\TypeMasterSeeder;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader;
 use OpenSpout\Writer\XLSX\Writer;
@@ -52,6 +61,57 @@ it('resolves an out of order hierarchy and preserves it on repeat imports', func
     expect(Employee::where('employee_id', 'EMP004')->first()->employmentDetail->reportingManager->employee_id)->toBe('EMP003');
     expect(Employee::where('employee_id', 'EMP001')->first()->employmentDetail->reporting_manager_id)->toBeNull();
     expect(hierarchyUpload($rows)->updated)->toBe(4)->and(Employee::count())->toBe(4);
+});
+
+it('reuses Sales without changing its organizational unit', function (bool $hasUnit) {
+    $existingUnit = $hasUnit ? OrganizationalUnit::create([
+        'name' => 'Head Office',
+        'code' => 'HQ',
+        'type_master_id' => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Division')->sole()->id,
+    ]) : null;
+    $department = EmpDepartment::create([
+        'department_name' => 'Sales',
+        'department_code' => 'SALES',
+        'organizational_unit_id' => $existingUnit?->id,
+    ]);
+
+    $result = hierarchyUpload(app(EmployeeImportTemplate::class)->examples());
+
+    expect($result->failed)->toBe([])->and($result->created)->toBe(4)
+        ->and(EmpDepartment::count())->toBe(1)
+        ->and($department->fresh()->organizational_unit_id)->toBe($existingUnit?->id);
+    $unit = OrganizationalUnit::where('name', 'West Division')->sole();
+    expect(Employee::where('employee_id', 'EMP004')->sole()->employmentDetail->organizational_unit_id)->toBe($unit->id)
+        ->and(Position::where('code', 'MR-MUM-01')->sole()->organizational_unit_id)->toBe($unit->id)
+        ->and(Employee::where('employee_id', 'EMP004')->sole()->employmentDetail->reportingManager->employee_id)->toBe('EMP003');
+})->with([false, true]);
+
+it('shares a newly imported department across employee organizational units', function () {
+    $rows = app(EmployeeImportTemplate::class)->examples();
+    $rows[0]['org_unit'] = 'East Division';
+
+    $result = hierarchyUpload($rows);
+
+    expect($result->failed)->toBe([])->and($result->created)->toBe(4)
+        ->and(EmpDepartment::count())->toBe(1)
+        ->and(EmpDepartment::sole()->organizational_unit_id)->toBeNull();
+});
+
+it('shows persistent escaped row errors in the import notification', function () {
+    Storage::fake('local');
+    $message = 'Unknown position <MISSING>. No rows were saved.';
+    $this->mock(ResourceCsvImporter::class)->shouldReceive('import')->once()
+        ->andReturn(new ImportResult(failed: [['row' => 2, 'message' => $message]]));
+    $upload = UploadedFile::fake()->createWithContent('employees.csv', "employee_id,first_name\nEMP004,Asha\n");
+
+    Livewire::test(DataImport::class)
+        ->fillForm(['resource' => EmployeeResource::class, 'file' => $upload])
+        ->call('import')
+        ->assertHasNoFormErrors()
+        ->assertNotified(Notification::make()
+            ->title('Import failed')
+            ->body(nl2br(e("0 created, 0 updated. 1 failed.\nRow 2: ".$message)))
+            ->danger()->persistent());
 });
 
 it('rolls back the whole file for invalid reporting references', function (string $failure) {

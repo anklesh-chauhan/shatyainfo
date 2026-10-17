@@ -185,16 +185,22 @@ class DataImport extends Page implements HasForms
 
             if ($result->failed !== []) {
                 $body .= ' '.count($result->failed).' failed.';
+                foreach (array_slice($result->failed, 0, 3) as $failure) {
+                    $body .= "\nRow ".$failure['row'].': '.$failure['message'];
+                }
+                if (count($result->failed) > 3) {
+                    $body .= "\nSee Last import for the remaining errors.";
+                }
             }
 
             $notification = Notification::make()
-                ->title('Import finished')
-                ->body($body);
+                ->title($result->failed === [] ? 'Import finished' : ($result->importedCount() === 0 ? 'Import failed' : 'Import completed with errors'))
+                ->body(nl2br(e($body)));
 
             if ($result->failed !== [] && $result->importedCount() === 0) {
-                $notification->danger();
+                $notification->danger()->persistent();
             } elseif ($result->failed !== []) {
-                $notification->warning();
+                $notification->warning()->persistent();
             } else {
                 $notification->success();
             }

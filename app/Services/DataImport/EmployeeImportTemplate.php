@@ -89,7 +89,7 @@ class EmployeeImportTemplate
             'position_code' => 'Unique position code, maximum 255 characters. Required for assignment/reporting changes. Existing position codes can be used without repeating name/job role.',
             'grade' => 'Optional grade name, maximum 50 characters; reused by name and must match the department if already defined.',
             'job_title' => 'Optional title; reused by title and must match the department if already defined.',
-            'org_unit' => 'Optional organizational unit name. Existing names must be unambiguous.',
+            'org_unit' => 'Optional employee/position organizational unit name. Existing names must be unambiguous. This does not change the department\'s organizational unit; a department may be shared across employee org units.',
             'org_unit_type' => 'Existing organizational-unit type, for example Division, Head Office, Plant or Department. Defaults to Division when an org unit is supplied.',
             'hire_date' => 'Optional date in YYYY-MM-DD format. Enter on the primary assignment row; blank preserves the existing date.',
             'employment_type' => 'Optional: Permanent, Contract, Part-Time, Intern, Temporary or Consultant. Enter on the primary assignment row.',
