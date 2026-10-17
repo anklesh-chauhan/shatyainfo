@@ -146,6 +146,8 @@ function transactionalMasterProvisioner(): TenantProvisioner
 
         protected function migrateSchema(array $paths, callable $progress): void {}
 
+        protected function assertMasterTablesExist(): void {}
+
         protected function copyAccessControl(): void {}
 
         protected function deleteLandlordPermissions(): void {}
@@ -315,4 +317,92 @@ test('only completed setup reports one hundred percent', function () {
     expect($this->tenant->provisioningProgress())->toBe(40)->and($this->tenant->masterSetupProgress())->toBe(63);
     $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'ready']);
     expect($this->tenant->provisioningProgress())->toBe(100)->and($this->tenant->masterSetupProgress())->toBe(100);
+});
+
+test('the automatic background job migrates missing geography tables before seeding', function () {
+    $this->setupDatabase = tempnam(sys_get_temp_dir(), 'tenant_schema_');
+    config(['database.connections.tenant' => ['driver' => 'sqlite', 'database' => $this->setupDatabase, 'prefix' => '']]);
+    DB::purge('tenant');
+    $this->tenant->forceFill(['database' => $this->setupDatabase, 'provisioning_status' => 'ready', 'master_setup_status' => 'pending'])->saveQuietly();
+    $schema = app(TenantSchemaMigrator::class);
+    $schema->run(TenantSchemaMigrator::LOGIN_MIGRATIONS, fn () => null);
+    expect(Schema::connection('tenant')->hasTable('countries'))->toBeFalse();
+    DB::connection('tenant')->table('organizations')->insert(['name' => 'New Company', 'metadata' => '{}']);
+    $relativeDirectory = 'storage/framework/testing/tenant-migrations-'.bin2hex(random_bytes(6));
+    $directory = base_path($relativeDirectory);
+    mkdir($directory, 0777, true);
+    $files = [
+        '2025_03_12_060244_create_countries_table.php',
+        '2025_03_12_065058_create_states_table.php',
+        '2025_03_12_065114_create_cities_table.php',
+        '2025_03_12_065138_create_city_pin_codes_table.php',
+    ];
+    try {
+        foreach ($files as $file) {
+            copy(database_path('migrations/tenant/'.$file), $directory.'/'.$file);
+        }
+        $provisioner = new class(app(TenantDatabaseProvisioner::class), $relativeDirectory) extends TenantProvisioner
+        {
+            public function __construct(TenantDatabaseProvisioner $databases, private string $directory)
+            {
+                parent::__construct($databases);
+            }
+
+            protected function migrateSchema(array $paths, callable $progress): void
+            {
+                parent::migrateSchema([$this->directory], $progress);
+            }
+
+            protected function copyAccessControl(): void {}
+
+            protected function deleteLandlordPermissions(): void {}
+
+            protected function seedReferenceData(): void
+            {
+                foreach (['countries', 'states', 'cities', 'city_pin_codes'] as $table) {
+                    expect(Schema::hasTable($table))->toBeTrue();
+                }
+                DB::table('countries')->insert(['name' => 'India']);
+            }
+        };
+        (new SeedTenantMasters($this->tenant->id))->handle($provisioner);
+        expect($this->tenant->fresh()->master_setup_status)->toBe('ready')
+            ->and($this->tenant->fresh()->masterSetupProgress())->toBe(100)
+            ->and(DB::connection('tenant')->table('countries')->value('name'))->toBe('India')
+            ->and(DB::connection('tenant')->table('migrations')->count())->toBe(9);
+    } finally {
+        foreach ($files as $file) {
+            if (is_file($directory.'/'.$file)) {
+                unlink($directory.'/'.$file);
+            }
+        }
+        rmdir($directory);
+    }
+});
+
+test('missing deployed migration files stop automatic setup', function () {
+    config(['database.connections.tenant' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+    DB::purge('tenant');
+    expect(fn () => app(TenantSchemaMigrator::class)->run(['database/migrations/not-deployed'], fn () => null))
+        ->toThrow(RuntimeException::class, 'No tenant migration files were found');
+});
+
+test('seeding is blocked when migration records exist but geography tables are missing', function () {
+    createMasterSetupDatabase();
+    $provisioner = new class(app(TenantDatabaseProvisioner::class)) extends TenantProvisioner
+    {
+        protected function migrateSchema(array $paths, callable $progress): void {}
+
+        protected function copyAccessControl(): void
+        {
+            throw new LogicException('Should not copy before schema validation');
+        }
+
+        protected function seedReferenceData(): void
+        {
+            throw new LogicException('Should not seed an incomplete schema');
+        }
+    };
+    expect(fn () => $provisioner->configureAccount($this->tenant))
+        ->toThrow(RuntimeException::class, 'countries is missing');
 });

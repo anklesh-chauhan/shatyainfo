@@ -2,10 +2,16 @@
 
 namespace App\Support\Tenancy;
 
+use Illuminate\Database\Console\Migrations\MigrateCommand;
 use Illuminate\Database\Events\MigrationEnded;
+use Illuminate\Database\Events\MigrationSkipped;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Events\Dispatcher;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 
 class TenantSchemaMigrator
 {
@@ -33,16 +39,39 @@ class TenantSchemaMigrator
                 $repository->createRepository();
             }
             $paths = array_map(base_path(...), $paths);
-            $pending = array_diff(array_keys($migrator->getMigrationFiles($paths)), $repository->getRan());
+            $files = $migrator->getMigrationFiles($paths);
+            if ($files === []) {
+                throw new RuntimeException('No tenant migration files were found. Deploy the complete database/migrations/tenant directory.');
+            }
+            $pending = array_diff(array_keys($files), $repository->getRan());
             $total = count($pending);
             $completed = 0;
+            $skipped = 0;
             $progress($completed, $total);
             $events->listen(MigrationEnded::class, function (MigrationEnded $event) use (&$completed, $total, $progress): void {
                 if ($event->method === 'up') {
                     $progress(++$completed, $total);
                 }
             });
-            $migrator->run($paths);
+            $events->listen(MigrationSkipped::class, function () use (&$skipped): void {
+                $skipped++;
+            });
+            Log::info('Tenant schema migrations started.', ['database' => app('db')->connection('tenant')->getDatabaseName(), 'pending' => $total]);
+            $command = new MigrateCommand($migrator, $events);
+            $command->setLaravel(app());
+            $exitCode = $command->run(new ArrayInput([
+                '--database' => 'tenant',
+                '--path' => $paths,
+                '--realpath' => true,
+                '--force' => true,
+            ]), new NullOutput);
+            if ($exitCode !== 0) {
+                throw new RuntimeException('The tenant migration command failed. Master seeding has been stopped.');
+            }
+            if ($completed + $skipped !== $total) {
+                throw new RuntimeException('Tenant migrations did not complete. Master seeding has been stopped.');
+            }
+            Log::info('Tenant schema migrations completed.', ['database' => app('db')->connection('tenant')->getDatabaseName(), 'completed' => $completed, 'skipped' => $skipped]);
         });
     }
 }

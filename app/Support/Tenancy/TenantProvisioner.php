@@ -13,6 +13,8 @@ use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -131,6 +133,7 @@ class TenantProvisioner
                     'master_setup_step' => 'Creating workspace tables ('.$completed.' of '.$total.')',
                 ])->saveQuietly();
             });
+            $this->assertMasterTablesExist();
             $tenant->forceFill(['master_setup_step' => 'Configuring access permissions', 'master_setup_progress' => 72])->saveQuietly();
             $this->copyAccessControl();
             $configuration = config('database.connections.'.$this->landlordConnection());
@@ -161,6 +164,15 @@ class TenantProvisioner
             config(['multitenancy.geographic_reference_connection_name' => $originalReferenceConnection]);
             DB::purge('tenant_setup');
             config(['database.connections.tenant_setup' => null]);
+        }
+    }
+
+    protected function assertMasterTablesExist(): void
+    {
+        foreach (array_keys(GeographicReference::COLUMNS) as $table) {
+            if (! Schema::connection('tenant')->hasTable($table)) {
+                throw new RuntimeException('Tenant schema is incomplete: '.$table.' is missing. Run the remaining tenant migrations before seeding.');
+            }
         }
     }
 
