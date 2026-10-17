@@ -2,6 +2,7 @@
 
 namespace App\Services\DataImport;
 
+use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use BackedEnum;
@@ -19,6 +20,19 @@ class ResourceCsvImporter
 {
     public function import(ImportableModule $module, string $path): ImportResult
     {
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'xlsx') {
+            try {
+                $csv = app(SpreadsheetFile::class)->toCsv($path);
+            } catch (Throwable $exception) {
+                return new ImportResult(failed: [['row' => 1, 'message' => 'Unable to read this Excel workbook. Upload a valid .xlsx file.']]);
+            }
+
+            try {
+                return $this->import($module, $csv);
+            } finally {
+                unlink($csv);
+            }
+        }
         if (in_array($module->modelClass, [User::class, Tenant::class], true)) {
             return new ImportResult(failed: [[
                 'row' => 1,
@@ -146,6 +160,10 @@ class ResourceCsvImporter
      */
     private function importRow(ImportableModule $module, array $row): string
     {
+        if ($module->modelClass === Employee::class) {
+            return app(EmployeeOnboardingImporter::class)->importRow($row);
+        }
+
         /** @var Model $model */
         $model = new $module->modelClass;
         $attributes = [];

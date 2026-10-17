@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\Employees\EmployeeResource;
+use App\Models\Employee;
 use App\Services\DataImport\ImportableModule;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
@@ -16,6 +18,8 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -59,7 +63,7 @@ class DataImport extends Page implements HasForms
     public function mount(): void
     {
         $this->form->fill([
-            'resource' => null,
+            'resource' => request()->query('module') === 'employees' ? EmployeeResource::class : null,
             'file' => null,
         ]);
     }
@@ -77,11 +81,12 @@ class DataImport extends Page implements HasForms
                     ->native(false)
                     ->helperText('Choose the module whose records are in the file.'),
                 FileUpload::make('file')
-                    ->label('CSV file')
+                    ->label('Excel or CSV file')
                     ->disk('local')
                     ->directory('data-imports')
                     ->visibility('private')
                     ->acceptedFileTypes([
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         'text/csv',
                         'text/x-csv',
                         'application/csv',
@@ -93,7 +98,7 @@ class DataImport extends Page implements HasForms
                     ])
                     ->maxSize(20480)
                     ->required()
-                    ->helperText('UTF-8 CSV with a header row. Download the example after you choose a module.'),
+                    ->helperText('Upload .xlsx (first worksheet) or UTF-8 CSV with a header row. Download the template first. Format employee codes and phone numbers as Text in Excel.'),
             ])
             ->statePath('data');
     }
@@ -123,6 +128,21 @@ class DataImport extends Page implements HasForms
         }
 
         $csv = $importer->exampleCsv($module);
+        if ($module->modelClass === Employee::class) {
+            return response()->streamDownload(function () use ($module): void {
+                $path = tempnam(sys_get_temp_dir(), 'employee-template-');
+                try {
+                    $writer = new Writer;
+                    $writer->openToFile($path);
+                    $writer->addRow(Row::fromValues(array_map(fn ($column): string => $column->header, $module->columns)));
+                    $writer->addRow(Row::fromValues(array_map(fn ($column): string => $column->example, $module->columns)));
+                    $writer->close();
+                    readfile($path);
+                } finally {
+                    unlink($path);
+                }
+            }, 'employees-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+        }
         $filename = str($module->label)->slug().'-import.csv';
 
         return response()->streamDownload(function () use ($csv): void {
@@ -205,14 +225,14 @@ class DataImport extends Page implements HasForms
             $path = $file->getRealPath();
 
             if (! is_string($path) || $path === '') {
-                throw new RuntimeException('Choose a CSV file.');
+                throw new RuntimeException('Choose an Excel or CSV file.');
             }
 
             return [$path, null];
         }
 
         if (! is_string($file) || $file === '') {
-            throw new RuntimeException('Choose a CSV file.');
+            throw new RuntimeException('Choose an Excel or CSV file.');
         }
 
         return [Storage::disk('local')->path($file), $file];

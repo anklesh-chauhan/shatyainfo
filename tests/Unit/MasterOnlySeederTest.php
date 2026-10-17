@@ -23,6 +23,10 @@ test('default seeding excludes demo and business records but retains reference m
     };
     $seeder->run();
 
+    foreach (['EmpDepartmentSeeder', 'EmpGradeSeeder', 'EmpJobTitleSeeder', 'JobRoleSeeder'] as $excluded) {
+        expect($seeder->selected)->not->toContain('Database\\Seeders\\'.$excluded);
+    }
+
     foreach (['UsersTableSeeder', 'SalesUsersSeeder', 'FullDemoSeeder', 'LeaveDemoDataSeeder', 'AccountMasterSeeder', 'ItemMasterSeeder', 'ItemBrandSeeder', 'ItemCategorySeeder', 'LocationMasterSeeder', 'TerritorySeeder', 'OrganizationalUnitSeeder', 'PositionSeeder', 'PositionEmployeeMapperSeeder', 'PatchSeeder', 'StandardFareChartSeeder', 'OrganizationSeeder', 'AccountTypeSeeder', 'ChartOfAccountSeeder'] as $excluded) {
         expect($seeder->selected)->not->toContain('Database\\Seeders\\'.$excluded);
     }

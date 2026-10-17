@@ -9,7 +9,7 @@
             </x-filament::button>
 
             <x-filament::button type="button" color="gray" wire:click="downloadExample" wire:loading.attr="disabled">
-                Download example CSV
+                Download template
             </x-filament::button>
         </div>
     </form>
@@ -25,7 +25,12 @@
                 @else
                     Each row is added as a new record. A blank cell is skipped.
                 @endif
-                Related columns must match an existing record, usually by name or code. Import those lists first.
+                @if ($module->modelClass === \App\Models\Employee::class)
+                    Replace the example row with your team. Departments, job roles, positions, grades, job titles and org units are created from the same file. Existing setup is reused; conflicting details are reported for correction.
+                    Position code identifies a position and requires a position name and job role. Org unit type must match an existing type (for example, Division). Blank cells preserve existing details. Employee records are imported without sending login invitations.
+                @else
+                    Related columns must match an existing record, usually by name or code. Import those lists first.
+                @endif
             </p>
             <ul class="mt-4 space-y-1 text-sm text-gray-700 dark:text-gray-200">
                 @foreach ($module->columns as $column)

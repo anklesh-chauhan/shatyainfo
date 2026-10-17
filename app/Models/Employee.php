@@ -2,20 +2,18 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Notifications\UserAccountCreated;
+use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Notifications\UserAccountCreated;
-
-use App\Traits\HasApprovalWorkflow;
 
 class Employee extends BaseModel
 {
-    use SoftDeletes, HasApprovalWorkflow;
+    public bool $provisionLoginOnSave = true;
+
+    use HasApprovalWorkflow, SoftDeletes;
 
     protected $primaryKey = 'id';
 
@@ -127,7 +125,7 @@ class Employee extends BaseModel
 
     public function weekOffs()
     {
-        return $this->hasMany(\App\Models\WeekOff::class);
+        return $this->hasMany(WeekOff::class);
     }
 
     public function currentShiftForDate($date = null)
@@ -138,7 +136,7 @@ class Employee extends BaseModel
             ->whereDate('effective_from', '<=', $date)
             ->where(function ($q) use ($date) {
                 $q->whereNull('effective_to')
-                ->orWhereDate('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->orderByDesc('effective_from')
             ->first()?->shift;
@@ -147,6 +145,10 @@ class Employee extends BaseModel
     protected static function booted(): void
     {
         static::saved(function (Employee $employee) {
+
+            if (! $employee->provisionLoginOnSave) {
+                return;
+            }
 
             // ✅ Already has login
             if ($employee->login_id) {
@@ -169,8 +171,8 @@ class Employee extends BaseModel
                     $password = Str::random(10);
 
                     $user = User::create([
-                        'name'     => trim($employee->first_name . ' ' . $employee->last_name),
-                        'email'    => $employee->email,
+                        'name' => trim($employee->first_name.' '.$employee->last_name),
+                        'email' => $employee->email,
                         'password' => bcrypt($password),
                     ]);
 
@@ -191,5 +193,4 @@ class Employee extends BaseModel
             });
         });
     }
-
 }

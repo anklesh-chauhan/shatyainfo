@@ -2,6 +2,7 @@
 
 namespace App\Services\DataImport;
 
+use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use BackedEnum;
@@ -211,7 +212,9 @@ class ResourceImportCatalog
             }
 
             $model = new $modelClass;
-            $columns = $this->columnsFor($model);
+            $columns = $model instanceof Employee
+                ? EmployeeOnboardingImporter::columns()
+                : $this->columnsFor($model);
 
             if ($columns === []) {
                 return null;
