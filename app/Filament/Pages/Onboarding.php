@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Services\CompanyOnboardingService;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Cache;
 
 class Onboarding extends Page
 {
@@ -39,7 +40,9 @@ class Onboarding extends Page
 
     public function mount(): void
     {
-        if (Tenant::current()->accountIsConfigured()) {
+        $tenant = Tenant::current();
+        $this->ensureMasterSetupQueued($tenant);
+        if ($tenant->accountIsConfigured()) {
             $this->loadOrganization();
         }
     }
@@ -47,9 +50,28 @@ class Onboarding extends Page
     public function refreshSetup(): void
     {
         app(CompanyOnboardingService::class)->authorize();
-        if (Tenant::current()->refresh()->accountIsConfigured() && $this->organization === []) {
+        $tenant = Tenant::current()->refresh();
+        $this->ensureMasterSetupQueued($tenant);
+        if ($tenant->accountIsConfigured() && $this->organization === []) {
             $this->loadOrganization();
         }
+    }
+
+    /**
+     * Sign-in provisioning finishes before this job runs. If that dispatch was missed,
+     * or it was left on a queue the worker does not process, opening this page starts it.
+     */
+    private function ensureMasterSetupQueued(Tenant $tenant): void
+    {
+        if ($tenant->master_setup_status !== 'pending') {
+            return;
+        }
+
+        if (! Cache::add('tenant-master-setup:'.$tenant->id, true, now()->addMinutes(2))) {
+            return;
+        }
+
+        SeedTenantMasters::dispatch($tenant->id);
     }
 
     public function retrySetup(): void

@@ -68,7 +68,7 @@ test('minimal provisioning enables login before dispatching background masters',
     (new ProvisionTenant($this->tenant->id))->handle($provisioner);
     $tenant = $this->tenant->fresh();
     expect($tenant->provisioning_status)->toBe('ready')->and($tenant->master_setup_status)->toBe('pending')->and($tenant->provisioning_owner)->toBeNull();
-    Queue::assertPushed(SeedTenantMasters::class, fn ($job): bool => $job->tenantId === $tenant->id);
+    Queue::assertPushed(SeedTenantMasters::class, fn (SeedTenantMasters $job): bool => $job->tenantId === $tenant->id && $job->queue === null && $job->connection === 'database');
 });
 
 test('unverified companies never provision or seed', function () {
@@ -225,6 +225,24 @@ test('onboarding shows configuration progress then reveals the organization form
     $this->tenant->forceFill(['master_setup_status' => 'ready'])->saveQuietly();
     $page->call('refreshSetup')->assertSee('Finish onboarding')->assertDontSee('We are configuring your account')
         ->assertSet('organization.name', 'New Company');
+});
+
+test('onboarding queues master setup once while the account is still waiting', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'pending', 'master_setup_step' => 'Waiting to configure your account'])->saveQuietly();
+    $this->tenant->makeCurrent();
+    $user = Mockery::mock(User::class)->makePartial();
+    $user->forceFill(['id' => 1, 'name' => 'Owner', 'email' => 'owner@example.test']);
+    $user->shouldReceive('hasAnyRole')->andReturnTrue();
+    $user->shouldReceive('hasRole')->andReturnTrue();
+    $user->shouldReceive('canAccessPanel')->andReturnTrue();
+    $this->actingAs($user, 'web');
+    $service = Mockery::mock(CompanyOnboardingService::class);
+    $service->shouldReceive('authorize')->andReturnNull();
+    app()->instance(CompanyOnboardingService::class, $service);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Livewire::test(Onboarding::class)->call('refreshSetup')->call('refreshSetup');
+    Queue::assertPushed(SeedTenantMasters::class, 1);
+    Queue::assertPushed(SeedTenantMasters::class, fn (SeedTenantMasters $job): bool => $job->tenantId === $this->tenant->id && $job->queue === null);
 });
 
 test('onboarding retry queues only one new master job', function () {

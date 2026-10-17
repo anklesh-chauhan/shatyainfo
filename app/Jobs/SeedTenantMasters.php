@@ -22,9 +22,8 @@ class SeedTenantMasters implements NotTenantAware, ShouldQueue
 
     public function __construct(public int $tenantId)
     {
-        $this->afterCommit();
+        // Same connection and queue as sign-in provisioning. A separate queue is never consumed.
         $this->onConnection('database');
-        $this->onQueue('tenant-setup');
     }
 
     public function handle(TenantProvisioner $provisioner): void
