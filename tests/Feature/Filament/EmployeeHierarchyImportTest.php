@@ -12,6 +12,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\TypeMaster;
 use App\Models\User;
+use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\EmployeeOnboardingImporter;
 use App\Services\DataImport\ImportResult;
@@ -34,6 +35,22 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
+
+it('tracks onboarding from saved company and employee data before allowing completion', function () {
+    $service = new class extends CompanyOnboardingService
+    {
+        public function authorize(): void {}
+    };
+    expect($service->checklist())->toMatchArray(['company' => false, 'employees' => false, 'review' => false]);
+    expect(fn () => $service->finish())->toThrow(ValidationException::class);
+    $service->saveOrganization(['name' => 'Example Company', 'email' => 'company@example.test', 'phone' => '9000000000']);
+    expect($service->checklist())->toMatchArray(['company' => true, 'employees' => false, 'review' => false]);
+    expect(fn () => $service->finish())->toThrow(ValidationException::class);
+    expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
+    expect($service->checklist())->toMatchArray(['company' => true, 'structure' => true, 'employees' => true, 'review' => false, 'employee_count' => 4]);
+    $service->finish();
+    expect($service->checklist()['review'])->toBeTrue();
+});
 
 beforeEach(function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));

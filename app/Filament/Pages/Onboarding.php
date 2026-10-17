@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
 use App\Services\CompanyOnboardingService;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
@@ -13,9 +14,9 @@ class Onboarding extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedRocketLaunch;
 
-    protected static ?string $navigationLabel = 'Onboarding';
+    protected static ?string $navigationLabel = 'Setup Checklist';
 
-    protected static ?string $title = 'Onboarding';
+    protected static ?string $title = 'Setup Checklist';
 
     protected static ?int $navigationSort = -10;
 
@@ -105,7 +106,17 @@ class Onboarding extends Page
         ]);
         $service = app(CompanyOnboardingService::class);
         $service->saveOrganization($this->organization);
-        $service->mark('completed');
+        Notification::make()->title('Company information saved')->success()->send();
+    }
+
+    public function checklist(): array
+    {
+        return app(CompanyOnboardingService::class)->checklist();
+    }
+
+    public function finish(): void
+    {
+        app(CompanyOnboardingService::class)->finish();
         $this->redirect('/admin');
     }
 

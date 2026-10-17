@@ -6,6 +6,11 @@
     @endphp
 
     @if ($employeeGuide)
+        @if (\App\Filament\Pages\Onboarding::canAccess())
+            <div>
+                <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\Onboarding::getUrl(panel: 'admin')">Back to setup checklist</x-filament::button>
+            </div>
+        @endif
         <section class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <h2 class="text-base font-semibold text-gray-950 dark:text-white">How to import employees</h2>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Download the template below, then follow these instructions. These are the same rules included in the Excel template.</p>

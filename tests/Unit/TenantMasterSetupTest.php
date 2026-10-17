@@ -218,13 +218,24 @@ test('onboarding shows configuration progress then reveals the organization form
     $organization = new Organization;
     $organization->forceFill(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890']);
     $service->shouldReceive('organization')->andReturn($organization);
+    $companySaved = false;
+    $service->shouldReceive('checklist')->andReturnUsing(function () use (&$companySaved): array {
+        return ['company' => $companySaved, 'structure' => false, 'employees' => false, 'review' => false, 'unit_count' => 0, 'employee_count' => 0];
+    });
+    $service->shouldReceive('saveOrganization')->once()->with(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890'])->andReturnUsing(function () use (&$companySaved, $organization): Organization {
+        $companySaved = true;
+
+        return $organization;
+    });
     app()->instance(CompanyOnboardingService::class, $service);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $page = Livewire::test(Onboarding::class)
         ->assertSee('We are configuring your account')->assertDontSee('Finish onboarding');
     $this->tenant->forceFill(['master_setup_status' => 'ready'])->saveQuietly();
-    $page->call('refreshSetup')->assertSee('Finish onboarding')->assertDontSee('We are configuring your account')
+    $page->call('refreshSetup')->assertSee('Save company information')->assertSee('Organization Structure')->assertSee('Employees')->assertDontSee('We are configuring your account')
         ->assertSet('organization.name', 'New Company');
+    $page->call('saveOrganization')->assertHasNoErrors()->assertNoRedirect()->assertNotified('Company information saved')
+        ->assertSee('Import employees from Excel')->assertSee('Review positions and reporting')->assertSee('Continue later');
 });
 
 test('onboarding queues master setup once while the account is still waiting', function () {
@@ -423,4 +434,21 @@ test('seeding is blocked when migration records exist but geography tables are m
     };
     expect(fn () => $provisioner->configureAccount($this->tenant))
         ->toThrow(RuntimeException::class, 'countries is missing');
+});
+
+test('onboarding allows setup pages after company information is saved', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'ready'])->saveQuietly();
+    $this->tenant->makeCurrent();
+    Schema::create('organizations', function (Blueprint $table): void {
+        $table->id();
+        $table->text('metadata')->nullable();
+        $table->softDeletes();
+    });
+    DB::table('organizations')->insert(['metadata' => json_encode(['company_setup' => ['pending' => true, 'organization_saved' => true]])]);
+    $user = Mockery::mock(User::class)->makePartial();
+    $user->shouldReceive('hasAnyRole')->andReturnTrue();
+    $request = Request::create('/admin/data-import?module=employees', 'GET');
+    $request->setUserResolver(fn () => $user);
+    $response = (new PromptCompanySetup)->handle($request, fn () => response('Employee import'));
+    expect($response->getContent())->toBe('Employee import');
 });

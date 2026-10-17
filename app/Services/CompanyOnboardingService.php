@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\Organization;
+use App\Models\OrganizationalUnit;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,34 @@ use Illuminate\Validation\ValidationException;
 
 class CompanyOnboardingService
 {
+    /** @return array<string, bool|int> */
+    public function checklist(): array
+    {
+        $organization = $this->organization();
+        $setup = $organization?->metadata['company_setup'] ?? [];
+        $company = (bool) ($setup['organization_saved'] ?? false);
+        $units = OrganizationalUnit::query()->count();
+        $employees = Employee::query()->count();
+
+        return [
+            'company' => $company,
+            'structure' => $units > 0,
+            'employees' => $employees > 0,
+            'review' => $company && $employees > 0 && (bool) ($setup['completed'] ?? false),
+            'unit_count' => $units,
+            'employee_count' => $employees,
+        ];
+    }
+
+    public function finish(): void
+    {
+        $checklist = $this->checklist();
+        if (! $checklist['company'] || ! $checklist['employees']) {
+            throw ValidationException::withMessages(['checklist' => 'Save company information and add at least one employee before finishing setup.']);
+        }
+        $this->mark('completed');
+    }
+
     public const EMPLOYEE_COLUMNS = ['employee_id', 'first_name', 'last_name', 'email', 'mobile_number'];
 
     public function authorize(): void

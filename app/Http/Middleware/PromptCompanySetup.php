@@ -22,7 +22,7 @@ class PromptCompanySetup
             && ! $request->routeIs('filament.admin.pages.onboarding')
             && ! $request->expectsJson()) {
             $setup = Organization::query()->orderBy('id')->first()?->metadata['company_setup'] ?? [];
-            if (! Tenant::current()->accountIsConfigured() || (($setup['pending'] ?? false) && ! ($setup['completed'] ?? false) && ! ($setup['deferred'] ?? false))) {
+            if (! Tenant::current()->accountIsConfigured() || (($setup['pending'] ?? false) && ! ($setup['organization_saved'] ?? false) && ! ($setup['completed'] ?? false) && ! ($setup['deferred'] ?? false))) {
                 return redirect()->route('filament.admin.pages.onboarding');
             }
         }
