@@ -83,6 +83,11 @@ class Visit extends BaseModel
     |--------------------------------------------------------------------------
     */
 
+    public function eDetailingPresentations(): HasMany
+    {
+        return $this->hasMany(EDetailingPresentation::class);
+    }
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'employee_id');

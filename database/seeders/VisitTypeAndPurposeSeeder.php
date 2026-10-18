@@ -2,11 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\VisitType;
-use App\Models\VisitPurpose;
 use App\Enums\TourPurpose;
-use Illuminate\Support\Str;
+use App\Models\VisitPurpose;
+use App\Models\VisitType;
+use Illuminate\Database\Seeder;
 
 class VisitTypeAndPurposeSeeder extends Seeder
 {
@@ -29,10 +28,10 @@ class VisitTypeAndPurposeSeeder extends Seeder
             $visitTypeModels[$code] = VisitType::updateOrCreate(
                 ['code' => $code],
                 [
-                    'name'        => $name,
+                    'name' => $name,
                     'description' => $name,
-                    'is_active'   => true,
-                    'sort_order'  => array_search($code, array_keys($visitTypes)) + 1,
+                    'is_active' => true,
+                    'sort_order' => array_search($code, array_keys($visitTypes)) + 1,
                 ]
             );
         }
@@ -43,9 +42,9 @@ class VisitTypeAndPurposeSeeder extends Seeder
         |--------------------------------------------------------------------------
         */
         $groupToVisitType = [
-            'Sales Activities'       => 'sales_activity',
+            'Sales Activities' => 'sales_activity',
             'Field / Admin Activities' => 'field_admin_activity',
-            'Other'                  => 'other',
+            'Other' => 'other',
         ];
 
         /*
@@ -56,19 +55,29 @@ class VisitTypeAndPurposeSeeder extends Seeder
         foreach (TourPurpose::groupedOptions() as $groupLabel => $purposes) {
 
             $visitTypeCode = $groupToVisitType[$groupLabel] ?? 'other';
-            $visitType     = $visitTypeModels[$visitTypeCode];
+            $visitType = $visitTypeModels[$visitTypeCode];
 
             $sort = 1;
 
             foreach ($purposes as $code => $label) {
+                if ($code === TourPurpose::Service->value) {
+                    continue;
+                }
+                $label = match ($code) {
+                    'customer_visit' => 'Doctor / Chemist / Stockist Visit',
+                    'demo' => 'Product Detailing / E-detailing',
+                    'camp' => 'Healthcare Camp',
+                    'conference' => 'Medical Conference / CME',
+                    default => $label,
+                };
                 VisitPurpose::updateOrCreate(
                     ['code' => $code],
                     [
-                        'name'          => $label,
-                        'description'   => $label,
+                        'name' => $label,
+                        'description' => $label,
                         'visit_type_id' => $visitType->id,
-                        'is_active'     => true,
-                        'sort_order'    => $sort++,
+                        'is_active' => true,
+                        'sort_order' => $sort++,
                     ]
                 );
             }

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DcrController;
 use App\Http\Controllers\Api\V1\DcrExpenseController;
+use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\Api\V1\ExpenseTypeController;
 use App\Http\Controllers\Api\V1\GpsPointController;
 use App\Http\Controllers\Api\V1\ItemController;
@@ -26,6 +27,9 @@ Route::prefix('v1')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
     Route::middleware(['auth:sanctum', FieldIdempotency::class])->group(function (): void {
+        Route::get('visits/{visit}/e-detailing', [EDetailingController::class, 'index'])->whereNumber('visit');
+        Route::get('visits/{visit}/e-detailing/{material}/file', [EDetailingController::class, 'file'])->whereNumber(['visit', 'material']);
+        Route::post('visits/{visit}/e-detailing', [EDetailingController::class, 'store'])->whereNumber('visit');
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', MeController::class);
 

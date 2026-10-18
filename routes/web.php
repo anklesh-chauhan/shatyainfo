@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\RegistrationAccessController;
 use App\Http\Controllers\SalesDocumentPdfController;
@@ -7,6 +8,9 @@ use App\Services\Attendance\LeaveWorkflowService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
+
+Route::get('/e-detailing/{material}/preview', [EDetailingController::class, 'preview'])
+    ->middleware('auth')->name('e-detailing.preview');
 
 Route::middleware('landlord')->group(function () {
     Route::get('/register/captcha', [RegistrationAccessController::class, 'captcha'])->middleware('throttle:30,1')->name('signup.captcha');

@@ -2,19 +2,31 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\UnitOfMeasurement;
+use Illuminate\Database\Seeder;
 
 class UnitOfMeasurementSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        UnitOfMeasurement::insert([
-            ['name' => 'Kilogram', 'abbreviation' => 'kg'],
-            ['name' => 'Gram', 'abbreviation' => 'g'],
+        foreach ([
+            ['name' => 'Tablet', 'abbreviation' => 'tab'],
+            ['name' => 'Capsule', 'abbreviation' => 'cap'],
+            ['name' => 'Strip', 'abbreviation' => 'strip'],
+            ['name' => 'Bottle', 'abbreviation' => 'btl'],
+            ['name' => 'Vial', 'abbreviation' => 'vial'],
+            ['name' => 'Ampoule', 'abbreviation' => 'amp'],
+            ['name' => 'Tube', 'abbreviation' => 'tube'],
+            ['name' => 'Sachet', 'abbreviation' => 'sachet'],
+            ['name' => 'Box', 'abbreviation' => 'box'],
+            ['name' => 'Milliliter', 'abbreviation' => 'mL'],
             ['name' => 'Liter', 'abbreviation' => 'L'],
+            ['name' => 'Milligram', 'abbreviation' => 'mg'],
+            ['name' => 'Gram', 'abbreviation' => 'g'],
+            ['name' => 'Kilogram', 'abbreviation' => 'kg'],
             ['name' => 'Piece', 'abbreviation' => 'pcs'],
-        ]);
+        ] as $attributes) {
+            UnitOfMeasurement::query()->firstOrCreate(['name' => $attributes['name']], $attributes);
+        }
     }
 }

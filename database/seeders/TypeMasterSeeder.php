@@ -17,13 +17,13 @@ class TypeMasterSeeder extends Seeder
     {
         $types = [
             AccountMaster::class => [
-                'Customer' => ['Retail Customer', 'Corporate Customer', 'Government Customer'],
+                'Customer' => ['Doctor', 'Chemist / Pharmacy', 'Stockist', 'Super Stockist', 'Hospital', 'Clinic', 'Nursing Home', 'Institution / Government Hospital'],
                 'Vendor' => ['Manufacturer Vendor', 'Trader Vendor', 'Service Vendor'],
-                'Dealer' => ['Authorized Dealer', 'Channel Partner'],
+                'Distributor' => ['Pharmaceutical Distributor', 'C&F Agent'],
                 'Transporter' => ['Fleet Transporter', 'Individual Transporter'],
             ],
             Address::class => ['Office Address' => ['Registered Office', 'Head Office']],
-            Deal::class => ['Recurring Revenue' => ['AMC Deal', 'Subscription Deal']],
+            Deal::class => ['Recurring Revenue' => ['Institutional Supply', 'Stockist Supply']],
             LocationMaster::class => ['Branch' => ['Regional Branch'], 'Warehouse' => ['Cold Storage Warehouse']],
             OrganizationalUnit::class => ['Organizational Unit' => ['Head Office', 'Division', 'Plant', 'Department']],
             StandardFareChart::class => ['Local / HQ' => [], 'Intra-District / Ex-Station / Ex-HQ' => [], 'Out-Station' => []],

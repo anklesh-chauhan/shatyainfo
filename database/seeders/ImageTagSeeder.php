@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\ImageTag;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -16,8 +15,7 @@ class ImageTagSeeder extends Seeder
     {
         $this->seedGlobalTags();
         $this->seedPharmaTags();
-        $this->seedFmcgTags();
-        $this->seedMachineryTags();
+
     }
 
     protected function seedGlobalTags(): void

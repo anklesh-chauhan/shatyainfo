@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\MyQuickLinks;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Http\Middleware\PromptCompanySetup;
@@ -21,6 +22,7 @@ use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Platform;
 use Filament\Support\Facades\FilamentAsset;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -41,7 +43,8 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->globalSearch(true)
-            ->topbar(false)
+            ->topbar(true)
+            ->renderHook(PanelsRenderHook::TOPBAR_LOGO_AFTER, fn () => view('filament.components.topbar-quick-links'))
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldSuffix(fn (): string => Platform::detect() === Platform::Mac ? '⌘K' : 'Ctrl+K')
             ->globalSearchDebounce(500)
@@ -56,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Blue,
             ])
             ->userMenuItems([
+                'quick-links' => Action::make('quick-links')->label('My quick links')->icon('heroicon-o-squares-2x2')->url(fn (): string => MyQuickLinks::getUrl()),
                 'profile' => Action::make('profile')
                     ->label(fn () => auth()->user()->employee?->full_name ?? auth()->user()->name)
                     ->icon('heroicon-o-user-circle')

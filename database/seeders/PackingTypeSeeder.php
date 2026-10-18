@@ -2,21 +2,25 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\PackingType;
+use Illuminate\Database\Seeder;
 
 class PackingTypeSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        PackingType::insert([
-            ['name' => 'Box', 'description' => 'Packaged in a box'],
-            ['name' => 'Carton', 'description' => 'Packaged in a carton'],
-            ['name' => 'Bag', 'description' => 'Packaged in a bag'],
-            ['name' => 'Bottle', 'description' => 'Packaged in a bottle'],
-            ['name' => 'Drum', 'description' => 'Packaged in a drum'],
-            ['name' => 'Pallet', 'description' => 'Packaged on a pallet'],
-        ]);
+        foreach ([
+            ['name' => 'Strip', 'description' => 'Pharmaceutical strip packaging'],
+            ['name' => 'Blister Pack', 'description' => 'Pharmaceutical blister pack packaging'],
+            ['name' => 'Bottle', 'description' => 'Pharmaceutical bottle packaging'],
+            ['name' => 'Vial', 'description' => 'Pharmaceutical vial packaging'],
+            ['name' => 'Ampoule', 'description' => 'Pharmaceutical ampoule packaging'],
+            ['name' => 'Tube', 'description' => 'Pharmaceutical tube packaging'],
+            ['name' => 'Sachet', 'description' => 'Pharmaceutical sachet packaging'],
+            ['name' => 'Box', 'description' => 'Pharmaceutical box packaging'],
+            ['name' => 'Carton', 'description' => 'Pharmaceutical carton packaging'],
+        ] as $attributes) {
+            PackingType::query()->firstOrCreate(['name' => $attributes['name']], $attributes);
+        }
     }
 }
