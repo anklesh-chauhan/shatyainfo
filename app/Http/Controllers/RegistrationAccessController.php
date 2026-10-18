@@ -6,10 +6,14 @@ use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Tenancy\CompanyDomain;
+use App\Support\Tenancy\LandlordDomains;
+use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -94,32 +98,94 @@ class RegistrationAccessController extends Controller
             return null;
         }
         $token = $request->session()->get('registration_login_token');
-        $cacheKey = is_string($token) ? 'registration.login.'.hash('sha256', $token) : null;
-        if (! is_string($token) || ! Cache::store('registration')->has($cacheKey)) {
+        if (! is_string($token) || ! $this->handoffExists($token)) {
             $token = Str::random(64);
-            $cacheKey = 'registration.login.'.hash('sha256', $token);
             $request->session()->put('registration_login_token', $token);
-            Cache::store('registration')->put($cacheKey, ['tenant_id' => $tenant->id, 'email' => $request->session()->get('verified_registration_email')], now()->addMinutes(10));
+            $this->storeHandoff($token, $tenant->id, $request->session()->get('verified_registration_email'));
         }
 
-        return preg_replace('~/admin/login$~', '/registration/complete/'.$token, CompanyDomain::loginUrl((string) $tenant->domain));
+        return CompanyDomain::url((string) $tenant->domain, '/registration/complete/'.$token);
     }
 
     public function complete(Request $request, string $token): RedirectResponse
     {
-        $tenant = Tenant::current();
+        $tenant = Tenant::current() ?? Tenant::query()->where('domain', LandlordDomains::normalize($request->getHost()))->first();
         abort_unless($tenant && $tenant->provisioning_status === 'ready', 403);
-        $key = 'registration.login.'.hash('sha256', $token);
+        if (! $tenant->isCurrent()) {
+            $tenant->makeCurrent();
+        }
 
-        return Cache::store('registration')->lock($key.'.lock', 10)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
-            $handoff = Cache::store('registration')->get($key);
+        $key = $this->handoffKey($token);
+
+        return $this->registrationCache()->lock($key.'.lock', 10)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
+            $handoff = $this->pullHandoff($key);
             abort_unless(is_array($handoff) && (string) $handoff['tenant_id'] === (string) $tenant->id, 403);
             $user = User::query()->where('email', $handoff['email'])->whereNotNull('email_verified_at')->firstOrFail();
-            Cache::store('registration')->forget($key);
             Auth::guard('web')->login($user);
             $request->session()->regenerate();
 
-            return redirect('/admin');
+            return redirect()->away(CompanyDomain::url((string) $tenant->domain, '/admin'));
         });
+    }
+
+    private function handoffExists(string $token): bool
+    {
+        return $this->registrationCache()->has($this->handoffKey($token));
+    }
+
+    private function storeHandoff(string $token, int|string $tenantId, mixed $email): void
+    {
+        $this->registrationCache()->put($this->handoffKey($token), [
+            'tenant_id' => $tenantId,
+            'email' => $email,
+        ], now()->addMinutes(10));
+    }
+
+    private function handoffKey(string $token): string
+    {
+        return 'registration.login.'.hash('sha256', $token);
+    }
+
+    private function registrationCache(): Repository
+    {
+        return Cache::store('registration');
+    }
+
+    /**
+     * @return array{tenant_id: int|string, email: mixed}|null
+     */
+    private function pullHandoff(string $key): ?array
+    {
+        $handoff = $this->registrationCache()->pull($key);
+        if (is_array($handoff)) {
+            return $handoff;
+        }
+
+        $landlord = (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+        $table = (string) (config('cache.stores.registration.table') ?: config('cache.stores.database.table') ?: 'cache');
+
+        try {
+            $row = DB::connection($landlord)->table($table)
+                ->where('key', 'like', '%'.$key)
+                ->where('expiration', '>', now()->getTimestamp())
+                ->orderByDesc('expiration')
+                ->first();
+        } catch (QueryException) {
+            return null;
+        }
+
+        if ($row === null) {
+            return null;
+        }
+
+        DB::connection($landlord)->table($table)->where('key', $row->key)->delete();
+
+        try {
+            $value = unserialize((string) $row->value, ['allowed_classes' => false]);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_array($value) ? $value : null;
     }
 }

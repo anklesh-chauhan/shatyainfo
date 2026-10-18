@@ -140,7 +140,7 @@ test('company handoff signs in only the verified owner and cannot be replayed', 
     $token = str_repeat('b', 64);
     Cache::store('registration')->put('registration.login.'.hash('sha256', $token), ['tenant_id' => $this->tenant->id, 'email' => 'owner@example.test'], now()->addMinutes(5));
     $url = 'http://northwind.test/registration/complete/'.$token;
-    $this->get($url)->assertRedirect('/admin')->assertSessionHas(Auth::guard('web')->getName(), 1);
+    $this->get($url)->assertRedirect(CompanyDomain::url((string) $this->tenant->domain, '/admin'))->assertSessionHas(Auth::guard('web')->getName(), 1);
     $this->get($url)->assertForbidden();
 });
 
@@ -241,9 +241,30 @@ test('verified owners can enter before masters finish even when tenant cache pre
     $response = $this->withSession(['verified_registration' => $this->tenant->id, 'verified_registration_email' => 'owner@example.test'])->getJson($statusUrl)->assertOk();
     $url = $response->json('redirect_url');
     expect($url)->toContain('/registration/complete/');
-    $this->get($url)->assertRedirect('/admin')->assertSessionHas(Auth::guard('web')->getName(), 1);
+    $this->get($url)->assertRedirect(CompanyDomain::url((string) $this->tenant->domain, '/admin'))->assertSessionHas(Auth::guard('web')->getName(), 1);
     expect($this->tenant->fresh()->master_setup_status)->toBe('pending');
     $this->get($url)->assertForbidden();
+    $prefixedToken = str_repeat('d', 64);
+    $logicalKey = 'registration.login.'.hash('sha256', $prefixedToken);
+    DB::connection('mysql')->table('cache')->insert([
+        'key' => 'tenant_id_'.$this->tenant->id.$logicalKey,
+        'value' => serialize(['tenant_id' => $this->tenant->id, 'email' => 'owner@example.test']),
+        'expiration' => now()->addMinutes(10)->getTimestamp(),
+    ]);
+    $prefixedUrl = 'http://northwind.test/registration/complete/'.$prefixedToken;
+    $this->get($prefixedUrl)->assertRedirect(CompanyDomain::url((string) $this->tenant->domain, '/admin'));
+    $this->get($prefixedUrl)->assertForbidden();
+});
+
+test('public company addresses redirect over https', function () {
+    config(['app.url' => 'http://shatyainfo.com']);
+
+    expect(CompanyDomain::loginUrl('anklesh.shatyainfo.com'))->toBe('https://anklesh.shatyainfo.com/admin/login')
+        ->and(CompanyDomain::url('anklesh.shatyainfo.com', '/registration/complete/token'))->toBe('https://anklesh.shatyainfo.com/registration/complete/token');
+
+    config(['app.url' => 'http://it-erp.test']);
+
+    expect(CompanyDomain::loginUrl('anklesh.it-erp.test'))->toBe('http://anklesh.it-erp.test/admin/login');
 });
 
 test('registration polling exposes provisioning percentage and current step', function () {

@@ -75,11 +75,29 @@ class CompanyDomain
         return $input;
     }
 
+    public static function scheme(): string
+    {
+        $appUrl = (string) config('app.url');
+        $appHost = LandlordDomains::normalize((string) parse_url($appUrl, PHP_URL_HOST));
+        $local = $appHost === ''
+            || str_ends_with($appHost, '.test')
+            || in_array($appHost, ['localhost', '127.0.0.1'], true);
+
+        if ($local) {
+            return parse_url($appUrl, PHP_URL_SCHEME) ?: 'http';
+        }
+
+        return 'https';
+    }
+
+    public static function url(string $domain, string $path = '/'): string
+    {
+        return self::scheme().'://'.LandlordDomains::normalize($domain).'/'.ltrim($path, '/');
+    }
+
     public static function loginUrl(string $domain): string
     {
-        $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
-
-        return $scheme.'://'.LandlordDomains::normalize($domain).'/admin/login';
+        return self::url($domain, '/admin/login');
     }
 
     /**
