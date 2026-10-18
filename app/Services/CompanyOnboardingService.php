@@ -64,6 +64,13 @@ class CompanyOnboardingService
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
+            'legal_name' => ['nullable', 'string', 'max:255'],
+            'gst_number' => ['nullable', 'string', 'max:255'],
+            'registration_number' => ['nullable', 'string', 'max:255'],
+            'website' => ['nullable', 'url:http,https', 'max:255'],
+            'contact_person' => ['nullable', 'string', 'max:255'],
+            'contact_person_email' => ['nullable', 'email', 'max:255'],
+            'contact_person_phone' => ['nullable', 'string', 'max:255'],
         ])->validate();
         $organization = $this->organization() ?? new Organization;
         $organization->fill($data);

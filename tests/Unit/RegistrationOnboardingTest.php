@@ -23,6 +23,7 @@ beforeEach(function () {
     Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
         $table->id();
         $table->string('name');
+        $table->string('registration_mobile', 16)->nullable()->unique();
         $table->string('domain');
         $table->string('database');
         $table->string('provisioning_status');
@@ -67,7 +68,7 @@ test('employee information cannot be saved through registration', function () {
 });
 
 test('captcha is required and invalid answers cannot register a company', function () {
-    $this->post('/register', ['company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'long-password-1', 'password_confirmation' => 'long-password-1'])->assertSessionHasErrors('captcha');
+    $this->post('/register', ['mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'long-password-1', 'password_confirmation' => 'long-password-1'])->assertSessionHasErrors('captcha');
     expect(Tenant::query()->count())->toBe(1);
 });
 
@@ -78,9 +79,10 @@ test('captcha returns a noncached image and stores an expiring challenge', funct
 test('registration waits for email verification without dispatching provisioning', function () {
     Mail::fake();
     $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
-        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234',
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234',
     ])->assertRedirect();
     expect(Tenant::query()->where('name', 'Example')->first()->provisioning_status)->toBe('awaiting_verification');
+    expect(Tenant::query()->where('name', 'Example')->first()->registration_mobile)->toBe('+919876543210');
     Queue::assertNothingPushed();
 });
 
@@ -167,7 +169,7 @@ test('cloudflare turnstile must pass before a company is created', function () {
         'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response(['success' => false]),
     ]);
     $this->post('/register', [
-        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
         'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
     ])->assertSessionHasErrors('cf-turnstile-response');
     expect(Tenant::query()->where('name', 'Example')->exists())->toBeFalse();
@@ -180,7 +182,7 @@ test('a passing cloudflare turnstile allows company registration', function () {
         'https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::response(['success' => true]),
     ]);
     $this->post('/register', [
-        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
         'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
     ])->assertRedirect()->assertSessionHasNoErrors();
     expect(Tenant::query()->where('name', 'Example')->exists())->toBeTrue();
@@ -196,7 +198,7 @@ test('company address availability is reported before registration', function ()
 
 test('registration rejects a password without both letter cases', function () {
     $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
-        'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
         'password' => 'long-password-1', 'password_confirmation' => 'long-password-1', 'captcha' => 'abc234',
     ])->assertSessionHasErrors('password');
     expect(Tenant::query()->where('name', 'Example')->exists())->toBeFalse();

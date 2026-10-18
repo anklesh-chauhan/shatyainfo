@@ -205,6 +205,11 @@ test('master completion marker prevents reseeding after a worker interruption', 
 });
 
 test('onboarding shows configuration progress then reveals the organization form', function () {
+    Schema::create('organizations', function (Blueprint $table): void {
+        $table->id();
+        $table->string('logo')->nullable();
+        $table->softDeletes();
+    });
     $this->tenant->forceFill(['provisioning_status' => 'ready', 'master_setup_status' => 'pending', 'master_setup_step' => 'Waiting to configure your account'])->saveQuietly();
     $this->tenant->makeCurrent();
     $user = Mockery::mock(User::class)->makePartial();
@@ -216,14 +221,14 @@ test('onboarding shows configuration progress then reveals the organization form
     $service = Mockery::mock(CompanyOnboardingService::class);
     $service->shouldReceive('authorize')->andReturnNull();
     $organization = new Organization;
-    $organization->forceFill(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890']);
+    $organization->forceFill(['id' => 1, 'name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890']);
     $service->shouldReceive('organization')->andReturn($organization);
     $companySaved = false;
     $employeesAdded = false;
     $service->shouldReceive('checklist')->andReturnUsing(function () use (&$companySaved, &$employeesAdded): array {
         return ['company' => $companySaved, 'structure' => false, 'employees' => $employeesAdded, 'review' => false, 'unit_count' => 0, 'employee_count' => $employeesAdded ? 4 : 0];
     });
-    $service->shouldReceive('saveOrganization')->once()->with(['name' => 'New Company', 'email' => 'owner@example.test', 'phone' => '1234567890'])->andReturnUsing(function () use (&$companySaved, $organization): Organization {
+    $service->shouldReceive('saveOrganization')->once()->withArgs(fn (array $data): bool => $data['name'] === 'New Company' && $data['email'] === 'owner@example.test' && $data['phone'] === '1234567890' && $data['legal_name'] === 'New Company Limited')->andReturnUsing(function () use (&$companySaved, $organization): Organization {
         $companySaved = true;
         $organization->metadata = ['company_setup' => ['organization_saved' => true]];
 
@@ -237,7 +242,8 @@ test('onboarding shows configuration progress then reveals the organization form
     $page->call('refreshSetup')->assertSee('Get started')->assertDontSee('Save and continue')->assertDontSee('We are configuring your account')
         ->assertSet('organization.name', 'New Company');
     $page->call('next')->assertSet('step', 1)->assertSee('Save and continue')->assertDontSee('Import employees from Excel');
-    $page->call('saveOrganization')->assertHasNoErrors()->assertNoRedirect()->assertNotified('Company information saved')
+    $page->assertSee('GST number')->assertSee('Website')->set('organization.legal_name', 'New Company Limited');
+    $page->call('saveOrganization')->assertHasNoErrors()->assertSee('Update full organization details and logo')->assertNoRedirect()->assertNotified('Company information saved')
         ->assertSet('step', 2)->assertSee('Import employees from Excel')->assertDontSee('Review positions and reporting')->assertSee('Continue later');
     $page->call('next')->assertSet('step', 2)->assertHasErrors(['checklist']);
     $employeesAdded = true;

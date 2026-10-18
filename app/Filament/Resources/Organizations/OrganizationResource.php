@@ -39,7 +39,7 @@ use Filament\Tables\Filters\TrashedFilter;
 // Import Fieldset
 use Filament\Tables\Table;
 
- // Import ViewAction
+// Import ViewAction
 
 class OrganizationResource extends BaseResource
 {
@@ -76,6 +76,7 @@ class OrganizationResource extends BaseResource
                                 FileUpload::make('logo')
                                     ->image()
                                     ->directory('organization-logos')
+                                    ->visibility('public')
                                     ->maxSize(2048) // 2MB max
                                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp']) // Add webp
                                     ->disk('public')

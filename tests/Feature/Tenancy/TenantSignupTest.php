@@ -24,6 +24,7 @@ it('shows the marketing page on the landlord host', function () {
 it('registers a company and keeps the owner off the public tenant columns', function () {
     $response = $this->post('/register', [
         'captcha' => 'ABC234',
+        'mobile_number' => '9876543210',
         'company' => 'Northwind Pharma',
         'slug' => 'North-Wind',
         'name' => 'Asha Rao',
@@ -159,6 +160,7 @@ function tenantSignupPayload(string $slug, array $overrides = []): array
 {
     return array_merge([
         'captcha' => 'ABC234',
+        'mobile_number' => '9876543210',
         'company' => 'Example Pharma',
         'slug' => $slug,
         'name' => 'Owner',

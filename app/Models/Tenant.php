@@ -26,6 +26,7 @@ class Tenant extends BaseTenant
     protected $fillable = ['name', 'domain', 'cloudflare_record_id'];
 
     protected $hidden = [
+        'registration_mobile',
         'db_password',
         'provisioning_owner',
         'onboarding_data',

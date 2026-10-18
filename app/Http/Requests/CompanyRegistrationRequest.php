@@ -2,13 +2,24 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Tenant;
 use App\Support\Tenancy\CompanyDomain;
 use App\Support\Tenancy\RegistrationCaptcha;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class CompanyRegistrationRequest extends FormRequest
 {
+    public function messages(): array
+    {
+        return [
+            'mobile_number.required' => 'Enter your mobile number.',
+            'mobile_number.regex' => 'Enter a valid mobile number with country code (for example +91 9876543210).',
+            'mobile_number.unique' => 'This mobile number is already registered.',
+        ];
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -16,7 +27,12 @@ class CompanyRegistrationRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['slug' => strtolower(trim((string) $this->input('slug')))]);
+        $mobile = $this->input('mobile_number');
+        $mobile = is_string($mobile) ? preg_replace('/[\s().-]+/', '', $mobile) : '';
+        if (preg_match('/^(?:\+91|0091|91|0)?([6-9][0-9]{9})$/', $mobile, $matches)) {
+            $mobile = '+91'.$matches[1];
+        }
+        $this->merge(['slug' => strtolower(trim((string) $this->input('slug'))), 'mobile_number' => $mobile]);
     }
 
     /**
@@ -34,6 +50,7 @@ class CompanyRegistrationRequest extends FormRequest
             }],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
+            'mobile_number' => ['bail', 'required', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/', Rule::unique(Tenant::class, 'registration_mobile')],
             'password' => ['required', 'string', 'confirmed', Password::min(12)->mixedCase()],
         ];
 

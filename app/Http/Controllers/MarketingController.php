@@ -55,6 +55,7 @@ class MarketingController extends Controller
             $tenant = new Tenant;
             $tenant->forceFill([
                 'name' => $data['company'],
+                'registration_mobile' => $data['mobile_number'],
                 'domain' => CompanyDomain::fromSlug($data['slug']),
                 'provisioning_status' => 'awaiting_verification',
             ])->save();
@@ -64,6 +65,9 @@ class MarketingController extends Controller
             throw $exception;
         } catch (QueryException $exception) {
             Tenant::$pendingOwner = null;
+            if (Tenant::query()->where('registration_mobile', $data['mobile_number'])->exists()) {
+                throw ValidationException::withMessages(['mobile_number' => 'This mobile number is already registered.']);
+            }
 
             throw ValidationException::withMessages([
                 'slug' => 'That company address is already in use.',

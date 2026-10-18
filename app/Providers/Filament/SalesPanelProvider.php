@@ -6,6 +6,7 @@ use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Leads\LeadResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
+use App\Support\Tenancy\TenantBranding;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -31,6 +32,9 @@ class SalesPanelProvider extends PanelProvider
     {
         return $panel
             ->id('sales')
+            ->brandName(fn (): string => TenantBranding::name())
+            ->brandLogo(fn () => view('filament.components.tenant-brand'))
+            ->brandLogoHeight('2rem')
             ->path('sales')
             ->globalSearch(true)
             ->topbar(false)

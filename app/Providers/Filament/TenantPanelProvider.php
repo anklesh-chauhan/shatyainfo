@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Resources\TenantUsers\TenantUserResource;
 use App\Filament\Tenant\Pages\Dashboard;
+use App\Support\Tenancy\TenantBranding;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
@@ -27,7 +28,9 @@ class TenantPanelProvider extends PanelProvider
         return $panel
             ->id('tenant')
             ->path('tenant')
-            ->brandName('Shatya Info')
+            ->brandName(fn (): string => TenantBranding::name())
+            ->brandLogo(fn () => view('filament.components.tenant-brand'))
+            ->brandLogoHeight('2rem')
             ->login()
             ->globalSearch(true)
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])

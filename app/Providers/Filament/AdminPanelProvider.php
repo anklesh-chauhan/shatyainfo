@@ -7,6 +7,7 @@ use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Http\Middleware\PromptCompanySetup;
 use App\Http\Middleware\RedirectMarketingToPunchIn;
+use App\Support\Tenancy\TenantBranding;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -46,7 +47,9 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearchDebounce(500)
             ->id('admin')
             ->path('admin')
-            ->brandName('Shatya Info')
+            ->brandName(fn (): string => TenantBranding::name())
+            ->brandLogo(fn () => view('filament.components.tenant-brand'))
+            ->brandLogoHeight('2rem')
             ->login()
             ->profile()
             ->colors([

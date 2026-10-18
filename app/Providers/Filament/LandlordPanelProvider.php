@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Landlord\Pages\Dashboard;
+use App\Support\Tenancy\TenantBranding;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -27,7 +28,9 @@ class LandlordPanelProvider extends PanelProvider
         return $panel
             ->id('landlord')
             ->path('landlord')
-            ->brandName('Shatya Info')
+            ->brandName(fn (): string => TenantBranding::name())
+            ->brandLogo(fn () => view('filament.components.tenant-brand'))
+            ->brandLogoHeight('2rem')
             ->colors([
                 'primary' => Color::Amber,
             ])

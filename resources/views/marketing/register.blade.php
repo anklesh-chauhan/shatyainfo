@@ -42,6 +42,12 @@
                 @error('email') <span class="error">{{ $message }}</span> @enderror
             </label>
             <label>
+                Mobile number
+                <input name="mobile_number" type="tel" value="{{ old('mobile_number') }}" required maxlength="30" autocomplete="tel" placeholder="+91 9876543210">
+                <span class="hint">Include your country code. Indian numbers can also use 10 digits.</span>
+                @error('mobile_number') <span class="error">{{ $message }}</span> @enderror
+            </label>
+            <label>
                 Password
                 <input id="password" name="password" type="password" required minlength="12" autocomplete="new-password" aria-describedby="password-rules">
                 <ul class="rules" id="password-rules">

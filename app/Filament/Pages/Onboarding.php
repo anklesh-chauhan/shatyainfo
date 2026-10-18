@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
 use App\Services\CompanyOnboardingService;
@@ -98,7 +99,14 @@ class Onboarding extends Page
         $this->organization = [
             'name' => $organization?->name ?? Tenant::current()?->name,
             'email' => $organization?->email ?? auth()->user()->email,
-            'phone' => $organization?->phone ?? '',
+            'phone' => $organization?->phone ?: (Tenant::current()?->registration_mobile ?? ''),
+            'legal_name' => $organization?->legal_name ?? '',
+            'gst_number' => $organization?->gst_number ?? '',
+            'registration_number' => $organization?->registration_number ?? '',
+            'website' => $organization?->website ?? '',
+            'contact_person' => $organization?->contact_person ?? '',
+            'contact_person_email' => $organization?->contact_person_email ?? '',
+            'contact_person_phone' => $organization?->contact_person_phone ?? '',
         ];
         if ($organization?->metadata['company_setup']['organization_saved'] ?? false) {
             $this->step = 2;
@@ -137,11 +145,25 @@ class Onboarding extends Page
             'organization.name' => ['required', 'string', 'max:255'],
             'organization.email' => ['required', 'email', 'max:255'],
             'organization.phone' => ['required', 'string', 'max:30'],
+            'organization.legal_name' => ['nullable', 'string', 'max:255'],
+            'organization.gst_number' => ['nullable', 'string', 'max:255'],
+            'organization.registration_number' => ['nullable', 'string', 'max:255'],
+            'organization.website' => ['nullable', 'url:http,https', 'max:255'],
+            'organization.contact_person' => ['nullable', 'string', 'max:255'],
+            'organization.contact_person_email' => ['nullable', 'email', 'max:255'],
+            'organization.contact_person_phone' => ['nullable', 'string', 'max:255'],
         ]);
         $service = app(CompanyOnboardingService::class);
         $service->saveOrganization($this->organization);
         $this->step = 2;
         Notification::make()->title('Company information saved')->success()->send();
+    }
+
+    public function organizationDetailsUrl(): ?string
+    {
+        $organization = app(CompanyOnboardingService::class)->organization();
+
+        return $organization ? OrganizationResource::getUrl('edit', ['record' => $organization], panel: 'admin') : null;
     }
 
     public function checklist(): array
