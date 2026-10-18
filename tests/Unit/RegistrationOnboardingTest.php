@@ -241,6 +241,7 @@ test('verified owners can enter before masters finish even when tenant cache pre
     $response = $this->withSession(['verified_registration' => $this->tenant->id, 'verified_registration_email' => 'owner@example.test'])->getJson($statusUrl)->assertOk();
     $url = $response->json('redirect_url');
     expect($url)->toContain('/registration/complete/');
+    Cache::store('registration')->flush();
     $this->get($url)->assertRedirect(CompanyDomain::url((string) $this->tenant->domain, '/admin'))->assertSessionHas(Auth::guard('web')->getName(), 1);
     expect($this->tenant->fresh()->master_setup_status)->toBe('pending');
     $this->get($url)->assertForbidden();

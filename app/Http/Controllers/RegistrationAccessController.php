@@ -8,16 +8,19 @@ use App\Models\User;
 use App\Support\Tenancy\CompanyDomain;
 use App\Support\Tenancy\LandlordDomains;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class RegistrationAccessController extends Controller
 {
@@ -97,11 +100,16 @@ class RegistrationAccessController extends Controller
         if ($tenant->provisioning_status !== 'ready' || (string) $request->session()->get('verified_registration') !== (string) $tenant->id) {
             return null;
         }
+
+        $email = $request->session()->get('verified_registration_email');
+        if (! is_string($email) || $email === '') {
+            return null;
+        }
+
         $token = $request->session()->get('registration_login_token');
-        if (! is_string($token) || ! $this->handoffExists($token)) {
-            $token = Str::random(64);
+        if (! is_string($token) || $this->readHandoffToken($token) === null || $this->alreadyClaimed($token)) {
+            $token = $this->issueHandoffToken($tenant->id, $email);
             $request->session()->put('registration_login_token', $token);
-            $this->storeHandoff($token, $tenant->id, $request->session()->get('verified_registration_email'));
         }
 
         return CompanyDomain::url((string) $tenant->domain, '/registration/complete/'.$token);
@@ -115,30 +123,125 @@ class RegistrationAccessController extends Controller
             $tenant->makeCurrent();
         }
 
-        $key = $this->handoffKey($token);
+        $handoff = $this->readHandoffToken($token) ?? $this->pullHandoff($this->handoffKey($token));
+        abort_unless(is_array($handoff) && (string) $handoff['tenant_id'] === (string) $tenant->id, 403);
+        abort_unless($this->claimOnce($token), 403);
 
-        return $this->registrationCache()->lock($key.'.lock', 10)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
-            $handoff = $this->pullHandoff($key);
-            abort_unless(is_array($handoff) && (string) $handoff['tenant_id'] === (string) $tenant->id, 403);
-            $user = User::query()->where('email', $handoff['email'])->whereNotNull('email_verified_at')->firstOrFail();
-            Auth::guard('web')->login($user);
-            $request->session()->regenerate();
+        $user = User::query()->where('email', $handoff['email'])->whereNotNull('email_verified_at')->firstOrFail();
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
-            return redirect()->away(CompanyDomain::url((string) $tenant->domain, '/admin'));
-        });
+        return redirect()->away(CompanyDomain::url((string) $tenant->domain, '/admin'));
     }
 
-    private function handoffExists(string $token): bool
+    private function issueHandoffToken(int|string $tenantId, string $email): string
     {
-        return $this->registrationCache()->has($this->handoffKey($token));
-    }
-
-    private function storeHandoff(string $token, int|string $tenantId, mixed $email): void
-    {
-        $this->registrationCache()->put($this->handoffKey($token), [
-            'tenant_id' => $tenantId,
+        $payload = json_encode([
+            'tenant_id' => (string) $tenantId,
             'email' => $email,
-        ], now()->addMinutes(10));
+            'expires' => now()->addMinutes(30)->getTimestamp(),
+        ], JSON_THROW_ON_ERROR);
+
+        return $this->encodeToken(Crypt::encryptString($payload));
+    }
+
+    /**
+     * @return array{tenant_id: int|string, email: mixed}|null
+     */
+    private function readHandoffToken(string $token): ?array
+    {
+        if (preg_match('/^[A-Za-z0-9]{64}$/', $token) === 1) {
+            return null;
+        }
+
+        try {
+            $json = Crypt::decryptString($this->decodeToken($token));
+        } catch (DecryptException) {
+            return null;
+        }
+
+        $payload = json_decode($json, true);
+        if (! is_array($payload) || ! isset($payload['tenant_id'], $payload['email'], $payload['expires'])) {
+            return null;
+        }
+
+        if ((int) $payload['expires'] < now()->getTimestamp()) {
+            return null;
+        }
+
+        return [
+            'tenant_id' => $payload['tenant_id'],
+            'email' => $payload['email'],
+        ];
+    }
+
+    private function encodeToken(string $encrypted): string
+    {
+        return rtrim(strtr($encrypted, '+/', '-_'), '=');
+    }
+
+    private function decodeToken(string $token): string
+    {
+        $decoded = strtr($token, '-_', '+/');
+        $padding = strlen($decoded) % 4;
+        if ($padding > 0) {
+            $decoded .= str_repeat('=', 4 - $padding);
+        }
+
+        return $decoded;
+    }
+
+    private function alreadyClaimed(string $token): bool
+    {
+        $key = $this->usedKey($token);
+
+        try {
+            return DB::connection($this->landlordConnection())->table($this->cacheTable())
+                ->where('key', $key)
+                ->where('expiration', '>', now()->getTimestamp())
+                ->exists();
+        } catch (QueryException) {
+            try {
+                return $this->registrationCache()->has($key);
+            } catch (Throwable) {
+                return false;
+            }
+        }
+    }
+
+    private function claimOnce(string $token): bool
+    {
+        $key = $this->usedKey($token);
+        $expiration = now()->addMinutes(30)->getTimestamp();
+
+        try {
+            return DB::connection($this->landlordConnection())->table($this->cacheTable())->insertOrIgnore([
+                'key' => $key,
+                'value' => '1',
+                'expiration' => $expiration,
+            ]) > 0;
+        } catch (QueryException) {
+            try {
+                return $this->registrationCache()->add($key, true, now()->addMinutes(30));
+            } catch (Throwable) {
+                return true;
+            }
+        }
+    }
+
+    private function usedKey(string $token): string
+    {
+        return 'registration-used:'.hash('sha256', $token);
+    }
+
+    private function landlordConnection(): string
+    {
+        return (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+    }
+
+    private function cacheTable(): string
+    {
+        return (string) (config('cache.stores.registration.table') ?: config('cache.stores.database.table') ?: 'cache');
     }
 
     private function handoffKey(string $token): string
@@ -178,14 +281,31 @@ class RegistrationAccessController extends Controller
             return null;
         }
 
-        DB::connection($landlord)->table($table)->where('key', $row->key)->delete();
-
-        try {
-            $value = unserialize((string) $row->value, ['allowed_classes' => false]);
-        } catch (\Throwable) {
+        $value = $this->decodeCachedHandoff((string) $row->value);
+        if ($value === null) {
             return null;
         }
 
-        return is_array($value) ? $value : null;
+        DB::connection($landlord)->table($table)->where('key', $row->key)->delete();
+
+        return $value;
+    }
+
+    /**
+     * @return array{tenant_id: int|string, email: mixed}|null
+     */
+    private function decodeCachedHandoff(string $value): ?array
+    {
+        try {
+            $decoded = unserialize($value, ['allowed_classes' => false]);
+        } catch (Throwable) {
+            $decoded = null;
+        }
+
+        if (! is_array($decoded)) {
+            $decoded = json_decode($value, true);
+        }
+
+        return is_array($decoded) ? $decoded : null;
     }
 }
