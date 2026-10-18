@@ -94,13 +94,12 @@ class RegistrationAccessController extends Controller
             return null;
         }
         $token = $request->session()->get('registration_login_token');
-        if (! is_string($token)) {
+        $cacheKey = is_string($token) ? 'registration.login.'.hash('sha256', $token) : null;
+        if (! is_string($token) || ! Cache::store('registration')->has($cacheKey)) {
             $token = Str::random(64);
+            $cacheKey = 'registration.login.'.hash('sha256', $token);
             $request->session()->put('registration_login_token', $token);
-            Cache::store('registration')->put('registration.login.'.hash('sha256', $token), ['tenant_id' => $tenant->id, 'email' => $request->session()->get('verified_registration_email')], now()->addMinutes(5));
-        }
-        if (! Cache::store('registration')->has('registration.login.'.hash('sha256', $token))) {
-            return null;
+            Cache::store('registration')->put($cacheKey, ['tenant_id' => $tenant->id, 'email' => $request->session()->get('verified_registration_email')], now()->addMinutes(10));
         }
 
         return preg_replace('~/admin/login$~', '/registration/complete/'.$token, CompanyDomain::loginUrl((string) $tenant->domain));

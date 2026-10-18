@@ -75,23 +75,28 @@ class MarketingController extends Controller
         return redirect()->to($this->statusUrl($tenant));
     }
 
-    public function status(Request $request, Tenant $tenant): View|JsonResponse
+    public function status(Request $request, Tenant $tenant): View|JsonResponse|RedirectResponse
     {
+        $loginUrl = CompanyDomain::loginUrl((string) $tenant->domain);
+        $redirectUrl = app(RegistrationAccessController::class)->redirectUrl($request, $tenant);
+
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => $tenant->provisioning_status,
                 'progress' => $tenant->provisioningProgress(),
                 'step' => $tenant->provisioning_step,
-                'redirect_url' => app(RegistrationAccessController::class)->redirectUrl($request, $tenant),
-                'login_url' => $tenant->provisioning_status === 'ready'
-                    ? CompanyDomain::loginUrl((string) $tenant->domain)
-                    : null,
+                'redirect_url' => $redirectUrl,
+                'login_url' => $tenant->provisioning_status === 'ready' ? $loginUrl : null,
             ]);
+        }
+
+        if ($tenant->provisioning_status === 'ready') {
+            return redirect()->away($redirectUrl ?: $loginUrl);
         }
 
         return view('marketing.status', [
             'tenant' => $tenant,
-            'loginUrl' => CompanyDomain::loginUrl((string) $tenant->domain),
+            'loginUrl' => $loginUrl,
             'resendUrl' => URL::temporarySignedRoute('signup.resend', now()->addHours(6), ['tenant' => $tenant]),
             'retryUrl' => URL::temporarySignedRoute(
                 'signup.retry',

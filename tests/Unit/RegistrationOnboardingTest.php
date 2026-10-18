@@ -99,6 +99,7 @@ test('a signed progress URL alone cannot automatically sign in', function () {
     $this->tenant->forceFill(['provisioning_status' => 'ready'])->saveQuietly();
     $url = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
     $this->getJson($url)->assertOk()->assertJsonPath('redirect_url', null);
+    $this->get($url)->assertRedirect(CompanyDomain::loginUrl((string) $this->tenant->domain));
 });
 
 test('only a verified registration session receives a company handoff', function () {
@@ -106,6 +107,20 @@ test('only a verified registration session receives a company handoff', function
     $url = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
     $response = $this->withSession(['verified_registration' => $this->tenant->id, 'verified_registration_email' => 'owner@example.test'])->getJson($url)->assertOk();
     expect($response->json('redirect_url'))->toContain('/registration/complete/');
+    $redirect = $this->withSession(['verified_registration' => $this->tenant->id, 'verified_registration_email' => 'owner@example.test'])->get($url);
+    $redirect->assertRedirect();
+    expect($redirect->headers->get('Location'))->toContain('/registration/complete/');
+});
+
+test('an expired company handoff is replaced for the verified registration session', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'ready'])->saveQuietly();
+    $url = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
+    $response = $this->withSession([
+        'verified_registration' => $this->tenant->id,
+        'verified_registration_email' => 'owner@example.test',
+        'registration_login_token' => str_repeat('c', 64),
+    ])->getJson($url)->assertOk();
+    expect($response->json('redirect_url'))->toContain('/registration/complete/')->not->toContain(str_repeat('c', 64));
 });
 
 test('company handoff signs in only the verified owner and cannot be replayed', function () {
