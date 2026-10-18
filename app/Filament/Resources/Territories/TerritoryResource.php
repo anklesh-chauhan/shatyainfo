@@ -244,7 +244,20 @@ class TerritoryResource extends BaseResource
     {
         return [
             'Code' => $record->code,
-            'Status' => $record->status->getLabel(),
+            'Status' => static::territoryStatusLabel($record->status),
         ];
+    }
+
+    protected static function territoryStatusLabel(mixed $status): ?string
+    {
+        if ($status instanceof TerritoryStatus) {
+            return $status->getLabel();
+        }
+
+        if (! is_string($status) || $status === '') {
+            return null;
+        }
+
+        return TerritoryStatus::tryFrom($status)?->getLabel() ?? $status;
     }
 }

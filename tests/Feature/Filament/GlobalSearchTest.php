@@ -2,7 +2,9 @@
 
 use App\Filament\Resources\ApprovalFlows\ApprovalFlowResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Territories\TerritoryResource;
 use App\Models\ApprovalFlow;
+use App\Models\Territory;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -74,4 +76,15 @@ it('searches approval flows by module and employees by name', function () {
     expect(implode("\n", $approvalSql))->toContain('module');
     expect(implode("\n", $employeeSql))->toContain('first_name');
     expect($results->pluck('title')->implode(' '))->toContain('Meera');
+});
+
+it('shows a territory status label when global search stores status as text', function () {
+    $details = TerritoryResource::getGlobalSearchResultDetails(new Territory([
+        'name' => 'North',
+        'code' => 'N1',
+        'status' => 'active',
+    ]));
+
+    expect($details['Code'])->toBe('N1');
+    expect($details['Status'])->toBe('Active');
 });
