@@ -1,7 +1,11 @@
 <x-filament-panels::page>
+    @if ($fromOnboarding)
+        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\Onboarding::getUrl(['section' => 'field-travel'], panel: 'admin')">Return to company setup</x-filament::button>
+        <p>This optional setup import supports patches, customer assignments and standard fares. You may leave Patch Customers blank until customers and addresses exist.</p>
+    @endif
     <x-filament::section heading="Prepare your workbook">
         <p>Set up territories first. Add customers before importing their patch assignments. Historical travel requires existing daily call reports.</p>
-        <label><input type="checkbox" wire:model.live="historical"> Import historical travel segments instead of patches and fares</label>
+        @if (! $fromOnboarding)<label><input type="checkbox" wire:model.live="historical"> Import historical travel segments instead of patches and fares</label>@endif
         <div class="mt-4"><x-filament::button wire:click="downloadTemplate">Download Excel template</x-filament::button></div>
         <details class="mt-4">
             <summary>Instructions and examples</summary>

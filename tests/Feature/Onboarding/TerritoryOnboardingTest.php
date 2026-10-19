@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\FieldTravelImport;
 use App\Filament\Pages\Onboarding;
 use App\Models\City;
 use App\Models\CityPinCode;
@@ -26,6 +27,7 @@ use Livewire\Livewire;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\XLSX\Reader;
 use OpenSpout\Writer\XLSX\Writer;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -138,7 +140,21 @@ it('shows territory upload before employees and resumes after skipping', functio
             ->call('skipTerritories')->assertSet('step', 3);
         Livewire::test(Onboarding::class)->assertSet('step', 3)
             ->call('next')->assertSet('step', 4);
-        Livewire::test(Onboarding::class)->assertSet('step', 4);
+        Livewire::test(Onboarding::class)->assertSet('step', 4)
+            ->assertSee('Patches and standard fares (optional)')
+            ->assertSee('Skip and complete later')
+            ->call('reviewFieldTravel')->assertSet('step', 5)
+            ->assertSee('Does your team need approvals?');
+        Livewire::test(Onboarding::class)->assertSet('step', 5);
+        Livewire::withQueryParams(['section' => 'field-travel'])->test(Onboarding::class)
+            ->assertSet('step', 4)->assertSee('Customers and addresses');
+        foreach (['Patch', 'StandardFareChart'] as $model) {
+            auth()->user()->givePermissionTo(Permission::findOrCreate('Create:'.$model, 'web'));
+        }
+        Livewire::withQueryParams(['onboarding' => 1])->test(FieldTravelImport::class)
+            ->assertSuccessful()->assertSet('fromOnboarding', true)
+            ->assertSee('Return to company setup')
+            ->assertDontSee('Import historical travel segments instead of patches and fares');
     } finally {
         Tenant::forgetCurrent();
     }

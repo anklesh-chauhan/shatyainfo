@@ -34,6 +34,9 @@ class FieldTravelImport extends Page
 
     public bool $historical = false;
 
+    #[Locked]
+    public bool $fromOnboarding = false;
+
     public int $previewPage = 1;
 
     #[Locked]
@@ -58,6 +61,7 @@ class FieldTravelImport extends Page
 
     public function mount(): void
     {
+        $this->fromOnboarding = request()->boolean('onboarding') && Onboarding::canAccess();
         $token = session($this->sessionKey());
         if (is_string($token) && preg_match('/^[a-f0-9-]{36}$/', $token)) {
             $this->token = $token;
@@ -101,7 +105,7 @@ class FieldTravelImport extends Page
     public function downloadTemplate(): StreamedResponse
     {
         abort_unless(static::canAccess(), 403);
-        $historical = $this->historical;
+        $historical = ! $this->fromOnboarding && $this->historical;
 
         return response()->streamDownload(function () use ($historical): void {
             $path = tempnam(sys_get_temp_dir(), 'field-travel-');
@@ -121,7 +125,7 @@ class FieldTravelImport extends Page
         $this->validate(['file' => 'required|file|mimes:xlsx|max:10240']);
         $importer = app(Importer::class);
         try {
-            $rows = $importer->read($this->file->getRealPath(), $this->historical);
+            $rows = $importer->read($this->file->getRealPath(), ! $this->fromOnboarding && $this->historical);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {

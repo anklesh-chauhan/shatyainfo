@@ -148,9 +148,10 @@ it('renders approval selection overrides and review in the onboarding wizard', f
         Livewire::test(Onboarding::class)
             ->call('skipTerritories')->assertSet('step', 3)
             ->call('next')->assertSet('step', 4)
+            ->call('reviewFieldTravel')->assertSet('step', 5)
             ->set('approval', $input)->assertSee('Common approval setup')
             ->set('approval.overrides.LeaveApplication.custom', true)
-            ->call('reviewApprovals')->assertHasNoErrors()->assertSet('step', 5)
+            ->call('reviewApprovals')->assertHasNoErrors()->assertSet('step', 6)
             ->assertSee('These flows will become active when you finish setup.');
         $this->assertDatabaseCount('approval_flows', 0);
     } finally {

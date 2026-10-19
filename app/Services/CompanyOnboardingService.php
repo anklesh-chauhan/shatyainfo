@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
+use App\Models\Patch;
+use App\Models\StandardFareChart;
 use App\Models\Tenant;
 use App\Models\Territory;
 use App\Models\User;
@@ -34,6 +36,8 @@ class CompanyOnboardingService
             'unit_count' => $units,
             'employee_count' => $employees,
             'territory_count' => Territory::query()->count(),
+            'patch_count' => Patch::query()->count(),
+            'fare_count' => StandardFareChart::query()->count(),
             'unassigned_territory_count' => Employee::query()->whereDoesntHave('positions.territories')->count(),
         ];
     }

@@ -22,8 +22,8 @@
     @else
         @php
             $checklist = $this->checklist();
-            $titles = ['A great place to start.', 'Tell us about your company.', 'Map your territories.', 'Bring your team together.', 'Choose how approvals work.', 'Ready for your first day.'];
-            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Create the territory hierarchy your team will work in.', 'Add employees and give everyone a place in your organization.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
+            $titles = ['A great place to start.', 'Tell us about your company.', 'Map your territories.', 'Bring your team together.', 'Prepare your field routes.', 'Choose how approvals work.', 'Ready for your first day.'];
+            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Create the territory hierarchy your team will work in.', 'Add employees and give everyone a place in your organization.', 'Optionally add customers, patches and standard fares. You can complete this later.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -32,14 +32,14 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Territories', 'Add employees', 'Approvals', 'Review & finish'] as $label)
+                    @foreach (['Company information', 'Territories', 'Add employees', 'Patches & fares (optional)', 'Approvals', 'Review & finish'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
                 <p class="setup-account">Signed in as<br>{{ auth()->user()->email }}</p>
             </aside>
             <section class="setup-content" aria-label="Current setup step" wire:key="setup-step-{{ $step }}">
-                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 5' }}</p>
+                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 6' }}</p>
                 @if ($errors->any())<div class="setup-error" role="alert"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
                 @if ($step === 0)
                     <div class="setup-welcome-art" aria-hidden="true"><span>✦</span><span>✓</span><span>＋</span></div>
@@ -93,7 +93,7 @@
                                 </tbody></table>
                             </div>
                             @if (\App\Filament\Pages\FieldTravelImport::canAccess())
-                                <p class="mt-3"><a href="{{ \App\Filament\Pages\FieldTravelImport::getUrl() }}">Optional: import patches and standard fares after saving territories</a>. Add customer assignments once customers exist.</p>
+                                <p class="mt-3"><a href="{{ \App\Filament\Pages\FieldTravelImport::getUrl(['onboarding' => 1]) }}">Optional: import patches and standard fares after saving territories</a>. Add customer assignments once customers exist.</p>
                             @endif
                             <x-filament::button wire:click="importTerritories" wire:loading.attr="disabled">Import reviewed territories</x-filament::button>
                         </div>
@@ -111,6 +111,22 @@
                     <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
+                    <h2>Patches and standard fares (optional)</h2>
+                    <p>Prepare your field routes now, or skip this step and finish it later.</p>
+                    <div class="setup-note">
+                        <strong>1. Customers and addresses</strong>
+                        <p>Customer records and their addresses must exist before assigning them to patches. You can import patches and fares first and add customer assignments later.</p>
+                        <a class="setup-review-link" href="{{ \App\Filament\Resources\AccountMasters\AccountMasterResource::getUrl('index', panel: 'admin') }}">Manage customers and addresses →</a>
+                    </div>
+                    @if (\App\Filament\Pages\FieldTravelImport::canAccess())
+                        <a class="setup-option" href="{{ \App\Filament\Pages\FieldTravelImport::getUrl(['onboarding' => 1], panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">↑</span><span><strong>2. Import patches and standard fares</strong><small>Use the existing Excel template, instructions and preview. Include Patch Customers only when customers and addresses are ready.</small></span><span aria-hidden="true">→</span></a>
+                    @else
+                        <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
+                    @endif
+                    <p class="setup-hint">{{ $checklist['patch_count'] }} patches and {{ $checklist['fare_count'] }} standard fare routes currently saved.</p>
+                    <p class="setup-hint">Historical travel is available separately under Data Import after daily call reports exist.</p>
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
+                @elseif ($step === 5)
                     <h2>Does your team need approvals?</h2>
                     <p>We will create the settings and flows in your existing admin pages. L1 and L2 are human approval steps.</p>
                     <form wire:submit="reviewApprovals" class="setup-form">
@@ -147,7 +163,7 @@
                     </form>
                 @else
                     <div class="setup-success-icon" aria-hidden="true">✓</div><h2>Your workspace is taking shape</h2><p>Check your team’s details and reporting managers before you finish.</p>
-                    <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Company uses divisions</dt><dd>{{ $this->usesDivisions() ? 'Yes' : 'No' }}</dd></div><div><dt>Territories</dt><dd>{{ $checklist['territory_count'] ?: 'Set up later' }}</dd></div><div><dt>Employees without territory assignments</dt><dd>{{ $checklist['unassigned_territory_count'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
+                    <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Company uses divisions</dt><dd>{{ $this->usesDivisions() ? 'Yes' : 'No' }}</dd></div><div><dt>Territories</dt><dd>{{ $checklist['territory_count'] ?: 'Set up later' }}</dd></div><div><dt>Employees without territory assignments</dt><dd>{{ $checklist['unassigned_territory_count'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Patches</dt><dd>{{ $checklist['patch_count'] ?: 'Set up later' }}</dd></div><div><dt>Standard fare routes</dt><dd>{{ $checklist['fare_count'] ?: 'Set up later' }}</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
                     <div class="setup-note">
                         <h3>Approval setup</h3>
                         @if (($approvalReview['required'] ?? '') === 'existing')
@@ -165,7 +181,7 @@
                     <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Open my workspace</x-filament::button></div>
                 @endif
-                @if ($step >= 4)
+                @if ($step >= 5)
                     <p class="setup-hint"><a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalSettings\ApprovalSettingResource::getUrl('index', panel: 'admin') }}">Approval Settings</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalFlows\ApprovalFlowResource::getUrl('index', panel: 'admin') }}">Approval Flows</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalDelegations\ApprovalDelegationResource::getUrl('index', panel: 'admin') }}">Approval Delegations</a></p>
                 @endif
                 @if ($checklist['company'] && ($detailsUrl = $this->organizationDetailsUrl()))

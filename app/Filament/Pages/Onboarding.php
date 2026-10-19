@@ -114,7 +114,7 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->authorize();
         abort_unless(Tenant::current()->accountIsConfigured(), 409);
         $this->approvalReview = $this->approvalSetup()->saveDraft($this->approval);
-        $this->step = 5;
+        $this->step = 6;
     }
 
     public function approvalAlreadyApplied(): bool
@@ -146,6 +146,9 @@ class Onboarding extends Page
         $this->ensureMasterSetupQueued($tenant);
         if ($tenant->accountIsConfigured()) {
             $this->loadOrganization();
+            if (request()->query('section') === 'field-travel' && app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['organization_saved']) {
+                $this->step = 4;
+            }
         }
     }
 
@@ -214,10 +217,20 @@ class Onboarding extends Page
         if ($organization?->metadata['company_setup']['employees_reviewed'] ?? false) {
             $this->step = 4;
         }
-        if ($this->approvalAlreadyApplied()) {
-            $this->approvalReview = ['required' => 'existing', 'flows' => []];
+        if ($organization?->metadata['company_setup']['field_travel_reviewed'] ?? false) {
             $this->step = 5;
         }
+        if ($this->approvalAlreadyApplied()) {
+            $this->approvalReview = ['required' => 'existing', 'flows' => []];
+            $this->step = 6;
+        }
+    }
+
+    public function reviewFieldTravel(): void
+    {
+        app(CompanyOnboardingService::class)->mark('field_travel_reviewed');
+        $this->resetErrorBag();
+        $this->step = 5;
     }
 
     public function next(): void
