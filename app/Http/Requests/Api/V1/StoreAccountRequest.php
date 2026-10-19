@@ -4,11 +4,14 @@ namespace App\Http\Requests\Api\V1;
 
 use App\Enums\AccountMasterCreditType;
 use App\Models\AccountMaster;
+use App\Traits\AccountReportingRequestRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreAccountRequest extends FormRequest
 {
+    use AccountReportingRequestRules;
+
     public function authorize(): bool
     {
         return $this->user()?->can('create', AccountMaster::class) ?? false;
@@ -20,6 +23,7 @@ class StoreAccountRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...$this->accountReportingRules(),
             'name' => ['required', 'string', 'max:255'],
             'type_master_id' => ['required', 'integer', 'exists:type_masters,id'],
             'phone_number' => ['nullable', 'string', 'max:30'],
@@ -35,10 +39,11 @@ class StoreAccountRequest extends FormRequest
             'alias' => ['nullable', 'string', 'max:255'],
             'territory_id' => ['nullable', 'integer', 'exists:territories,id'],
             'industry_type_id' => ['nullable', 'integer', 'exists:industry_types,id'],
-            'rating_type_id' => ['nullable', 'integer', 'exists:rating_types,id'],
+            'rating_type_id' => ['nullable', 'integer', Rule::exists('rating_types', 'id')->where('is_lifecycle', false)->whereNull('deleted_at')],
+            'account_status_id' => ['nullable', 'integer', Rule::exists('account_statuses', 'id')->whereNull('deleted_at')],
             'parent_id' => ['nullable', 'integer', 'exists:account_masters,id'],
             'ref_dealer_contact' => ['nullable', 'integer', 'exists:contact_details,id'],
-            'commission' => ['nullable', 'numeric'],
+            'commission' => ['nullable', 'numeric', 'between:0,100'],
             'description' => ['nullable', 'string'],
             'patch_ids' => ['nullable', 'array'],
             'patch_ids.*' => ['integer', 'exists:patches,id'],

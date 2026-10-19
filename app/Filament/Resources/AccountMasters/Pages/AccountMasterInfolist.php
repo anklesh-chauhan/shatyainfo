@@ -4,12 +4,11 @@ namespace App\Filament\Resources\AccountMasters\Pages;
 
 use App\Filament\Resources\AccountMasters\AccountMasterResource;
 use Filament\Actions\EditAction;
-use Filament\Resources\Pages\ViewRecord;
-use Filament\Infolists;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-Use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 
 class AccountMasterInfolist extends ViewRecord
 {
@@ -35,6 +34,12 @@ class AccountMasterInfolist extends ViewRecord
                             ->label('Type')
                             ->state(fn ($record) => $record->typeMaster?->name ?? '-'),
 
+                        TextEntry::make('accountStatus.name')->label('Lifecycle Status')->placeholder('-'),
+                        TextEntry::make('commission')->suffix('%')->placeholder('-'),
+                        TextEntry::make('specialty.name')->label('Primary Specialty')->placeholder('-'),
+                        TextEntry::make('therapyArea.name')->label('Primary Therapy Area')->placeholder('-'),
+                        TextEntry::make('institution.name')->label('Primary Institution')->placeholder('-'),
+                        TextEntry::make('supplier.name')->label('Primary Supplier')->placeholder('-'),
                         TextEntry::make('alias')->placeholder('-'),
                         TextEntry::make('ratingType.name')->label('Rating')->placeholder('-'),
                     ])
@@ -42,7 +47,7 @@ class AccountMasterInfolist extends ViewRecord
 
                 Section::make('Company Contact Information')
                     ->schema([
-                       TextEntry::make('phone_number')
+                        TextEntry::make('phone_number')
                             ->hiddenLabel()
                             ->icon('heroicon-m-phone')
                             ->color('primary')
@@ -83,22 +88,20 @@ class AccountMasterInfolist extends ViewRecord
                                     ->hiddenLabel()
                                     ->weight('bold')
                                     ->size('lg')
-                                    ->state(fn ($record) =>
-                                        $record->addressType?->name ?? 'Address'
+                                    ->state(fn ($record) => $record->addressType?->name ?? 'Address'
                                     ),
 
                                 // 🔹 Full address as body
                                 TextEntry::make('full_address')
                                     ->hiddenLabel()
                                     ->color('gray')
-                                    ->state(fn ($record) =>
-                                        collect([
-                                            $record->street,
-                                            $record->area_town,
-                                            optional($record->city)->name,
-                                            optional($record->state)->name,
-                                            $record->pin_code,
-                                        ])
+                                    ->state(fn ($record) => collect([
+                                        $record->street,
+                                        $record->area_town,
+                                        optional($record->city)->name,
+                                        optional($record->state)->name,
+                                        $record->pin_code,
+                                    ])
                                         ->filter()
                                         ->implode(', ')
                                     ),
@@ -117,11 +120,10 @@ class AccountMasterInfolist extends ViewRecord
                                 // 🔹 Contact Name
                                 TextEntry::make('full_name')
                                     ->hiddenLabel()
-                                    ->state(fn ($record) =>
-                                        collect([
-                                            $record->full_name,
-                                            $record->designation?->name ?? '',
-                                        ])->filter()->implode(', ')
+                                    ->state(fn ($record) => collect([
+                                        $record->full_name,
+                                        $record->designation?->name ?? '',
+                                    ])->filter()->implode(', ')
                                     ),
 
                                 // 🔹 Phone
@@ -144,6 +146,4 @@ class AccountMasterInfolist extends ViewRecord
                     ]),
             ]);
     }
-
-
 }

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Services\AccountActivationService;
+use App\Services\AccountAssignmentService;
 use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -19,6 +22,7 @@ class AccountMaster extends BaseModel
         'owner_id',
         'type_master_id',
         'name',
+        'external_reference',
         'account_code',
         'phone_number',
         'email',
@@ -39,6 +43,11 @@ class AccountMaster extends BaseModel
         'alias',
         'parent_id',
         'rating_type_id',
+        'account_status_id',
+        'specialty_id',
+        'therapy_area_id',
+        'institution_account_id',
+        'supplier_account_id',
         'account_ownership_id',
         'approval_status',
     ];
@@ -96,6 +105,46 @@ class AccountMaster extends BaseModel
     public function ratingType(): BelongsTo
     {
         return $this->belongsTo(RatingType::class);
+    }
+
+    public function accountStatus(): BelongsTo
+    {
+        return $this->belongsTo(AccountStatus::class);
+    }
+
+    public function specialty(): BelongsTo
+    {
+        return $this->belongsTo(AccountReportingMaster::class, 'specialty_id');
+    }
+
+    public function therapyArea(): BelongsTo
+    {
+        return $this->belongsTo(AccountReportingMaster::class, 'therapy_area_id');
+    }
+
+    public function institution(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'institution_account_id');
+    }
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'supplier_account_id');
+    }
+
+    public function divisionProfiles(): HasMany
+    {
+        return $this->hasMany(AccountDivisionProfile::class);
+    }
+
+    public function callTargets(): HasMany
+    {
+        return $this->hasMany(AccountCallTarget::class);
+    }
+
+    public function assignmentHistory(): HasMany
+    {
+        return $this->hasMany(AccountAssignmentHistory::class);
     }
 
     public function visitables(): MorphMany
@@ -184,21 +233,39 @@ class AccountMaster extends BaseModel
             ->withTimestamps();
     }
 
+    public function save(array $options = []): bool
+    {
+        return $this->getConnection()->transaction(function () use ($options): bool {
+            if ($this->exists) {
+                self::withTrashed()->whereKey($this->id)->lockForUpdate()->firstOrFail();
+            }
+
+            return parent::save($options);
+        });
+    }
+
     protected static function boot()
     {
         parent::boot();
 
+        static::saving(function (self $account): void {
+            app(AccountActivationService::class)->validateReferences($account);
+            app(AccountActivationService::class)->validateActivation($account);
+        });
+        static::saved(function (self $account): void {
+            if ($account->wasRecentlyCreated || $account->wasChanged(['owner_id', 'territory_id'])) {
+                app(AccountAssignmentService::class)->capture($account);
+            }
+        });
+
         static::creating(function ($accountMaster) {
-            $typeMasterId = $accountMaster->type_master_id ?? null;
-            $accountMaster->account_code = NumberSeries::getNextNumber(AccountMaster::class, $typeMasterId);
+            $accountMaster->account_code = null;
         });
 
         static::created(function ($accountMaster) {
-            $typeMasterId = $accountMaster->type_master_id ?? null;
-            NumberSeries::incrementNextNumber(AccountMaster::class, $typeMasterId);
+            $accountMaster->forceFill(['account_code' => 'ACC-'.str_pad((string) $accountMaster->id, 8, '0', STR_PAD_LEFT)])->saveQuietly();
 
-            // Check if type_master_id is 2 => create a Company
-            if ($typeMasterId == 2) {
+            if ($accountMaster->typeMaster?->typeable_type === self::class && $accountMaster->typeMaster?->creates_company) {
                 $company = Company::create([
                     'name' => $accountMaster->name,
                     'phone_number' => $accountMaster->phone_number,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AccountAssignmentService;
 use App\Services\DataImport\FieldTravelImport;
 use App\Services\Travel\PatchStandardFareChartService;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -87,6 +88,14 @@ class AccountMasterPatch extends Pivot
 
     protected static function booted(): void
     {
+        $capture = function (self $pivot): void {
+            $account = AccountMaster::find($pivot->account_master_id);
+            if ($account) {
+                app(AccountAssignmentService::class)->capture($account);
+            }
+        };
+        static::created($capture);
+        static::deleted($capture);
         static::creating(function (self $model) {
             // Auto-assign sequence if not provided
             if (is_null($model->sequence_no)) {

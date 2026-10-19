@@ -6,12 +6,32 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\StoreAccountRequest;
 use App\Http\Requests\Api\V1\UpdateAccountRequest;
 use App\Http\Resources\Api\V1\AccountResource;
+use App\Models\AccountMaster;
+use App\Models\AccountReportingMaster;
+use App\Models\AccountStatus;
+use App\Models\OrganizationalUnit;
+use App\Models\RatingType;
+use App\Models\TypeMaster;
 use App\Services\Field\FieldAccountService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AccountController extends Controller
 {
+    public function reportingOptions(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('viewAny', AccountMaster::class), 403);
+
+        return response()->json(['data' => [
+            'masters' => AccountReportingMaster::where('is_active', true)->orderBy('name')->get(['id', 'kind', 'code', 'name', 'is_monetary']),
+            'ratings' => RatingType::where('is_lifecycle', false)->orderBy('name')->get(['id', 'name']),
+            'statuses' => AccountStatus::orderBy('name')->get(['id', 'code', 'name']),
+            'divisions' => OrganizationalUnit::where('is_active', true)->whereHas('typeMaster', fn ($q) => $q->where('name', 'Division')->where('typeable_type', OrganizationalUnit::class))->get(['id', 'code', 'name']),
+            'activation_requirements' => TypeMaster::where('typeable_type', AccountMaster::class)->get(['id', 'activation_requirements']),
+        ]]);
+    }
+
     public function __construct(
         private FieldAccountService $accountService,
     ) {}

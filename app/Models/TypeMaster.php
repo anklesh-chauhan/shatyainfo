@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
-use App\Traits\HasApprovalWorkflow;
-
 class TypeMaster extends BaseModel
 {
-    use HasFactory, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasFactory;
 
-    protected $fillable = ['name', 'description', 'typeable_id', 'typeable_type', 'parent_id'];
+    protected $fillable = ['name', 'description', 'typeable_id', 'typeable_type', 'parent_id', 'creates_company', 'activation_requirements'];
+
+    protected function casts(): array
+    {
+        return ['creates_company' => 'boolean', 'activation_requirements' => 'array'];
+    }
 
     /* ================== POLYMORPHIC ================== */
     public function typeable(): MorphTo

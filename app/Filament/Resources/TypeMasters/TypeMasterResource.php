@@ -10,13 +10,17 @@ use App\Filament\Resources\TypeMasters\Pages\CreateTypeMaster;
 use App\Filament\Resources\TypeMasters\Pages\EditTypeMaster;
 use App\Filament\Resources\TypeMasters\Pages\ListTypeMasters;
 use App\Helpers\ModelHelper;
+use App\Models\AccountMaster;
 use App\Models\TypeMaster;
+use App\Services\AccountActivationService;
 use App\Traits\HasSafeGlobalSearch;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -44,6 +48,10 @@ class TypeMasterResource extends BaseResource
                     ->maxLength(64),
                 TextInput::make('description')
                     ->maxLength(255),
+                Toggle::make('creates_company')
+                    ->label('Create linked company for new accounts')
+                    ->helperText('Applies to this exact account type only. Existing accounts are unchanged.')
+                    ->visible(fn (Get $get): bool => $get('typeable_type') === AccountMaster::class),
 
                 Select::make('typeable_type')
                     ->label('Module Type')
@@ -51,6 +59,11 @@ class TypeMasterResource extends BaseResource
                     ->required()
                     ->live(),
 
+                CheckboxList::make('activation_requirements')
+                    ->options(AccountActivationService::REQUIREMENTS)
+                    ->label('Required before account activation')->columns(2)
+                    ->helperText('Applies to this exact account type. Empty means no additional activation requirements.')
+                    ->visible(fn (Get $get): bool => $get('typeable_type') === AccountMaster::class),
                 Select::make('parent_id')
                     ->label('Parent Type')
                     ->options(fn (Get $get) => filled($get('typeable_type'))

@@ -141,7 +141,7 @@ it('shows territory upload before employees and resumes after skipping', functio
         Livewire::test(Onboarding::class)->assertSet('step', 3)
             ->call('next')->assertSet('step', 4);
         Livewire::test(Onboarding::class)->assertSet('step', 4)
-            ->assertSee('Patches and standard fares (optional)')
+            ->assertSee('Accounts, patches and standard fares (optional)')
             ->assertSee('Skip and complete later')
             ->call('reviewFieldTravel')->assertSet('step', 5)
             ->assertSee('Does your team need approvals?');

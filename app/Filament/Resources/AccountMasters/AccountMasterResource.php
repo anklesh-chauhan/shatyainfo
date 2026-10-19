@@ -30,6 +30,7 @@ use Filament\Actions\ViewAction;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -74,14 +75,19 @@ class AccountMasterResource extends BaseResource
                     ->searchable(),
                 TextColumn::make('email')
                     ->searchable(),
+                TextColumn::make('external_reference')->searchable()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('phone_number')
                     ->searchable(),
                 TextColumn::make('industryType.name')
                     ->sortable(),
                 TextColumn::make('region.name')
                     ->sortable(),
+                TextColumn::make('specialty.name')->sortable(),
+                TextColumn::make('therapyArea.name')->sortable(),
                 TextColumn::make('commission')
-                    ->money('usd'), // Adjust currency as needed
+                    ->numeric(decimalPlaces: 2)->suffix('%'),
+                TextColumn::make('accountStatus.name')->label('Lifecycle Status')->sortable(),
+                TextColumn::make('ratingType.name')->label('Potential Rating')->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -93,6 +99,9 @@ class AccountMasterResource extends BaseResource
             ])
             ->filters([
                 TrashedFilter::make(),
+                SelectFilter::make('specialty_id')->relationship('specialty', 'name'),
+                SelectFilter::make('therapy_area_id')->relationship('therapyArea', 'name'),
+                SelectFilter::make('account_status_id')->label('Lifecycle Status')->relationship('accountStatus', 'name'),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -114,6 +123,9 @@ class AccountMasterResource extends BaseResource
     public static function getRelations(): array
     {
         return [
+            RelationManagers\DivisionProfilesRelationManager::class,
+            RelationManagers\CallTargetsRelationManager::class,
+            RelationManagers\AssignmentHistoryRelationManager::class,
             AddressesRelationManager::class,
             ContactDetailsRelationManager::class,
             BankDetailRelationManager::class,

@@ -12,6 +12,8 @@ class DatabaseSeeder extends Seeder
             ConfigDrivenShieldPermissionSeeder::class,
             GeographicReferenceSeeder::class,
             IndustryTypeSeeder::class,
+            AccountStatusSeeder::class,
+            AccountReportingMasterSeeder::class,
             LeadSourceSeeder::class,
             LeadStatusSeeder::class,
             RatingTypeSeeder::class,

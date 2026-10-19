@@ -10,7 +10,10 @@ class PharmaMasterSeeder extends Seeder
     {
         $this->call([
             IndustryTypeSeeder::class,
+            AccountStatusSeeder::class,
+            AccountReportingMasterSeeder::class,
             TypeMasterSeeder::class,
+            PharmaAccountReferenceSeeder::class,
             CategorySeeder::class,
             LeadSourceSeeder::class,
             UnitOfMeasurementSeeder::class,

@@ -36,6 +36,12 @@ class ReportsOverview extends Page
                 'icon' => Heroicon::OutlinedClipboardDocumentList,
                 'reports' => [
                     [
+                        'label' => 'Account reach & frequency',
+                        'description' => 'Monthly call targets, completed calls, gaps, and account potential by division.',
+                        'url' => AccountReachFrequency::canAccess() ? AccountReachFrequency::getUrl() : null,
+                        'icon' => Heroicon::OutlinedChartBar,
+                    ],
+                    [
                         'label' => 'DCR register',
                         'description' => 'Daily call reports with visit counts, distance, expense, and approval status.',
                         'url' => DcrRegister::getUrl(),

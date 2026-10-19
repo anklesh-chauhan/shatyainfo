@@ -2,23 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\RatingType;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class RatingTypeSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        DB::table('rating_types')->insert([
-            ['name' => 'Acquired'],
-            ['name' => 'Active'],
-            ['name' => 'Market Failed'],
-            ['name' => 'Project Cancelled'],
-            ['name' => 'Shut Down'],
-        ]);
+        foreach (['A - High Potential', 'B - Medium Potential', 'C - Low Potential', 'Unclassified - Pending Assessment'] as $name) {
+            RatingType::withTrashed()->firstOrCreate(['name' => $name]);
+        }
     }
 }

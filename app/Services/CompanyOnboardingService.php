@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AccountMaster;
 use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
@@ -35,6 +36,7 @@ class CompanyOnboardingService
             'review' => $company && $employees > 0 && (bool) ($setup['completed'] ?? false),
             'unit_count' => $units,
             'employee_count' => $employees,
+            'account_count' => AccountMaster::query()->count(),
             'territory_count' => Territory::query()->count(),
             'patch_count' => Patch::query()->count(),
             'fare_count' => StandardFareChart::query()->count(),

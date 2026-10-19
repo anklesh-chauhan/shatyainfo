@@ -18,12 +18,33 @@ use Illuminate\Validation\ValidationException;
 class FieldAccountService
 {
     /**
-     * @return list<string>
+     * @param  array<string, mixed>  $data
      */
+    private function syncReporting(AccountMaster $account, array $data): void
+    {
+        foreach (['division_profiles' => 'divisionProfiles', 'call_targets' => 'callTargets'] as $field => $relation) {
+            foreach ($data[$field] ?? [] as $values) {
+                $id = $values['id'] ?? null;
+                unset($values['id']);
+                if ($id) {
+                    $record = $account->$relation()->find($id);
+                    if (! $record) {
+                        throw ValidationException::withMessages([$field => 'The reporting record does not belong to this account.']);
+                    }
+                    $record->update($values);
+                } else {
+                    $account->$relation()->create($values);
+                }
+            }
+        }
+    }
+
+    /** @return list<string> */
     private function detailRelations(): array
     {
         return [
             'typeMaster',
+            'specialty', 'therapyArea', 'divisionProfiles.ratingType', 'divisionProfiles.potentialUnit', 'callTargets', 'assignmentHistory',
             'territory',
             'contactDetails',
             'patches',
@@ -131,6 +152,11 @@ class FieldAccountService
                 'territory_id' => $data['territory_id'] ?? null,
                 'industry_type_id' => $data['industry_type_id'] ?? null,
                 'rating_type_id' => $data['rating_type_id'] ?? null,
+                'account_status_id' => null,
+                'specialty_id' => $data['specialty_id'] ?? null,
+                'therapy_area_id' => $data['therapy_area_id'] ?? null,
+                'institution_account_id' => $data['institution_account_id'] ?? null,
+                'supplier_account_id' => $data['supplier_account_id'] ?? null,
                 'parent_id' => $data['parent_id'] ?? null,
                 'ref_dealer_contact' => $data['ref_dealer_contact'] ?? null,
                 'commission' => $data['commission'] ?? null,
@@ -156,6 +182,10 @@ class FieldAccountService
             }
 
             $this->syncRelatedDetails($account, $data);
+            $this->syncReporting($account, $data);
+            if (array_key_exists('account_status_id', $data)) {
+                $account->update(['account_status_id' => $data['account_status_id']]);
+            }
 
             return $account->fresh($this->detailRelations());
         });
@@ -190,6 +220,7 @@ class FieldAccountService
                 'territory_id',
                 'industry_type_id',
                 'rating_type_id',
+                'specialty_id', 'therapy_area_id', 'institution_account_id', 'supplier_account_id',
                 'parent_id',
                 'ref_dealer_contact',
                 'commission',
@@ -201,6 +232,10 @@ class FieldAccountService
             }
 
             $this->syncRelatedDetails($account, $data);
+            $this->syncReporting($account, $data);
+            if (array_key_exists('account_status_id', $data)) {
+                $account->update(['account_status_id' => $data['account_status_id']]);
+            }
 
             return $account->fresh($this->detailRelations());
         });

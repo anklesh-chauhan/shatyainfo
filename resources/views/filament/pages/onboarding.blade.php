@@ -32,7 +32,7 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Territories', 'Add employees', 'Patches & fares (optional)', 'Approvals', 'Review & finish'] as $label)
+                    @foreach (['Company information', 'Territories', 'Add employees', 'Accounts & field routes', 'Approvals', 'Review & finish'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
@@ -111,8 +111,9 @@
                     <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
-                    <h2>Patches and standard fares (optional)</h2>
+                    <h2>Accounts, patches and standard fares (optional)</h2>
                     <p>Prepare your field routes now, or skip this step and finish it later.</p>
+                    @include('filament.pages.partials.onboarding-account-import')
                     <div class="setup-note">
                         <strong>1. Customers and addresses</strong>
                         <p>Customer records and their addresses must exist before assigning them to patches. You can import patches and fares first and add customer assignments later.</p>
@@ -163,7 +164,7 @@
                     </form>
                 @else
                     <div class="setup-success-icon" aria-hidden="true">✓</div><h2>Your workspace is taking shape</h2><p>Check your team’s details and reporting managers before you finish.</p>
-                    <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Company uses divisions</dt><dd>{{ $this->usesDivisions() ? 'Yes' : 'No' }}</dd></div><div><dt>Territories</dt><dd>{{ $checklist['territory_count'] ?: 'Set up later' }}</dd></div><div><dt>Employees without territory assignments</dt><dd>{{ $checklist['unassigned_territory_count'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Patches</dt><dd>{{ $checklist['patch_count'] ?: 'Set up later' }}</dd></div><div><dt>Standard fare routes</dt><dd>{{ $checklist['fare_count'] ?: 'Set up later' }}</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
+                    <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Company uses divisions</dt><dd>{{ $this->usesDivisions() ? 'Yes' : 'No' }}</dd></div><div><dt>Territories</dt><dd>{{ $checklist['territory_count'] ?: 'Set up later' }}</dd></div><div><dt>Employees without territory assignments</dt><dd>{{ $checklist['unassigned_territory_count'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Accounts</dt><dd>{{ $checklist['account_count'] ?: 'Set up later' }}</dd></div><div><dt>Patches</dt><dd>{{ $checklist['patch_count'] ?: 'Set up later' }}</dd></div><div><dt>Standard fare routes</dt><dd>{{ $checklist['fare_count'] ?: 'Set up later' }}</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
                     <div class="setup-note">
                         <h3>Approval setup</h3>
                         @if (($approvalReview['required'] ?? '') === 'existing')

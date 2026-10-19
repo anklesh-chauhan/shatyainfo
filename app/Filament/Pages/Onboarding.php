@@ -6,8 +6,10 @@ use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Organization;
 use App\Models\Tenant;
+use App\Services\AccountOnboardingService;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
+use App\Services\DataImport\AccountImportTemplate;
 use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
@@ -22,6 +24,71 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class Onboarding extends Page
 {
     use WithFileUploads;
+
+    public mixed $accountFile = null;
+
+    #[Locked]
+    public array $accountPreview = [];
+
+    #[Locked]
+    public array $accountImportResult = [];
+
+    public function updatedAccountFile(): void
+    {
+        $this->accountPreview = [];
+        $this->accountImportResult = [];
+        $this->resetErrorBag();
+    }
+
+    public function downloadAccountTemplate(): StreamedResponse
+    {
+        app(AccountOnboardingService::class)->authorize();
+
+        return response()->streamDownload(function (): void {
+            $path = tempnam(sys_get_temp_dir(), 'account-template-');
+            try {
+                app(AccountImportTemplate::class)->write($path);
+                readfile($path);
+            } finally {
+                unlink($path);
+            }
+        }, 'accounts-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    }
+
+    public function previewAccounts(): void
+    {
+        $service = app(AccountOnboardingService::class);
+        $service->authorize();
+        $this->accountPreview = [];
+        $this->accountImportResult = [];
+        $this->validate(['accountFile' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:2048']]);
+        $this->accountPreview = $service->preview($service->readFile($this->accountFile->getRealPath(), strtolower($this->accountFile->getClientOriginalExtension()) === 'xlsx'));
+    }
+
+    public function importAccounts(): void
+    {
+        app(AccountOnboardingService::class)->authorize();
+        abort_unless($this->accountPreview !== [] && $this->accountPreview['errors'] === [], 422, 'Preview a valid file first.');
+        $this->accountImportResult = app(AccountOnboardingService::class)->import($this->accountPreview['rows']);
+        $this->accountPreview = [];
+        $this->reset('accountFile');
+        Notification::make()->title($this->accountImportResult['created'].' accounts created; '.$this->accountImportResult['updated'].' existing accounts updated.')->success()->send();
+    }
+
+    public function downloadAccountErrors(): StreamedResponse
+    {
+        app(AccountOnboardingService::class)->authorize();
+
+        return response()->streamDownload(function (): void {
+            $stream = fopen('php://output', 'w');
+            fputcsv($stream, ['Row', 'External reference', 'Error'], ',', '"', '');
+            foreach ($this->accountPreview['errors'] ?? [] as $error) {
+                $cells = [$error['row'], $error['reference'], $error['message']];
+                fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $cells), ',', '"', '');
+            }
+            fclose($stream);
+        }, 'account-import-errors.csv', ['Content-Type' => 'text/csv']);
+    }
 
     public function usesDivisions(): bool
     {
