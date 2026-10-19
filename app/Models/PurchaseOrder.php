@@ -3,13 +3,13 @@
 namespace App\Models;
 
 use App\Enums\PurchaseOrderStatus;
-use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasOperationalApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrder extends BaseModel
 {
-    use HasApprovalWorkflow;
+    use HasOperationalApproval;
 
     protected $fillable = [
         'document_number',
@@ -105,14 +105,14 @@ class PurchaseOrder extends BaseModel
         };
 
         if ($this->status !== $status) {
-            $this->forceFill(['status' => $status])->save();
+            $this->forceFill(['status' => $status])->saveQuietly();
         }
     }
 
     public function isEditable(): bool
     {
         return in_array($this->status, [PurchaseOrderStatus::Draft, PurchaseOrderStatus::Submitted], true)
-            && $this->approval_status === 'draft';
+            && in_array($this->approval_status, ['draft', 'rejected'], true) && ! $this->approvalDocumentIsLocked();
     }
 
     protected static function boot(): void

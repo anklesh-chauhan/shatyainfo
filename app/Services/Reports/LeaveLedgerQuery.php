@@ -26,6 +26,7 @@ class LeaveLedgerQuery
                     ->join('employees', 'employees.id', '=', 'leave_instances.employee_id')
                     ->join('users', 'users.id', '=', 'employees.login_id')
                     ->whereNull('leave_instances.deleted_at')
+                    ->where('leave_instances.approval_status', 'approved')
                     ->selectRaw("
                         leave_instances.employee_id,
                         employees.login_id as user_id,
@@ -40,6 +41,7 @@ class LeaveLedgerQuery
                             ->join('employees', 'employees.id', '=', 'leave_adjustments.employee_id')
                             ->join('users', 'users.id', '=', 'employees.login_id')
                             ->whereNull('leave_adjustments.deleted_at')
+                            ->where('leave_adjustments.approval_status', 'approved')
                             ->selectRaw("
                                 leave_adjustments.employee_id,
                                 employees.login_id as user_id,
@@ -58,6 +60,7 @@ class LeaveLedgerQuery
                             ->join('employees', 'employees.id', '=', 'leave_encashments.employee_id')
                             ->join('users', 'users.id', '=', 'employees.login_id')
                             ->whereNull('leave_encashments.deleted_at')
+                            ->where('leave_encashments.approval_status', 'approved')
                             ->selectRaw("
                                 leave_encashments.employee_id,
                                 employees.login_id as user_id,

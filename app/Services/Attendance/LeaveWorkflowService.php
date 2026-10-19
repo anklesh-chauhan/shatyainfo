@@ -2,16 +2,18 @@
 
 namespace App\Services\Attendance;
 
-use Illuminate\Support\Facades\DB;
+use App\Models\ApprovalSetting;
+use App\Models\ApprovalStep;
 use App\Models\LeaveApplication;
 use App\Services\Approval\ApprovalService;
+use Illuminate\Support\Facades\DB;
 
 class LeaveWorkflowService
 {
     /**
      * Start approval workflow for leave application.
      *
-     * @param array $ruleResult Result from LeaveRuleEvaluatorService
+     * @param  array  $ruleResult  Result from LeaveRuleEvaluatorService
      */
     public function start(
         LeaveApplication $leave,
@@ -19,19 +21,18 @@ class LeaveWorkflowService
     ): void {
         DB::transaction(function () use ($leave, $ruleResult) {
 
-            // Domain state only (NOT approval logic)
-            $leave->update([
-                'approval_status' => 'draft',
-                'applied_at'      => now(),
-            ]);
-
-            // Start generic approval workflow
-            app(ApprovalService::class)->start(
-                approvable: $leave,
-                module: 'LeaveApplication',
-                territoryId: $leave->employee->territory_id ?? null,
-                amount: null
-            );
+            $leave->forceFill(['applied_at' => now()])->saveQuietly();
+            if (ApprovalSetting::moduleRequiresApproval(LeaveApplication::class)) {
+                app(ApprovalService::class)->start(
+                    approvable: $leave,
+                    module: 'LeaveApplication',
+                    territoryId: $leave->employee?->territory_id,
+                );
+                $leave->forceFill(['approval_status' => 'pending'])->saveQuietly();
+            } else {
+                $leave->forceFill(['approval_status' => 'approved'])->saveQuietly();
+                $leave->instances()->update(['approval_status' => 'approved']);
+            }
 
             // ✅ Notifications MUST be rule-driven
             app(LeaveNotificationService::class)
@@ -50,7 +51,7 @@ class LeaveWorkflowService
     {
         DB::transaction(function () use ($approvalStepId) {
 
-            $step = \App\Models\ApprovalStep::findOrFail($approvalStepId);
+            $step = ApprovalStep::findOrFail($approvalStepId);
             $approval = $step->approval;
 
             app(ApprovalService::class)
@@ -68,7 +69,7 @@ class LeaveWorkflowService
     {
         DB::transaction(function () use ($approvalStepId) {
 
-            $step = \App\Models\ApprovalStep::findOrFail($approvalStepId);
+            $step = ApprovalStep::findOrFail($approvalStepId);
             $approval = $step->approval;
 
             app(ApprovalService::class)

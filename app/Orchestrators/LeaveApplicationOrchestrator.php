@@ -2,21 +2,21 @@
 
 namespace App\Orchestrators;
 
-use Illuminate\Support\Facades\DB;
+use App\Models\ApprovalSetting;
+use App\Models\LeaveApplication;
+use App\Models\LeaveCancellation;
+use App\Models\LeaveInstance;
+use App\Models\LeaveType;
+use App\Models\User;
+use App\Services\Approval\ApprovalService;
+use App\Services\Approval\HrApprovalHandler;
+use App\Services\Attendance\LeaveBalanceCalculator;
+use App\Services\Attendance\LeaveDateValidator;
+use App\Services\Attendance\LeaveRuleEvaluatorService;
+use App\Services\Attendance\LeaveWorkflowService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Services\Attendance\{
-    LeaveDateValidator,
-    LeaveRuleEvaluatorService,
-    LeaveBalanceCalculator,
-    LeaveWorkflowService,
-    LeaveNotificationService
-};
-use App\Models\{
-    LeaveApplication,
-    LeaveInstance,
-    LeaveType
-};
 
 class LeaveApplicationOrchestrator
 {
@@ -25,6 +25,14 @@ class LeaveApplicationOrchestrator
      */
     public function apply(array $data): LeaveApplication
     {
+        $from = Carbon::parse($data['from_date'])->startOfDay();
+        $to = Carbon::parse($data['to_date'])->startOfDay();
+        $halfDay = (bool) ($data['is_half_day'] ?? false);
+        if ($to->lt($from) || ($halfDay && (! $from->equalTo($to) || ! in_array($data['half_day_type'] ?? null, ['first_half', 'second_half'], true)))) {
+            throw ValidationException::withMessages(['leave' => 'Choose a valid date range and half-day period.']);
+        }
+        $data['days'] = $halfDay ? 0.5 : $from->diffInDays($to) + 1;
+
         return DB::transaction(function () use ($data) {
 
             $leaveType = LeaveType::where('code', $data['leave_type_code'])->firstOrFail();
@@ -64,7 +72,8 @@ class LeaveApplicationOrchestrator
                 'is_half_day' => $data['is_half_day'] ?? false,
                 'half_day_type' => $data['half_day_type'] ?? null,
                 'reason' => $data['reason'] ?? null,
-                'status' => 'applied',
+                'total_days' => $data['days'],
+                'substitute_user_id' => $data['substitute_user_id'] ?? null,
                 'approval_status' => 'draft',
 
             ]);
@@ -85,10 +94,6 @@ class LeaveApplicationOrchestrator
                 $ruleResult
             );
 
-            // 7️⃣ Dispatch notifications USING evaluated rules
-            app(LeaveNotificationService::class)
-                ->dispatch('LEAVE_APPLIED', $application, $ruleResult);
-
             return $application;
         });
     }
@@ -98,47 +103,35 @@ class LeaveApplicationOrchestrator
      */
     public function cancel(int $applicationId, int $userId): void
     {
-        DB::transaction(function () use ($applicationId, $userId) {
-
-            $application = LeaveApplication::findOrFail($applicationId);
-
-            // Rule evaluation for cancellation
-            $ruleResult = app(LeaveRuleEvaluatorService::class)->evaluate([
-                'event' => 'LEAVE_CANCEL',
-                'future_leave' => now()->lt($application->from_date),
-                'role' => 'employee',
-            ]);
-
-            // Auto-approved cancellation
-            if ($ruleResult['workflow']['auto_approve_cancel'] ?? false) {
-
-                $application->update([
-                    'approval_status' => 'cancelled',
-                    'revoked_at' => now(),
-                ]);
-
-                $application->instances()
-                    ->update(['approval_status' => 'cancelled']);
-
-                app(LeaveNotificationService::class)
-                    ->dispatch('LEAVE_CANCELLED', $application);
+        DB::transaction(function () use ($applicationId, $userId): void {
+            $application = LeaveApplication::query()->lockForUpdate()->findOrFail($applicationId);
+            $user = User::findOrFail($userId);
+            abort_unless((int) $application->employee_id === (int) $user->employee?->id || $user->can('update', $application), 403);
+            if ($application->payroll_locked || ! in_array($application->approval_status, ['draft', 'pending', 'applied', 'approved'], true)) {
+                throw ValidationException::withMessages(['leave' => 'This leave cannot be cancelled.']);
+            }
+            if ($application->approval_status !== 'approved') {
+                if ($approval = $application->approval()->first()) {
+                    app(ApprovalService::class)->cancel($approval);
+                }
+                $application->forceFill(['approval_status' => 'cancelled', 'revoked_at' => now()])->saveQuietly();
+                $application->instances()->update(['approval_status' => 'cancelled']);
 
                 return;
             }
-
-            /**
-             * If cancellation approval is required:
-             * Treat cancellation as a new approval workflow
-             */
-            $application->update(['approval_status' => 'pending_cancel']);
-
-            app(LeaveWorkflowService::class)->start(
-                $application,
-                $ruleResult
-            );
-
-            app(LeaveNotificationService::class)
-                ->dispatch('LEAVE_CANCEL_REQUESTED', $application);
+            if (LeaveCancellation::query()->where('leave_application_id', $application->id)->whereIn('approval_status', ['draft', 'pending'])->exists()) {
+                throw ValidationException::withMessages(['leave' => 'A cancellation request is already pending.']);
+            }
+            $request = LeaveCancellation::create([
+                'leave_application_id' => $application->id,
+                'employee_id' => $application->employee_id,
+                'reason' => 'Leave cancellation requested',
+            ]);
+            if (ApprovalSetting::moduleRequiresApproval(LeaveCancellation::class)) {
+                $request->startApproval();
+            } else {
+                app(HrApprovalHandler::class)->apply($request);
+            }
         });
     }
 
@@ -176,15 +169,15 @@ class LeaveApplicationOrchestrator
 
         foreach (
             Carbon::parse($application->from_date)
-                ->daysUntil($application->to_date)
-            as $date
+                ->daysUntil($application->to_date) as $date
         ) {
             LeaveInstance::create([
                 'leave_application_id' => $application->id,
                 'employee_id' => $application->employee_id,
                 'leave_type_id' => $application->leave_type_id,
                 'date' => $date,
-                'pay_factor' => $payFactor,
+                'pay_factor' => $application->is_half_day ? 0.5 : $payFactor,
+                'is_half_day' => $application->is_half_day,
                 'approval_status' => 'applied',
             ]);
         }

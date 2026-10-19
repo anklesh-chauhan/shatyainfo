@@ -64,6 +64,8 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
             $role->syncPermissions($permissions->unique('name'));
         }
 
+        $this->call(HrApprovalPermissionSeeder::class);
+
         $this->command->info('Shield permissions synced using Action:Model format.');
     }
 

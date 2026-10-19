@@ -2,14 +2,19 @@
 
 namespace App\Traits;
 
-use Illuminate\Validation\ValidationException;
+use App\Models\ApprovalOverride;
+use App\Services\HR\HrChangeService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 trait LocksAfterApproval
 {
     protected static function bootLocksAfterApproval(): void
     {
         static::updating(function ($model) {
+            if (HrChangeService::isAuthorizedUpdate()) {
+                return;
+            }
 
             // If not previously approved → allow
             if ($model->getOriginal('approval_status') !== 'approved') {
@@ -18,10 +23,11 @@ trait LocksAfterApproval
 
             // HR override permission (model-specific)
             $user = Auth::user();
-            $permission = 'OverrideApproval:' . class_basename($model);
+            $permission = 'OverrideApproval:'.class_basename($model);
 
             if ($user && $user->can($permission)) {
                 static::logApprovalOverride($model, $user);
+
                 return;
             }
 
@@ -37,10 +43,11 @@ trait LocksAfterApproval
             }
 
             $user = Auth::user();
-            $permission = 'OverrideApproval:' . class_basename($model);
+            $permission = 'OverrideApproval:'.class_basename($model);
 
             if ($user && $user->can($permission)) {
                 static::logApprovalOverride($model, $user);
+
                 return;
             }
 
@@ -52,11 +59,11 @@ trait LocksAfterApproval
 
     protected static function logApprovalOverride($model, $user): void
     {
-        if (! class_exists(\App\Models\ApprovalOverride::class)) {
+        if (! class_exists(ApprovalOverride::class)) {
             return;
         }
 
-        \App\Models\ApprovalOverride::create([
+        ApprovalOverride::create([
             'model_type' => get_class($model),
             'model_id' => $model->getKey(),
             'user_id' => $user->id,

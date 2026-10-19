@@ -2,13 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasOperationalApproval;
 
 class SalesOrder extends SalesDocument
 {
-    use HasApprovalWorkflow;
+    use HasOperationalApproval;
 
     protected $table = 'sales_orders';
 
@@ -17,7 +15,7 @@ class SalesOrder extends SalesDocument
         'account_master_id',
         'delivery_date',
         'order_confirmation_at',
-        'other_ref'
+        'other_ref',
     ];
 
     public function accountMaster()
@@ -49,5 +47,4 @@ class SalesOrder extends SalesDocument
         'updated_by' => 'integer',
         'deleted_by' => 'integer',
     ];
-
 }

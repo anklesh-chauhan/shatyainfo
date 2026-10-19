@@ -20,7 +20,7 @@ trait HasApprovalWorkflow
      */
     public function approval(): MorphOne
     {
-        return $this->morphOne(Approval::class, 'approvable');
+        return $this->morphOne(Approval::class, 'approvable')->latestOfMany();
     }
 
     /**
@@ -68,6 +68,7 @@ trait HasApprovalWorkflow
         return ApprovalFlow::query()
             ->where('module', static::approvalModule())
             ->where('active', true)
+            ->effectiveOn()
             ->where(fn ($q) => $q->whereNull('territory_id')
                 ->orWhere('territory_id', $this->resolveApprovalTerritoryId())
             )
@@ -108,7 +109,7 @@ trait HasApprovalWorkflow
             );
         }
 
-        if ($this->approval) {
+        if ($this->approval()->whereIn('approval_status', ['pending', 'approved'])->exists()) {
             throw new LogicException(
                 'Approval already started for this record.'
             );
@@ -129,16 +130,21 @@ trait HasApprovalWorkflow
 
     public function canStartApproval(): bool
     {
+        if ((method_exists($this, 'isPosted') && $this->isPosted())
+            || in_array($this->getAttributes()['status'] ?? null, ['cancelled', 'canceled'], true)) {
+            return false;
+        }
+
         if (! $this->approvalApplies()) {
             return false;
         }
 
-        if ($this->approval !== null) {
+        if ($this->approval()->whereIn('approval_status', ['pending', 'approved'])->exists()) {
             return false;
         }
 
         if (isset($this->approval_status)) {
-            return in_array($this->approval_status, ['draft', 'created', 'pending', 'submitted'], true);
+            return in_array($this->approval_status, ['draft', 'created', 'pending', 'submitted', 'rejected'], true);
         }
 
         return true;
@@ -189,6 +195,11 @@ trait HasApprovalWorkflow
      * Resolve amount/value for approval matching
      * Override this in model if needed
      */
+    public function approvalAmount(): float
+    {
+        return $this->resolveApprovalAmount();
+    }
+
     protected function resolveApprovalAmount(): float
     {
         return (float) (

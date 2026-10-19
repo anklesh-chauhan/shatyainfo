@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Notifications\UserAccountCreated;
 use App\Services\EmployeeReportingService;
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\RequiresHrChangeApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,8 @@ use Illuminate\Support\Str;
 
 class Employee extends BaseModel
 {
+    use RequiresHrChangeApproval;
+
     public bool $provisionLoginOnSave = true;
 
     use HasApprovalWorkflow, SoftDeletes;

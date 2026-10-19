@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasOperationalApproval;
 
 class SalesInvoice extends SalesDocument
 {
-    use HasApprovalWorkflow;
+    use HasOperationalApproval;
 
     protected $table = 'sales_invoices';
 
@@ -76,7 +76,7 @@ class SalesInvoice extends SalesDocument
         );
 
         if ($allDelivered && $this->status !== 'canceled') {
-            $this->forceFill(['status' => 'accepted'])->save();
+            $this->forceFill(['status' => 'accepted'])->saveQuietly();
         }
     }
 

@@ -66,6 +66,8 @@ class SalesDcrForm
                             ->relationship('user', 'name')
                             ->required(), //
                         Forms\Components\Select::make('approval_status')
+                            ->disabled()
+                            ->dehydrated(false)
                             ->options([
                                 'draft' => 'Draft',
                                 'submitted' => 'Submitted',

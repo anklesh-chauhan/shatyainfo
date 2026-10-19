@@ -157,6 +157,7 @@ class SalesOrderResource extends BaseResource
                     ApprovalAction::make(),
 
                     Action::make('createInvoice')
+                        ->visible(fn (SalesOrder $record): bool => $record->canProceedAfterApproval())
                         ->label('Create Invoice')
                         ->icon('heroicon-o-document-text')
                         ->requiresConfirmation()

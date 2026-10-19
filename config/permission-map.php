@@ -41,6 +41,7 @@ return [
             'PromotionalSchemeResource' => 'F',
             'MarketingCampaignResource' => 'F',
             'InventoryAdjustmentResource' => 'C',
+            'InventoryTransferResource' => 'C',
             'InventoryStockResource' => 'R',
             'InventoryMovementResource' => 'R',
         ],
@@ -63,6 +64,11 @@ return [
 
         /* ================= HR ================= */
         'hr_admin' => [
+            'HrChangeRequestResource' => 'C',
+            'LeaveCancellationResource' => 'R',
+            'LeaveApplicationResource' => 'C',
+            'LeaveAdjustmentResource' => 'C',
+            'LeaveEncashmentResource' => 'C',
             'EmployeeResource' => 'F',
             'EmpDepartmentResource' => 'F',
             'EmpGradeResource' => 'F',
@@ -74,6 +80,8 @@ return [
         ],
 
         'hr_user' => [
+            'HrChangeRequestResource' => 'C',
+            'LeaveCancellationResource' => 'R',
             'EmployeeResource' => 'C',
             'DailyAttendanceResource' => 'C',
         ],
@@ -93,6 +101,7 @@ return [
             'SampleRequestResource' => 'F',
             'SampleIssueResource' => 'F',
             'InventoryAdjustmentResource' => 'F',
+            'InventoryTransferResource' => 'F',
             'InventoryStockResource' => 'F',
             'InventoryMovementResource' => 'F',
             'ItemMasterResource' => 'R',

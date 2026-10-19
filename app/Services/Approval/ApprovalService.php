@@ -12,6 +12,7 @@ use App\Models\ApprovalDelegation;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalSetting;
 use App\Models\ApprovalStep;
+use App\Models\LeaveApplication;
 use App\Models\Territory;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -32,14 +33,21 @@ class ApprovalService
         ?int $territoryId = null,
         ?float $amount = null
     ): Approval {
+        if (Auth::id() === null) {
+            throw new LogicException('An authenticated requester is required to start approval.');
+        }
+
         if (! ApprovalSetting::moduleRequiresApproval($module)) {
             throw new LogicException("Approval is not enabled for module [{$module}].");
         }
 
-        $amount ??= $this->resolveAmount($approvable);
-        $flow = $this->resolveApprovalFlow($module, $territoryId, $amount);
+        if (! ApprovalSetting::supportsModule($module) || ! array_key_exists($approvable::class, ApprovalSetting::eligibleModuleOptions()) || class_basename($approvable) !== class_basename($module)) {
+            throw new LogicException("Unsupported approval module or record mismatch [{$module}].");
+        }
 
-        return DB::transaction(function () use ($approvable, $module, $flow, $territoryId, $amount): Approval {
+        $module = class_basename($module);
+
+        return DB::transaction(function () use ($approvable, $module, $territoryId, $amount): Approval {
             $approvable = $approvable->newQuery()
                 ->whereKey($approvable->getKey())
                 ->lockForUpdate()
@@ -49,13 +57,12 @@ class ApprovalService
                 throw new LogicException('Approval already exists for this record.');
             }
 
-            $applicantUser = Auth::user();
-            $applicantRoleLevel = $applicantUser?->employee?->positions()
-                ->with('jobRole')
-                ->get()
-                ->pluck('jobRole.level')
-                ->min();
-            $applicantRoleLevel ??= PHP_INT_MAX;
+            if (method_exists($approvable, 'prepareOperationalApproval')) {
+                $approvable->prepareOperationalApproval();
+                $amount = $approvable->approvalAmount();
+            }
+            $amount ??= $this->resolveAmount($approvable);
+            $flow = $this->resolveApprovalFlow($module, $territoryId, $amount);
 
             $approval = $approvable->approval()->create([
                 'approval_flow_id' => $flow->id,
@@ -89,15 +96,6 @@ class ApprovalService
                     throw new LogicException("No job role configured for approval flow step [{$flowStep->id}].");
                 }
 
-                if ($stepRole->level <= $applicantRoleLevel) {
-                    $this->logActivity($approval, ApprovalActivityAction::Skipped, metadata: [
-                        'flow_step_id' => $flowStep->id,
-                        'reason' => 'same_or_junior_role',
-                    ]);
-
-                    continue;
-                }
-
                 $user = $this->resolveApprover(
                     $flowStep->job_role_id,
                     $territoryId,
@@ -118,6 +116,15 @@ class ApprovalService
                 }
 
                 $assignedUser = $this->resolveDelegatedApprover($user, $module);
+
+                if ($assignedUser->id === Auth::id()) {
+                    throw new LogicException('The requester cannot approve their own request, including through delegation.');
+                }
+
+                if (in_array($approvable::class, [...HrApprovalHandler::supports(), LeaveApplication::class], true)
+                    && (int) $approvable->employee?->login_id === (int) $assignedUser->id) {
+                    throw new LogicException('An employee cannot approve an HR request about themselves.');
+                }
 
                 $step = ApprovalStep::create([
                     'approval_id' => $approval->id,
@@ -158,7 +165,11 @@ class ApprovalService
             $this->logActivity($approval, ApprovalActivityAction::Submitted);
 
             if ($approval->steps()->count() === 0) {
-                $this->finalizeApproval($approval, ApprovalStatus::Approved);
+                throw new LogicException('No actionable approval steps remain. Configure at least one available approver; automatic approval is not permitted.');
+            }
+
+            if (method_exists($approvable, 'markOperationalApprovalSubmitted')) {
+                $approvable->markOperationalApprovalSubmitted();
             }
 
             return $approval->refresh();
@@ -275,6 +286,10 @@ class ApprovalService
 
         $approval->refresh();
 
+        if (in_array($approval->record_type, [...OperationalApprovalHandler::supports(), ...HrApprovalHandler::supports(), LeaveApplication::class], true)) {
+            app(ApprovalDomainDispatcher::class)->dispatch($approval, $status->value);
+        }
+
         DB::afterCommit(function () use ($approval, $status): void {
             event(new ApprovalStatusChanged($approval, $status->value));
         });
@@ -302,30 +317,62 @@ class ApprovalService
         return $flow;
     }
 
-    protected function resolveApprover(int $jobRoleId, ?int $territoryId, string $territoryScope = 'self'): ?User
+    public function previewApprover(int $roleId, ?int $territoryId, string $scope, string $module): User
     {
-        $query = User::query()
-            ->whereHas('employee.positions', fn ($query) => $query->where('job_role_id', $jobRoleId));
-
-        $territoryIds = $this->resolveTerritoryIds($territoryId, $territoryScope);
-
-        if ($territoryIds !== null) {
-            $query->whereHas('employee.positions.territories', fn ($territoryQuery) => $territoryQuery
-                ->whereIn('territories.id', $territoryIds)
-            );
+        $user = $this->resolveApprover($roleId, $territoryId, $scope);
+        if (! $user) {
+            throw new LogicException('No active approver with a login matches this role and scope, excluding the requester.');
+        }
+        $user = $this->resolveDelegatedApprover($user, $module);
+        if ($user->id === Auth::id()) {
+            throw new LogicException('The requester cannot be their own delegated approver.');
         }
 
-        return $query->first();
+        return $user;
+    }
+
+    protected function resolveApprover(int $jobRoleId, ?int $territoryId, string $territoryScope = 'self'): ?User
+    {
+        $territoryIds = $this->resolveTerritoryIds($territoryId, $territoryScope);
+        $candidates = User::query()
+            ->whereKeyNot(Auth::id())
+            ->whereHas('employee', fn ($employeeQuery) => $employeeQuery
+                ->where('is_active', true)
+                ->whereHas('positions', fn ($positionQuery) => $positionQuery
+                    ->where('job_role_id', $jobRoleId)
+                    ->when($territoryIds !== null, fn ($query) => $query
+                        ->whereHas('territories', fn ($territoryQuery) => $territoryQuery->whereIn('territories.id', $territoryIds))
+                    )
+                )
+            )
+            ->limit(2)
+            ->get();
+
+        if ($candidates->count() > 1) {
+            throw new LogicException("Multiple approvers match job role [{$jobRoleId}]. Narrow the role or territory assignments to one approver.");
+        }
+
+        return $candidates->first();
     }
 
     protected function resolveDelegatedApprover(User $user, string $module): User
     {
-        $delegation = ApprovalDelegation::query()
+        $delegations = ApprovalDelegation::query()
             ->activeFor($user->id, $module)
-            ->with('delegate')
-            ->first();
+            ->with('delegate.employee')
+            ->limit(2)
+            ->get();
 
-        return $delegation?->delegate ?? $user;
+        if ($delegations->count() > 1) {
+            throw new LogicException('Multiple active delegations match this approver and module. Resolve the overlapping delegations.');
+        }
+
+        $delegation = $delegations->first();
+        if ($delegation && (! $delegation->delegate || ! $delegation->delegate->employee?->is_active)) {
+            throw new LogicException('The delegated approver must have an active employee record.');
+        }
+
+        return $delegation ? $delegation->delegate : $user;
     }
 
     /**
@@ -333,8 +380,16 @@ class ApprovalService
      */
     protected function resolveTerritoryIds(?int $territoryId, string $territoryScope): ?array
     {
-        if ($territoryId === null || $territoryScope === 'all') {
+        if (! in_array($territoryScope, ['self', 'children', 'all'], true)) {
+            throw new LogicException('Invalid approval territory scope.');
+        }
+
+        if ($territoryScope === 'all') {
             return null;
+        }
+
+        if ($territoryId === null) {
+            throw new LogicException('A territory is required for territory-scoped approval steps.');
         }
 
         if ($territoryScope === 'self') {

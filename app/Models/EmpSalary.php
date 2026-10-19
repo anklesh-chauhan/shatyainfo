@@ -2,21 +2,20 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\RequiresHrChangeApproval;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmpSalary extends BaseModel
 {
-    use SoftDeletes, HasApprovalWorkflow;
+    use HasApprovalWorkflow, SoftDeletes;
+    use RequiresHrChangeApproval;
 
     protected $fillable = [
         'employee_id', 'basic_salary', 'hra', 'conveyance', 'special_allowance',
         'medical_allowance', 'other_allowances', 'gross_salary', 'pf_deduction',
         'esic_deduction', 'professional_tax_deduction', 'net_salary', 'salary_frequency',
-        'salary_status', 'created_by', 'updated_by'
+        'salary_status', 'created_by', 'updated_by',
     ];
 
     protected $casts = [

@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\OrganizationalUnit;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Approval\OnboardingApprovalService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -27,6 +28,7 @@ class CompanyOnboardingService
             'company' => $company,
             'structure' => $units > 0,
             'employees' => $employees > 0,
+            'approvals' => (bool) ($setup['approvals_applied'] ?? false),
             'review' => $company && $employees > 0 && (bool) ($setup['completed'] ?? false),
             'unit_count' => $units,
             'employee_count' => $employees,
@@ -39,7 +41,12 @@ class CompanyOnboardingService
         if (! $checklist['company'] || ! $checklist['employees']) {
             throw ValidationException::withMessages(['checklist' => 'Save company information and add at least one employee before finishing setup.']);
         }
-        $this->mark('completed');
+        DB::transaction(function (): void {
+            $organization = $this->organization();
+            abort_unless($organization, 422);
+            app(OnboardingApprovalService::class)->apply($organization);
+            $this->mark('completed');
+        });
     }
 
     public const EMPLOYEE_COLUMNS = ['employee_id', 'first_name', 'last_name', 'email', 'mobile_number'];

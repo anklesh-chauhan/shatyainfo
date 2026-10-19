@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
+use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -26,6 +27,39 @@ class Onboarding extends Page
     protected string $view = 'filament.pages.onboarding';
 
     public array $organization = [];
+
+    public array $approval = [];
+
+    #[Locked]
+    public array $approvalReview = [];
+
+    public function approvalSetup(): OnboardingApprovalService
+    {
+        return app(OnboardingApprovalService::class);
+    }
+
+    public function updatedApproval(mixed $value, ?string $key): void
+    {
+        if ($key !== null && str_starts_with($key, 'overrides.') && str_ends_with($key, '.custom') && $value) {
+            $module = explode('.', $key)[1];
+            if (array_key_exists($module, $this->approvalSetup()->moduleOptions())) {
+                $this->approval['overrides'][$module] = array_merge($this->approval['common'], ['custom' => true]);
+            }
+        }
+    }
+
+    public function reviewApprovals(): void
+    {
+        app(CompanyOnboardingService::class)->authorize();
+        abort_unless(Tenant::current()->accountIsConfigured(), 409);
+        $this->approvalReview = $this->approvalSetup()->saveDraft($this->approval);
+        $this->step = 4;
+    }
+
+    public function approvalAlreadyApplied(): bool
+    {
+        return (bool) (app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['approvals_applied'] ?? false);
+    }
 
     #[Locked]
     public int $step = 0;
@@ -108,8 +142,16 @@ class Onboarding extends Page
             'contact_person_email' => $organization?->contact_person_email ?? '',
             'contact_person_phone' => $organization?->contact_person_phone ?? '',
         ];
+        $this->approval = $organization?->metadata['company_setup']['approvals_draft'] ?? $this->approvalSetup()->defaults();
+        if ($this->approvalSetup()->hasExistingConfiguration() || $this->approvalAlreadyApplied()) {
+            $this->approval['required'] = 'existing';
+        }
         if ($organization?->metadata['company_setup']['organization_saved'] ?? false) {
             $this->step = 2;
+        }
+        if ($this->approvalAlreadyApplied()) {
+            $this->approvalReview = ['required' => 'existing', 'flows' => []];
+            $this->step = 4;
         }
     }
 

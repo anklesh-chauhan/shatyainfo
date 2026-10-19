@@ -49,7 +49,7 @@ class FieldLeaveService
         $employee = $this->requireEmployee($user);
 
         return LeaveApplication::query()
-            ->with('leaveType')
+            ->with(['leaveType', 'latestCancellation'])
             ->where('employee_id', $employee->id)
             ->orderByDesc('from_date')
             ->orderByDesc('id')
@@ -106,24 +106,13 @@ class FieldLeaveService
             ]);
         }
 
-        $application->update([
-            'total_days' => $days,
-        ]);
-
-        if ($halfDay) {
-            $application->instances()->update([
-                'is_half_day' => true,
-                'pay_factor' => 0.5,
-            ]);
-        }
-
-        return $application->fresh('leaveType');
+        return $application->fresh(['leaveType', 'latestCancellation']);
     }
 
     public function cancel(User $user, int $applicationId): LeaveApplication
     {
         $employee = $this->requireEmployee($user);
-        $application = LeaveApplication::query()->with('leaveType')->find($applicationId);
+        $application = LeaveApplication::query()->with(['leaveType', 'latestCancellation'])->find($applicationId);
 
         if (! $application || (int) $application->employee_id !== (int) $employee->id) {
             abort(404, 'Leave application not found.');
@@ -135,21 +124,20 @@ class FieldLeaveService
             ]);
         }
 
-        $application->update([
-            'approval_status' => 'cancelled',
-            'revoked_at' => now(),
-        ]);
-        $application->instances()->update([
-            'approval_status' => 'cancelled',
-        ]);
+        try {
+            $this->leave->cancel($application->id, $user->id);
+        } catch (LogicException $exception) {
+            throw ValidationException::withMessages(['leave' => $exception->getMessage()]);
+        }
 
-        return $application->fresh('leaveType');
+        return $application->fresh(['leaveType', 'latestCancellation']);
     }
 
     public static function canCancel(LeaveApplication $application): bool
     {
         return ! $application->payroll_locked
-            && in_array($application->approval_status, ['draft', 'pending', 'applied'], true);
+            && in_array($application->approval_status, ['draft', 'pending', 'applied', 'approved'], true)
+            && ! in_array($application->latestCancellation?->approval_status, ['draft', 'pending'], true);
     }
 
     private function requireEmployee(User $user): Employee

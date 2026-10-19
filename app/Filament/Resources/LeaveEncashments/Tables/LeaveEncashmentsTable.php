@@ -2,14 +2,15 @@
 
 namespace App\Filament\Resources\LeaveEncashments\Tables;
 
+use App\Filament\Actions\ApprovalAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
 
 class LeaveEncashmentsTable
 {
@@ -17,6 +18,7 @@ class LeaveEncashmentsTable
     {
         return $table
             ->columns([
+                TextColumn::make('approval_status')->badge(),
                 TextColumn::make('employee.first_name'),
                 TextColumn::make('leaveType.name'),
                 TextColumn::make('days'),
@@ -27,7 +29,8 @@ class LeaveEncashmentsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
-                EditAction::make(),
+                ApprovalAction::make()->authorize(fn ($record): bool => auth()->user()->can('update', $record)),
+                EditAction::make()->visible(fn ($record): bool => in_array($record->approval_status, ['draft', 'rejected'], true)),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

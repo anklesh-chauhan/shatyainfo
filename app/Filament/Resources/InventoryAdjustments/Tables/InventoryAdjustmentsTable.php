@@ -13,6 +13,7 @@ class InventoryAdjustmentsTable
     {
         return $table
             ->columns([
+                TextColumn::make('approval.approval_status')->label('Approval')->badge()->placeholder('Not submitted'),
                 TextColumn::make('adjustment_number')
                     ->label('Document No.')
                     ->searchable()

@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-use App\Models\BaseModel;
+use App\Traits\HasHrApproval;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LeaveAdjustment extends BaseModel
 {
-    use HasFactory;
+    use HasFactory, HasHrApproval;
 
     protected $fillable = [
         'employee_id',
@@ -22,7 +22,7 @@ class LeaveAdjustment extends BaseModel
     ];
 
     protected $casts = [
-        'days'           => 'decimal:2',
+        'days' => 'decimal:2',
         'effective_date' => 'date',
     ];
 
@@ -43,7 +43,7 @@ class LeaveAdjustment extends BaseModel
         int $leaveTypeId
     ): Builder {
         return $q->where('employee_id', $employeeId)
-                 ->where('leave_type_id', $leaveTypeId);
+            ->where('leave_type_id', $leaveTypeId);
     }
 
     public function scopeAfter(Builder $q, $date): Builder

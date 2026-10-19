@@ -2,13 +2,13 @@
 
 namespace App\Domains\Leave\Handlers;
 
+use App\Domains\Approval\Contracts\ApprovalHandler;
 use App\Models\Approval;
 use App\Models\LeaveApplication;
-use Illuminate\Database\Eloquent\Model;
-use LogicException;
-use App\Domains\Approval\Contracts\ApprovalHandler;
 use App\Services\Attendance\LeaveBalanceCalculator;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use LogicException;
 
 class LeaveApprovalHandler implements ApprovalHandler
 {
@@ -24,14 +24,15 @@ class LeaveApprovalHandler implements ApprovalHandler
     {
         if (! $model instanceof LeaveApplication) {
             throw new LogicException(
-                'LeaveApprovalHandler received invalid model: ' . $model::class
+                'LeaveApprovalHandler received invalid model: '.$model::class
             );
         }
 
         match ($approval->approval_status) {
             'approved' => $this->approve($model),
             'rejected' => $this->reject($model),
-            default    => null, // draft / pending → no action
+            'cancelled' => $this->cancel($model),
+            default => null, // draft / pending → no action
         };
     }
 
@@ -43,9 +44,9 @@ class LeaveApprovalHandler implements ApprovalHandler
         }
 
         // 1️⃣ Update domain state
-        $leave->update([
+        $leave->forceFill([
             'approval_status' => 'approved',
-        ]);
+        ])->saveQuietly();
 
         $leave->instances()->update([
             'approval_status' => 'approved',
@@ -71,9 +72,9 @@ class LeaveApprovalHandler implements ApprovalHandler
             return;
         }
 
-        $leave->update([
+        $leave->forceFill([
             'approval_status' => 'rejected',
-        ]);
+        ])->saveQuietly();
 
         $leave->instances()->update([
             'approval_status' => 'rejected',
@@ -83,5 +84,12 @@ class LeaveApprovalHandler implements ApprovalHandler
         Cache::forget(
             "leave_balance:{$leave->employee_id}:{$leave->leave_type_id}"
         );
+    }
+
+    protected function cancel(LeaveApplication $leave): void
+    {
+        $leave->forceFill(['approval_status' => 'cancelled', 'revoked_at' => now()])->saveQuietly();
+        $leave->instances()->update(['approval_status' => 'cancelled']);
+        Cache::forget("leave_balance:{$leave->employee_id}:{$leave->leave_type_id}");
     }
 }

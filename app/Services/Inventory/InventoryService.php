@@ -36,6 +36,11 @@ class InventoryService
         }
 
         DB::transaction(function () use ($adjustment, $userId): void {
+            $adjustment = $adjustment->newQuery()->lockForUpdate()->findOrFail($adjustment->id);
+            if ($adjustment->isPosted()) {
+                return;
+            }
+            $adjustment->assertApprovalComplete();
             $quantity = (float) $adjustment->quantity;
 
             if ($quantity <= 0) {
@@ -66,7 +71,7 @@ class InventoryService
                 'status' => InventoryDocumentStatus::Posted,
                 'posted_by' => $userId,
                 'posted_at' => now(),
-            ])->save();
+            ])->saveQuietly();
         });
     }
 
@@ -77,6 +82,11 @@ class InventoryService
         }
 
         DB::transaction(function () use ($transfer, $userId): void {
+            $transfer = $transfer->newQuery()->lockForUpdate()->findOrFail($transfer->id);
+            if ($transfer->isPosted()) {
+                return;
+            }
+            $transfer->assertApprovalComplete();
             if ((int) $transfer->from_location_master_id === (int) $transfer->to_location_master_id) {
                 throw new RuntimeException('Source and destination locations must be different.');
             }
@@ -111,7 +121,7 @@ class InventoryService
                 'status' => InventoryDocumentStatus::Posted,
                 'posted_by' => $userId,
                 'posted_at' => now(),
-            ])->save();
+            ])->saveQuietly();
         });
     }
 
@@ -165,7 +175,13 @@ class InventoryService
         }
 
         DB::transaction(function () use ($grn, $userId): void {
+            $grn = $grn->newQuery()->lockForUpdate()->findOrFail($grn->id);
+            if ($grn->isPosted()) {
+                return;
+            }
+            $grn->assertApprovalComplete();
             $grn->loadMissing(['lines.purchaseOrderLine', 'purchaseOrder']);
+            $grn->purchaseOrder?->assertApprovalComplete();
 
             if ($grn->lines->isEmpty()) {
                 throw new RuntimeException('GRN must have at least one line before posting.');
@@ -208,7 +224,7 @@ class InventoryService
                     if ($poLine !== null) {
                         $poLine->forceFill([
                             'quantity_received' => (float) $poLine->quantity_received + $quantity,
-                        ])->save();
+                        ])->saveQuietly();
                     }
                 }
             }
@@ -217,7 +233,7 @@ class InventoryService
                 'status' => GoodsReceiptNoteStatus::Posted,
                 'posted_by' => $userId,
                 'posted_at' => now(),
-            ])->save();
+            ])->saveQuietly();
 
             $grn->purchaseOrder?->refreshReceiptStatus();
         });
@@ -230,7 +246,13 @@ class InventoryService
         }
 
         DB::transaction(function () use ($challan, $userId): void {
+            $challan = $challan->newQuery()->lockForUpdate()->findOrFail($challan->id);
+            if ($challan->isPosted()) {
+                return;
+            }
+            $challan->assertApprovalComplete();
             $challan->loadMissing(['lines.salesDocumentItem', 'salesInvoice']);
+            $challan->salesInvoice?->assertApprovalComplete();
 
             if ($challan->lines->isEmpty()) {
                 throw new RuntimeException('Delivery challan must have at least one line before posting.');
@@ -273,7 +295,7 @@ class InventoryService
                     if ($invoiceItem !== null) {
                         $invoiceItem->forceFill([
                             'quantity_delivered' => (float) $invoiceItem->quantity_delivered + $quantity,
-                        ])->save();
+                        ])->saveQuietly();
                     }
                 }
             }
@@ -282,7 +304,7 @@ class InventoryService
                 'status' => DeliveryChallanStatus::Posted,
                 'posted_by' => $userId,
                 'posted_at' => now(),
-            ])->save();
+            ])->saveQuietly();
 
             $challan->salesInvoice?->refreshDeliveryStatus();
         });

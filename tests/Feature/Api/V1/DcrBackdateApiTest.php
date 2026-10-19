@@ -123,7 +123,7 @@ it('submits a visit DCR from an open back date', function () {
 
     $this->postJson('/api/v1/dcrs/'.$visit->sales_dcr_id.'/submit')
         ->assertSuccessful()
-        ->assertJsonPath('data.approval_status', 'submitted')
+        ->assertJsonPath('data.approval_status', 'approved')
         ->assertJsonPath('data.dcr_date', today()->subDay()->toDateString());
 });
 

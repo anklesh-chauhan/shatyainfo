@@ -2,29 +2,26 @@
 
 namespace App\Filament\Resources\ApprovalFlows\RelationManagers;
 
-use Filament\Actions\AssociateAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DissociateAction;
-use Filament\Actions\DissociateBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
-use Filament\Tables\Columns\IconColumn;
 
 class ApprovalFlowStepsRelationManager extends RelationManager
 {
@@ -40,6 +37,7 @@ class ApprovalFlowStepsRelationManager extends RelationManager
                     ->required(),
 
                 Select::make('job_role_id')
+                    ->helperText('Exactly one active employee must match this role and territory on the same position. The requester cannot approve their own request.')
                     ->relationship('jobRole', 'name')
                     ->searchable()
                     ->preload()
@@ -61,7 +59,10 @@ class ApprovalFlowStepsRelationManager extends RelationManager
                     ->default(24)
                     ->required(),
 
-                Toggle::make('can_skip')->default(false),
+                Toggle::make('can_skip')
+                    ->label('Skip if no approver is available')
+                    ->helperText('Optional steps may be skipped, but at least one actionable step must remain. Ambiguous matches are never skipped.')
+                    ->default(false),
             ])
             ->columns(2);
     }

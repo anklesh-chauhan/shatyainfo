@@ -27,6 +27,7 @@ class LeaveApplicationResource extends JsonResource
             'approval_status' => $this->approval_status,
             'reason' => $this->reason,
             'payroll_locked' => (bool) $this->payroll_locked,
+            'cancellation_status' => $this->latestCancellation?->approval_status,
             'can_cancel' => FieldLeaveService::canCancel($this->resource),
             'leave_type' => $this->whenLoaded('leaveType', fn (): ?array => $this->leaveType ? [
                 'id' => $this->leaveType->id,

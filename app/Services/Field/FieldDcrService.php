@@ -2,10 +2,12 @@
 
 namespace App\Services\Field;
 
+use App\Models\ApprovalSetting;
 use App\Models\SalesDcr;
 use App\Models\User;
 use App\Models\VisitPreference;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class FieldDcrService
@@ -39,10 +41,27 @@ class FieldDcrService
             ]);
         }
 
-        $dcr->update([
-            'approval_status' => 'submitted',
-            'submitted_at' => now(),
-        ]);
+        DB::transaction(function () use ($dcr): void {
+            $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
+            $this->assertEditable($dcr);
+            if (ApprovalSetting::moduleRequiresApproval(SalesDcr::class)) {
+                try {
+                    $dcr->startApproval();
+                } catch (\LogicException $exception) {
+                    throw ValidationException::withMessages(['approval' => $exception->getMessage()]);
+                }
+            } else {
+                $dcr->prepareOperationalApproval();
+                $dcr->forceFill([
+                    'approval_status' => 'approved',
+                    'submitted_at' => now(),
+                    'approved_at' => now(),
+                    'approved_by' => null,
+                    'total_expense_approved' => $dcr->total_expense,
+                    'total_expense_rejected' => 0,
+                ])->saveQuietly();
+            }
+        });
 
         return $this->findOwned($user, $dcr->id);
     }
@@ -56,9 +75,10 @@ class FieldDcrService
 
     public function assertEditable(SalesDcr $dcr): void
     {
-        if ($dcr->approval_status !== 'draft') {
+        $dcr->assertApprovalDocumentEditable();
+        if (! in_array($dcr->approval_status, ['draft', 'rejected'], true)) {
             throw ValidationException::withMessages([
-                'dcr' => 'Only draft DCRs can be modified.',
+                'dcr' => 'Only draft or rejected DCRs can be modified.',
             ]);
         }
 

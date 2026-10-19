@@ -4,6 +4,7 @@ namespace App\Filament\Actions;
 
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class ApprovalAction extends Action
@@ -39,7 +40,13 @@ class ApprovalAction extends Action
                 return;
             }
 
-            $record->startApprovalFromRules();
+            try {
+                $record->startApprovalFromRules();
+            } catch (\LogicException|ValidationException $exception) {
+                Notification::make()->title('Unable to submit for approval')->body($exception->getMessage())->danger()->send();
+
+                return;
+            }
 
             $livewire->dispatch('refresh-sidebar');
 

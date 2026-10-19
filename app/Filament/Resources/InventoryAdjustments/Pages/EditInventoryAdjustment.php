@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\InventoryAdjustments\Pages;
 
+use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\InventoryAdjustments\InventoryAdjustmentResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -16,12 +17,13 @@ class EditInventoryAdjustment extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ApprovalAction::make(),
             Action::make('post')
                 ->label('Post Adjustment')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
                 ->requiresConfirmation()
-                ->visible(fn (): bool => $this->record->isEditable())
+                ->visible(fn (): bool => ! $this->record->isPosted() && $this->record->canProceedAfterApproval())
                 ->action(function (): void {
                     try {
                         $this->record->post();
@@ -64,6 +66,6 @@ class EditInventoryAdjustment extends EditRecord
 
     protected function canEdit(): bool
     {
-        return $this->record->isEditable();
+        return ! $this->record->isPosted();
     }
 }

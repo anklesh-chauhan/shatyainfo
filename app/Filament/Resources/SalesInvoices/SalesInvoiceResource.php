@@ -140,7 +140,7 @@ class SalesInvoiceResource extends BaseResource
                         ->label('Create Delivery Challan')
                         ->icon('heroicon-o-truck')
                         ->color('warning')
-                        ->visible(fn (SalesInvoice $record): bool => $record->hasPendingDelivery())
+                        ->visible(fn (SalesInvoice $record): bool => $record->hasPendingDelivery() && $record->canProceedAfterApproval())
                         ->url(fn (SalesInvoice $record): string => route('filament.admin.resources.delivery-challans.create', [
                             'sales_invoice_id' => $record->id,
                         ])),

@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-use App\Models\BaseModel;
+use App\Traits\HasHrApproval;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LeaveEncashment extends BaseModel
 {
-    use HasFactory;
+    use HasFactory, HasHrApproval;
 
     protected $fillable = [
         'employee_id',
@@ -21,9 +21,9 @@ class LeaveEncashment extends BaseModel
     ];
 
     protected $casts = [
-        'days'          => 'decimal:2',
-        'amount'        => 'decimal:2',
-        'encashed_on'   => 'date',
+        'days' => 'decimal:2',
+        'amount' => 'decimal:2',
+        'encashed_on' => 'date',
         'payroll_month' => 'date',
     ];
 
@@ -34,7 +34,7 @@ class LeaveEncashment extends BaseModel
         int $leaveTypeId
     ): Builder {
         return $q->where('employee_id', $employeeId)
-                 ->where('leave_type_id', $leaveTypeId);
+            ->where('leave_type_id', $leaveTypeId);
     }
 
     public function scopeAfter(Builder $q, $date): Builder

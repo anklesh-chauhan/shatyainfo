@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DeliveryChallans\Pages;
 
+use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\DeliveryChallans\DeliveryChallanResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -16,6 +17,7 @@ class EditDeliveryChallan extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ApprovalAction::make(),
             Action::make('post')
                 ->label('Post to Stock')
                 ->icon('heroicon-o-check-circle')
@@ -23,7 +25,7 @@ class EditDeliveryChallan extends EditRecord
                 ->requiresConfirmation()
                 ->modalHeading('Post delivery challan to inventory?')
                 ->modalDescription('This will reduce stock at the dispatch location and update delivered quantities on the linked sales invoice.')
-                ->visible(fn (): bool => $this->record->isEditable())
+                ->visible(fn (): bool => ! $this->record->isPosted() && $this->record->canProceedAfterApproval())
                 ->action(function (): void {
                     try {
                         $this->record->post();
@@ -66,6 +68,6 @@ class EditDeliveryChallan extends EditRecord
 
     protected function canEdit(): bool
     {
-        return $this->record->isEditable();
+        return ! $this->record->isPosted();
     }
 }

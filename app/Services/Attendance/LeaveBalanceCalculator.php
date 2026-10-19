@@ -60,30 +60,34 @@ class LeaveBalanceCalculator
             ->whereDate('date', '<=', $asOnDate)
             ->sum('pay_factor');
 
-        $adjustedPositive = LeaveAdjustment::positive()
+        $adjustedPositive = LeaveAdjustment::approved()->positive()
             ->forEmployee($employeeId, $leaveTypeId)
             ->after($balance->year_start_date)
+            ->whereDate('effective_date', '<=', $asOnDate)
             ->sum('days');
 
-        $adjustedNegative = LeaveAdjustment::negative()
+        $adjustedNegative = LeaveAdjustment::approved()->negative()
             ->forEmployee($employeeId, $leaveTypeId)
             ->after($balance->year_start_date)
+            ->whereDate('effective_date', '<=', $asOnDate)
             ->sum('days');
 
-        $encashed = LeaveEncashment::forEmployee($employeeId, $leaveTypeId)
+        $encashed = LeaveEncashment::approved()->forEmployee($employeeId, $leaveTypeId)
             ->after($balance->year_start_date)
+            ->whereDate('encashed_on', '<=', $asOnDate)
             ->sum('days');
 
         $lapsed = LeaveLapseRecord::forEmployee($employeeId, $leaveTypeId)
             ->after($balance->year_start_date)
+            ->whereDate('lapsed_on', '<=', $asOnDate)
             ->sum('days');
 
         $closing =
             $balance->opening_balance
-            + $adjustedNegative
+            + $adjustedPositive
             - $applied
-            + $lapsed
-            - $adjustedPositive
+            - $lapsed
+            - $adjustedNegative
             - $encashed;
 
         return compact(
@@ -122,32 +126,37 @@ class LeaveBalanceCalculator
             ->where('employee_id', $employeeId)
             ->where('leave_type_id', $leaveTypeId)
             ->whereDate('date', '>', $cutoffDate)
+            ->whereDate('date', '<=', $asOnDate)
             ->sum('pay_factor');
 
-        $adjustedPositive = LeaveAdjustment::positive()
+        $adjustedPositive = LeaveAdjustment::approved()->positive()
             ->forEmployee($employeeId, $leaveTypeId)
             ->after($cutoffDate)
+            ->whereDate('effective_date', '<=', $asOnDate)
             ->sum('days');
 
-        $adjustedNegative = LeaveAdjustment::negative()
+        $adjustedNegative = LeaveAdjustment::approved()->negative()
             ->forEmployee($employeeId, $leaveTypeId)
             ->after($cutoffDate)
+            ->whereDate('effective_date', '<=', $asOnDate)
             ->sum('days');
 
-        $encashed = LeaveEncashment::forEmployee($employeeId, $leaveTypeId)
+        $encashed = LeaveEncashment::approved()->forEmployee($employeeId, $leaveTypeId)
             ->after($cutoffDate)
+            ->whereDate('encashed_on', '<=', $asOnDate)
             ->sum('days');
 
         $lapsed = LeaveLapseRecord::forEmployee($employeeId, $leaveTypeId)
             ->after($cutoffDate)
+            ->whereDate('lapsed_on', '<=', $asOnDate)
             ->sum('days');
 
         $closing =
             $snapshot->closing_balance
-            + $adjustedNegative
+            + $adjustedPositive
             - $applied
-            + $lapsed
-            - $adjustedPositive
+            - $lapsed
+            - $adjustedNegative
             - $encashed;
 
         return compact(

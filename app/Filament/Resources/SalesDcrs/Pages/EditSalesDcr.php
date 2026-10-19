@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SalesDcrs\Pages;
 
 use App\AutoCalculateExpensesAction;
+use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\SalesDcrs\SalesDcrResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
@@ -17,6 +18,7 @@ class EditSalesDcr extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ApprovalAction::make(),
             AutoCalculateExpensesAction::make(),
             ViewAction::make(),
             DeleteAction::make(),

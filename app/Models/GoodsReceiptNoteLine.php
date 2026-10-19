@@ -2,10 +2,19 @@
 
 namespace App\Models;
 
+use App\Traits\LocksWithApprovalDocument;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoodsReceiptNoteLine extends BaseModel
 {
+    use LocksWithApprovalDocument;
+
+    public function approvalDocument(): ?Model
+    {
+        return $this->goodsReceiptNote()->first();
+    }
+
     protected $fillable = [
         'goods_receipt_note_id',
         'purchase_order_line_id',

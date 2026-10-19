@@ -1,10 +1,13 @@
 <?php
 
 use App\Models\ApprovalFlow;
+use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalSetting;
 use App\Models\DailyAttendance;
+use App\Models\JobRole;
 use App\Models\LeaveApplication;
 use App\Models\LeaveBalance;
+use App\Models\Position;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 
@@ -20,13 +23,19 @@ function enableLeaveApproval(): void
         ]);
     }
 
-    ApprovalFlow::query()->create([
+    $flow = ApprovalFlow::query()->create([
         'module' => 'LeaveApplication',
         'active' => true,
         'condition_type' => 'amount',
         'version' => 1,
         'priority' => 1,
     ]);
+    $manager = reportingUser('Leave API Manager');
+    $role = JobRole::create(['name' => 'Leave Manager', 'code' => 'LAM', 'level' => 2]);
+    $position = Position::create(['name' => 'Leave Manager', 'code' => 'LAMP', 'job_role_id' => $role->id]);
+    $manager->employee->positions()->attach($position->id);
+    ApprovalFlowStep::create(['approval_flow_id' => $flow->id, 'job_role_id' => $role->id, 'step_order' => 1, 'territory_scope' => 'all']);
+
 }
 
 it('lists a month of attendance for the signed-in employee', function () {

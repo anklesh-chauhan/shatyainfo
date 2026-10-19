@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Services\Attendance\AttendanceStatusResolver;
+use App\Traits\RequiresHrChangeApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DailyAttendance extends BaseModel
 {
+    use RequiresHrChangeApproval;
+
     protected $table = 'daily_attendances';
 
     protected $fillable = [
@@ -106,7 +108,7 @@ class DailyAttendance extends BaseModel
      */
     public function assignStatus(array $context = []): void
     {
-        $status = app(\App\Services\Attendance\AttendanceStatusResolver::class)
+        $status = app(AttendanceStatusResolver::class)
             ->resolve(array_merge([
                 'final_working_minutes' => $this->final_working_minutes,
                 'is_weekly_off' => $this->is_weekly_off,
@@ -128,5 +130,4 @@ class DailyAttendance extends BaseModel
     {
         return $this->employee_id === $user->employee->id;
     }
-
 }

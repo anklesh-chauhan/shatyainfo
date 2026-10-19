@@ -16,6 +16,7 @@ class GoodsReceiptNotesTable
     {
         return $table
             ->columns([
+                TextColumn::make('approval.approval_status')->label('Approval')->badge()->placeholder('Not submitted'),
                 TextColumn::make('document_number')
                     ->label('GRN Number')
                     ->searchable()

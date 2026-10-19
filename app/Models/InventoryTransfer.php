@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Enums\InventoryDocumentStatus;
 use App\Services\Inventory\InventoryService;
+use App\Traits\HasOperationalApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Auth;
 
 class InventoryTransfer extends BaseModel
 {
+    use HasOperationalApproval;
+
     protected $fillable = [
         'transfer_number',
         'item_master_id',
@@ -65,7 +68,7 @@ class InventoryTransfer extends BaseModel
 
     public function isEditable(): bool
     {
-        return $this->status === InventoryDocumentStatus::Draft && ! $this->isPosted();
+        return $this->status === InventoryDocumentStatus::Draft && ! $this->isPosted() && ! $this->approvalDocumentIsLocked();
     }
 
     public function post(): void

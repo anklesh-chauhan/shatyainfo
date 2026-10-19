@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Enums\GoodsReceiptNoteStatus;
 use App\Services\Inventory\InventoryService;
+use App\Traits\HasOperationalApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 class GoodsReceiptNote extends BaseModel
 {
+    use HasOperationalApproval;
+
     protected $fillable = [
         'document_number',
         'purchase_order_id',
@@ -63,7 +66,7 @@ class GoodsReceiptNote extends BaseModel
 
     public function isEditable(): bool
     {
-        return $this->status === GoodsReceiptNoteStatus::Draft && ! $this->isPosted();
+        return $this->status === GoodsReceiptNoteStatus::Draft && ! $this->isPosted() && ! $this->approvalDocumentIsLocked();
     }
 
     public function post(): void

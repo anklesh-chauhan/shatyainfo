@@ -3,9 +3,18 @@
 namespace App\Models;
 
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\LocksWithApprovalDocument;
+use Illuminate\Database\Eloquent\Model;
 
 class SalesDocumentItem extends BaseModel
 {
+    use LocksWithApprovalDocument;
+
+    public function approvalDocument(): ?Model
+    {
+        return $this->document()->first();
+    }
+
     use HasApprovalWorkflow;
 
     protected $table = 'sales_document_items';

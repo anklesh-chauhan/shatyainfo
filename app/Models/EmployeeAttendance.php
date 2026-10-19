@@ -2,16 +2,15 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon;
-
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\RequiresHrChangeApproval;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeAttendance extends BaseModel
 {
     use HasApprovalWorkflow;
+    use RequiresHrChangeApproval;
 
     protected $fillable = [
         'employee_id',

@@ -5,12 +5,14 @@ namespace App\Models;
 use App\Services\EmployeeReportingService;
 use App\Services\OrganizationalUnitService;
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\RequiresHrChangeApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmploymentDetail extends BaseModel
 {
     use HasApprovalWorkflow, SoftDeletes;
+    use RequiresHrChangeApproval;
 
     protected $fillable = [
         'employee_id', 'ticket_no', 'department_id', 'job_title_id', 'grade_id',

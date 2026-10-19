@@ -67,7 +67,7 @@ class ApplyRegistrationOnboarding implements NotTenantAware, ShouldQueue
                         if (! empty($data['employees'])) {
                             $service->saveEmployees($data['employees']);
                         }
-                        $service->mark('completed');
+                        $service->mark('pending');
                     }
                     $organization->refresh();
                     $metadata = $organization->metadata ?? [];

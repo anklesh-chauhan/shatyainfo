@@ -2,12 +2,27 @@
 
 namespace App\Models;
 
-use App\Models\BaseModel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Validation\ValidationException;
 
 class LeaveApplication extends BaseModel
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $leave): void {
+            if ($leave->approval()->whereIn('approval_status', ['pending', 'approved'])->exists() || $leave->payroll_locked) {
+                throw ValidationException::withMessages(['leave' => 'Use the leave workflow to change submitted or payroll-locked leave.']);
+            }
+        });
+        static::deleting(function (self $leave): void {
+            if (in_array($leave->approval_status, ['pending', 'approved'], true) || $leave->payroll_locked) {
+                throw ValidationException::withMessages(['leave' => 'Cancel submitted leave through its workflow.']);
+            }
+        });
+    }
 
     protected $fillable = [
         'employee_id',
@@ -36,7 +51,12 @@ class LeaveApplication extends BaseModel
     // 🔗 Polymorphic approval
     public function approval()
     {
-        return $this->morphOne(Approval::class, 'approvable');
+        return $this->morphOne(Approval::class, 'approvable')->latestOfMany();
+    }
+
+    public function latestCancellation(): HasOne
+    {
+        return $this->hasOne(LeaveCancellation::class)->latestOfMany();
     }
 
     // 🔗 Date-wise instances
@@ -48,7 +68,7 @@ class LeaveApplication extends BaseModel
     // 🔗 Employee
     public function employee()
     {
-        return $this->belongsTo(User::class, 'employee_id');
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     // 🔗 Leave Type

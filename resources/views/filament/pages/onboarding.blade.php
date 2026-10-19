@@ -21,8 +21,8 @@
     @else
         @php
             $checklist = $this->checklist();
-            $titles = ['A great place to start.', 'Tell us about your company.', 'Bring your team together.', 'Ready for your first day.'];
-            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Add employees and give everyone a place in your organization.', 'Review your setup, then open your workspace.'];
+            $titles = ['A great place to start.', 'Tell us about your company.', 'Bring your team together.', 'Choose how approvals work.', 'Ready for your first day.'];
+            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Add employees and give everyone a place in your organization.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -31,14 +31,14 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Add employees', 'Review & finish'] as $label)
+                    @foreach (['Company information', 'Add employees', 'Approvals', 'Review & finish'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
                 <p class="setup-account">Signed in as<br>{{ auth()->user()->email }}</p>
             </aside>
             <section class="setup-content" aria-label="Current setup step" wire:key="setup-step-{{ $step }}">
-                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 3' }}</p>
+                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 4' }}</p>
                 @if ($errors->any())<div class="setup-error" role="alert"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
                 @if ($step === 0)
                     <div class="setup-welcome-art" aria-hidden="true"><span>✦</span><span>✓</span><span>＋</span></div>
@@ -70,11 +70,63 @@
                     <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
                     <p class="setup-hint">After adding employees, return to Setup Checklist to continue.</p>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
+                @elseif ($step === 3)
+                    <h2>Does your team need approvals?</h2>
+                    <p>We will create the settings and flows in your existing admin pages. L1 and L2 are human approval steps.</p>
+                    <form wire:submit="reviewApprovals" class="setup-form">
+                        @if ($this->approvalSetup()->hasExistingConfiguration() || $this->approvalAlreadyApplied())
+                            <div class="setup-note">Approval configuration already exists. Continue to retain it. Use the links below to make changes.</div>
+                        @else
+                            <div class="setup-field"><label for="approval-required">Approval required?</label><x-filament::input.wrapper><x-filament::input.select id="approval-required" wire:model.live="approval.required"><option value="">Choose an option</option><option value="no">No approvals required</option><option value="yes">Yes, configure approvals</option></x-filament::input.select></x-filament::input.wrapper></div>
+                            @if (($approval['required'] ?? '') === 'yes')
+                                <p class="setup-hint">Choose modules with approval support.</p>
+                                @foreach ($this->approvalSetup()->groups() as $group => $modules)
+                                    <fieldset class="setup-note"><legend>{{ $group }}</legend>
+                                        @foreach ($modules as $module => $label)
+                                            <label style="display:block;margin:10px 0"><input type="checkbox" wire:model.live="approval.modules" value="{{ $module }}"> {{ $label }}</label>
+                                        @endforeach
+                                    </fieldset>
+                                @endforeach
+                                <p class="setup-hint">HR Change Requests shares one flow for salary, employment, attendance, overtime, and comp-off changes.</p>
+                                <h3>Common approval setup</h3>
+                                @include('filament.pages.partials.onboarding-approval-routing', ['prefix' => 'approval.common'])
+                                <p class="setup-hint">Territory-scoped approvers require a flow territory. The role must resolve to one active employee with a login, excluding you. L1 and L2 must resolve to different people. Request-time checks also prevent self-approval.</p>
+                                @foreach (($approval['modules'] ?? []) as $module)
+                                    @if (isset($this->approvalSetup()->moduleOptions()[$module]))
+                                        <div class="setup-note" wire:key="approval-override-{{ $module }}">
+                                            <label><input type="checkbox" wire:model.live="approval.overrides.{{ $module }}.custom"> Customize {{ $this->approvalSetup()->moduleOptions()[$module] }}</label>
+                                            @if (data_get($approval, 'overrides.'.$module.'.custom'))
+                                                @include('filament.pages.partials.onboarding-approval-routing', ['prefix' => 'approval.overrides.'.$module])
+                                            @endif
+                                        </div>
+                                    @endif
+                                @endforeach
+                            @endif
+                        @endif
+                        <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip">Continue later</button><x-filament::button type="submit" wire:loading.attr="disabled">Review setup</x-filament::button></div></div>
+                    </form>
                 @else
                     <div class="setup-success-icon" aria-hidden="true">✓</div><h2>Your workspace is taking shape</h2><p>Check your team’s details and reporting managers before you finish.</p>
                     <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
+                    <div class="setup-note">
+                        <h3>Approval setup</h3>
+                        @if (($approvalReview['required'] ?? '') === 'existing')
+                            <p>Keep the existing approval settings and flows. Your admin changes are preserved.</p>
+                        @elseif (($approvalReview['required'] ?? '') === 'no')
+                            <p>No approvals required. Approval modules will remain disabled.</p>
+                        @else
+                            @foreach (($approvalReview['flows'] ?? []) as $flow)
+                                <p><strong>{{ $flow['label'] }}</strong> — {{ $flow['territory'] }}</p>
+                                <ul>@foreach ($flow['steps'] as $route)<li>L{{ $loop->iteration }}: {{ $route['role'] }} — {{ $route['approver'] }} ({{ ['all' => 'Any territory', 'self' => 'Selected territory', 'children' => 'Selected territory and children'][$route['territory_scope']] }})</li>@endforeach</ul>
+                            @endforeach
+                            <p>These flows will become active when you finish setup.</p>
+                        @endif
+                    </div>
                     <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Open my workspace</x-filament::button></div>
+                @endif
+                @if ($step >= 3)
+                    <p class="setup-hint"><a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalSettings\ApprovalSettingResource::getUrl('index', panel: 'admin') }}">Approval Settings</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalFlows\ApprovalFlowResource::getUrl('index', panel: 'admin') }}">Approval Flows</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalDelegations\ApprovalDelegationResource::getUrl('index', panel: 'admin') }}">Approval Delegations</a></p>
                 @endif
                 @if ($checklist['company'] && ($detailsUrl = $this->organizationDetailsUrl()))
                     <p class="setup-hint"><a class="setup-review-link" href="{{ $detailsUrl }}">Update full organization details and logo &rarr;</a><br>Manage your logo, legal information, contact details and other company settings.</p>

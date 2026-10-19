@@ -27,15 +27,23 @@ class ApprovalDomainDispatcher
                 continue;
             }
 
-            $supportedModel = $handlerClass::supports();
-
-            $this->handlerMap[$supportedModel] = $handlerClass;
+            foreach ((array) $handlerClass::supports() as $supportedModel) {
+                $this->handlerMap[$supportedModel] = $handlerClass;
+            }
         }
+    }
+
+    /** @return array<class-string<Model>> */
+    public function supportedModels(): array
+    {
+        return array_keys($this->handlerMap);
     }
 
     protected function resolveAllHandlers(): array
     {
         return [
+            OperationalApprovalHandler::class,
+            HrApprovalHandler::class,
             LeaveApprovalHandler::class,
             QuoteApprovalHandler::class,
             SalesTourPlanApprovalHandler::class,

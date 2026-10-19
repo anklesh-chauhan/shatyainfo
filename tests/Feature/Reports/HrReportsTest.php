@@ -7,6 +7,7 @@ use App\Filament\Pages\Reports\PunchVsTour;
 use App\Filament\Pages\Reports\ReportsOverview;
 use App\Models\DailyAttendance;
 use App\Models\LeaveAdjustment;
+use App\Models\LeaveApplication;
 use App\Models\Visit;
 use App\Services\Reports\AttendanceRegisterQuery;
 use App\Services\Reports\LeaveLedgerQuery;
@@ -187,4 +188,16 @@ it('exposes phase 4 reports on the overview catalog', function () {
 
 it('hides the legacy HR leave ledger from navigation', function () {
     expect(LegacyLeaveLedger::shouldRegisterNavigation())->toBeFalse();
+});
+
+it('excludes unapproved and cancelled leave from the ledger', function () {
+    $user = reportingUser('Approved Ledger');
+    $this->actingAs($user);
+    $type = reportingLeaveType('Ledger Status');
+    $leave = LeaveApplication::create(['employee_id' => $user->employee->id, 'leave_type_id' => $type->id, 'from_date' => today(), 'to_date' => today()->addDays(2)]);
+    foreach (['applied', 'approved', 'cancelled'] as $offset => $status) {
+        $leave->instances()->create(['employee_id' => $user->employee->id, 'leave_type_id' => $type->id, 'date' => today()->addDays($offset), 'pay_factor' => 1, 'approval_status' => $status]);
+    }
+    expect(app(LeaveLedgerQuery::class)->builder()->count())->toBe(1)
+        ->and((float) app(LeaveLedgerQuery::class)->builder()->sum('amount'))->toBe(-1.0);
 });

@@ -17,6 +17,7 @@ class ApprovalFlowForm
         return $schema
             ->components([
                 Section::make('Definition')
+                    ->description('Approval steps require a human decision. Job seniority does not skip steps, and a flow with no actionable steps cannot auto-approve.')
                     ->schema([
                         Select::make('module')
                             ->label('Module')

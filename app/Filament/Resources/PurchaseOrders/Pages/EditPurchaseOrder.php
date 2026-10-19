@@ -6,8 +6,10 @@ use App\Enums\PurchaseOrderStatus;
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\GoodsReceiptNotes\GoodsReceiptNoteResource;
 use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
+use App\Models\ApprovalSetting;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
+use App\Models\PurchaseOrder;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
@@ -26,9 +28,10 @@ class EditPurchaseOrder extends EditRecord
                 ->icon('heroicon-o-check-badge')
                 ->color('success')
                 ->requiresConfirmation()
-                ->visible(fn (): bool => $this->record->isEditable()
+                ->visible(fn (): bool => ! ApprovalSetting::moduleRequiresApproval(PurchaseOrder::class) && $this->record->isEditable()
                     && $this->record->status !== PurchaseOrderStatus::Approved)
                 ->action(function (): void {
+                    $this->record->assertApprovalComplete();
                     $this->record->forceFill([
                         'status' => PurchaseOrderStatus::Approved,
                         'approval_status' => 'approved',
@@ -51,6 +54,7 @@ class EditPurchaseOrder extends EditRecord
                 ->requiresConfirmation()
                 ->action(function (): void {
                     $purchaseOrder = $this->record->loadMissing('lines.item');
+                    $purchaseOrder->assertApprovalComplete();
 
                     $pendingLines = $purchaseOrder->lines->filter(
                         fn ($line): bool => $line->remainingQuantity() > 0
@@ -117,6 +121,6 @@ class EditPurchaseOrder extends EditRecord
 
     protected function canEdit(): bool
     {
-        return $this->record->isEditable();
+        return true;
     }
 }

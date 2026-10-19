@@ -2,11 +2,20 @@
 
 namespace App\Models;
 
+use App\Traits\LocksWithApprovalDocument;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrderLine extends BaseModel
 {
+    use LocksWithApprovalDocument;
+
+    public function approvalDocument(): ?Model
+    {
+        return $this->purchaseOrder()->first();
+    }
+
     protected $fillable = [
         'purchase_order_id',
         'item_master_id',

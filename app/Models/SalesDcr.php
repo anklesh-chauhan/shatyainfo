@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasOperationalApproval;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SalesDcr extends BaseModel
 {
-    use HasApprovalWorkflow, HasFactory, SoftDeletes;
+    use HasFactory, HasOperationalApproval, SoftDeletes;
 
     protected $fillable = [
         'dcr_date',

@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Enums\DeliveryChallanStatus;
 use App\Services\Inventory\InventoryService;
+use App\Traits\HasOperationalApproval;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 class DeliveryChallan extends BaseModel
 {
+    use HasOperationalApproval;
+
     protected $fillable = [
         'document_number',
         'sales_invoice_id',
@@ -63,7 +66,7 @@ class DeliveryChallan extends BaseModel
 
     public function isEditable(): bool
     {
-        return $this->status === DeliveryChallanStatus::Draft && ! $this->isPosted();
+        return $this->status === DeliveryChallanStatus::Draft && ! $this->isPosted() && ! $this->approvalDocumentIsLocked();
     }
 
     public function post(): void
