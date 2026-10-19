@@ -87,6 +87,7 @@ class EmployeeImportTemplate
             'job_role_level' => 'Positive whole number; new roles default to 1. This is descriptive hierarchy level, not a reporting link.',
             'position' => 'Required when defining a new position; specific seat name, for example Area Sales Manager - Mumbai.',
             'position_code' => 'Unique position code, maximum 255 characters. Required for assignment/reporting changes. Existing position codes can be used without repeating name/job role.',
+            'territory_codes' => 'Optional existing territory codes separated by semicolons, for example WEST;MUMBAI. Upload territories first. Assigns territories to the position, shared by all its employees. Blank preserves assignments. Conflicting existing assignments must be edited in Positions.',
             'grade' => 'Optional grade name, maximum 50 characters; reused by name and must match the department if already defined.',
             'job_title' => 'Optional title; reused by title and must match the department if already defined.',
             'org_unit' => 'Optional employee/position organizational unit name. Existing names must be unambiguous. This does not change the department\'s organizational unit; a department may be shared across employee org units. Division is derived automatically: a Division unit selects itself; a child unit uses its nearest Division ancestor. Configure parent units under Org Units before importing child units. Units outside a Division leave Division blank.',

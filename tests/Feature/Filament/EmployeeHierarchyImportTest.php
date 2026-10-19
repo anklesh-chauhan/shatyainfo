@@ -12,6 +12,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\TypeMaster;
 use App\Models\User;
+use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\EmployeeOnboardingImporter;
@@ -48,6 +49,8 @@ it('tracks onboarding from saved company and employee data before allowing compl
     expect(fn () => $service->finish())->toThrow(ValidationException::class);
     expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
     expect($service->checklist())->toMatchArray(['company' => true, 'structure' => true, 'employees' => true, 'review' => false, 'employee_count' => 4]);
+    app()->instance(CompanyOnboardingService::class, $service);
+    app(OnboardingApprovalService::class)->saveDraft(['required' => 'no']);
     $service->finish();
     expect($service->checklist()['review'])->toBeTrue();
 });

@@ -7,15 +7,63 @@ use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
+use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Locked;
+use Livewire\WithFileUploads;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class Onboarding extends Page
 {
+    use WithFileUploads;
+
+    public mixed $territoryFile = null;
+
+    #[Locked]
+    public array $territoryPreview = [];
+
+    public function updatedTerritoryFile(): void
+    {
+        $this->territoryPreview = [];
+    }
+
+    public function downloadTerritoryTemplate(): StreamedResponse
+    {
+        app(CompanyOnboardingService::class)->authorize();
+
+        return response()->streamDownload(function (): void {
+            echo "code,name,parent_code,status,description\nWEST,West,,active,\nMUMBAI,Mumbai,WEST,active,\n";
+        }, 'territories-import.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    public function previewTerritories(): void
+    {
+        app(CompanyOnboardingService::class)->authorize();
+        $this->territoryPreview = [];
+        $this->validate(['territoryFile' => ['required', 'file', 'mimes:csv,txt', 'max:2048']]);
+        $service = app(TerritoryOnboardingService::class);
+        $this->territoryPreview = $service->preview($service->readCsv($this->territoryFile->getRealPath()));
+    }
+
+    public function importTerritories(): void
+    {
+        $count = app(TerritoryOnboardingService::class)->import($this->territoryPreview);
+        $this->territoryPreview = [];
+        $this->reset('territoryFile');
+        Notification::make()->title($count.' territories created. Existing territories preserved.')->success()->send();
+    }
+
+    public function skipTerritories(): void
+    {
+        app(CompanyOnboardingService::class)->mark('territories_reviewed');
+        $this->resetErrorBag();
+        $this->step = 3;
+    }
+
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedRocketLaunch;
 
     protected static ?string $navigationLabel = 'Setup Checklist';
@@ -53,7 +101,7 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->authorize();
         abort_unless(Tenant::current()->accountIsConfigured(), 409);
         $this->approvalReview = $this->approvalSetup()->saveDraft($this->approval);
-        $this->step = 4;
+        $this->step = 5;
     }
 
     public function approvalAlreadyApplied(): bool
@@ -147,11 +195,14 @@ class Onboarding extends Page
             $this->approval['required'] = 'existing';
         }
         if ($organization?->metadata['company_setup']['organization_saved'] ?? false) {
-            $this->step = 2;
+            $this->step = ($organization?->metadata['company_setup']['territories_reviewed'] ?? false) ? 3 : 2;
+        }
+        if ($organization?->metadata['company_setup']['employees_reviewed'] ?? false) {
+            $this->step = 4;
         }
         if ($this->approvalAlreadyApplied()) {
             $this->approvalReview = ['required' => 'existing', 'flows' => []];
-            $this->step = 4;
+            $this->step = 5;
         }
     }
 
@@ -164,13 +215,22 @@ class Onboarding extends Page
         if ($this->step === 0) {
             $this->step = 1;
         } elseif ($this->step === 2) {
+            if (! $service->checklist()['territory_count']) {
+                $this->addError('territories', 'Add territories or choose Set up later.');
+
+                return;
+            }
+            $service->mark('territories_reviewed');
+            $this->step = 3;
+        } elseif ($this->step === 3) {
             $checklist = $service->checklist();
             if (! $checklist['company'] || ! $checklist['employees']) {
                 $this->addError('checklist', 'Add at least one employee to continue, or choose Continue later.');
 
                 return;
             }
-            $this->step = 3;
+            $service->mark('employees_reviewed');
+            $this->step = 4;
         }
     }
 

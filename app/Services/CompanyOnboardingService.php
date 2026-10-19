@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
 use App\Models\Tenant;
+use App\Models\Territory;
 use App\Models\User;
 use App\Services\Approval\OnboardingApprovalService;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,8 @@ class CompanyOnboardingService
             'review' => $company && $employees > 0 && (bool) ($setup['completed'] ?? false),
             'unit_count' => $units,
             'employee_count' => $employees,
+            'territory_count' => Territory::query()->count(),
+            'unassigned_territory_count' => Employee::query()->whereDoesntHave('positions.territories')->count(),
         ];
     }
 

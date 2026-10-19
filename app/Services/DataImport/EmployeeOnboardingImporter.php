@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\JobRole;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
+use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Services\OrganizationalUnitService;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +28,7 @@ class EmployeeOnboardingImporter
             'mobile_number' => '9000000001', 'email' => '',
             'department' => 'Sales', 'job_role' => 'Sales Representative',
             'job_role_level' => '1', 'position' => 'Sales Representative - West',
-            'position_code' => 'SR-WEST', 'grade' => 'G1', 'job_title' => 'Sales Executive',
+            'position_code' => 'SR-WEST', 'territory_codes' => '', 'grade' => 'G1', 'job_title' => 'Sales Executive',
             'org_unit' => 'West Division', 'org_unit_type' => 'Division',
             'hire_date' => '2026-10-01', 'employment_type' => 'Permanent',
             'is_primary_position' => 'Yes', 'reports_to_position_code' => '',
@@ -54,6 +55,7 @@ class EmployeeOnboardingImporter
             'mobile_number' => [$existing ? 'sometimes' : 'required', 'string', 'max:100', Rule::unique('employees')->ignore($employee->id)],
             'email' => ['sometimes', 'email', 'max:100', Rule::unique('employees')->ignore($employee->id)],
             'department' => ['sometimes', 'string', 'max:100'],
+            'territory_codes' => ['sometimes', 'string', 'max:5000'],
             'grade' => ['sometimes', 'string', 'max:50'],
             'job_role_level' => ['sometimes', 'integer', 'min:1'],
             'hire_date' => ['sometimes', 'date_format:Y-m-d'],
@@ -85,6 +87,35 @@ class EmployeeOnboardingImporter
             $position = $this->master(Position::class, ['code' => $row['position_code']], $attributes, array_keys($attributes));
         } elseif ($role) {
             throw new ImportRowException('Add position and position_code to assign the job role to this employee.');
+        }
+
+        if (isset($row['territory_codes'])) {
+            if (! $position || strtolower($row['assignment_action'] ?? '') === 'remove') {
+                throw new ImportRowException('Territory codes require a position assignment.');
+            }
+            $codes = array_values(array_unique(array_map(fn (string $code): string => strtoupper(trim($code)), explode(';', $row['territory_codes']))));
+            if (in_array('', $codes, true)) {
+                throw new ImportRowException('Separate territory codes with a semicolon without empty entries.');
+            }
+            $territories = Territory::query()->whereIn('code', $codes)->get();
+            $found = $territories->map(fn (Territory $territory): string => strtoupper($territory->code))->all();
+            if (array_diff($codes, $found) !== []) {
+                throw new ImportRowException('Unknown territory codes: '.implode(', ', array_diff($codes, $found)).'. Import territories first.');
+            }
+            $ids = $territories->modelKeys();
+            sort($ids);
+            $currentIds = $position->territories()->pluck('territories.id')->all();
+            sort($currentIds);
+            if ($currentIds !== [] && $currentIds !== $ids) {
+                throw new ImportRowException('Position '.$position->code.' has conflicting territory assignments. Edit it in Positions first.');
+            }
+            if ($currentIds === []) {
+                $this->authorize('update', $position);
+                if ($position->approval_status === 'approved') {
+                    throw new ImportRowException('Approved position territory assignments must be changed through Positions.');
+                }
+                $position->territories()->syncWithoutDetaching($ids);
+            }
         }
         if ($position && $unit) {
             $divisionId = OrganizationalUnitService::divisionId($unit->id);
