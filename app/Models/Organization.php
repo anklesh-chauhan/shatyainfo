@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-use App\Traits\HasApprovalWorkflow;
-
 class Organization extends BaseModel
 {
-    use HasFactory, SoftDeletes, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasFactory, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -65,6 +62,11 @@ class Organization extends BaseModel
         'annual_revenue' => 'decimal:2',
         'metadata' => 'array',
     ];
+
+    public static function divisionsEnabled(): bool
+    {
+        return (bool) (static::query()->orderBy('id')->first()?->metadata['uses_divisions'] ?? true);
+    }
 
     public function bankDetail()
     {

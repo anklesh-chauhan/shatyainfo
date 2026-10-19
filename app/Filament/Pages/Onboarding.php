@@ -4,9 +4,11 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Jobs\SeedTenantMasters;
+use App\Models\Organization;
 use App\Models\Tenant;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
+use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -20,6 +22,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class Onboarding extends Page
 {
     use WithFileUploads;
+
+    public function usesDivisions(): bool
+    {
+        return Organization::divisionsEnabled();
+    }
 
     public mixed $territoryFile = null;
 
@@ -36,17 +43,23 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->authorize();
 
         return response()->streamDownload(function (): void {
-            echo "code,name,parent_code,status,description\nWEST,West,,active,\nMUMBAI,Mumbai,WEST,active,\n";
-        }, 'territories-import.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+            $path = tempnam(sys_get_temp_dir(), 'territory-template-');
+            try {
+                app(TerritoryImportTemplate::class)->write($path);
+                readfile($path);
+            } finally {
+                unlink($path);
+            }
+        }, 'territories-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 
     public function previewTerritories(): void
     {
         app(CompanyOnboardingService::class)->authorize();
         $this->territoryPreview = [];
-        $this->validate(['territoryFile' => ['required', 'file', 'mimes:csv,txt', 'max:2048']]);
+        $this->validate(['territoryFile' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:2048']]);
         $service = app(TerritoryOnboardingService::class);
-        $this->territoryPreview = $service->preview($service->readCsv($this->territoryFile->getRealPath()));
+        $this->territoryPreview = $service->preview($service->readFile($this->territoryFile->getRealPath(), strtolower($this->territoryFile->getClientOriginalExtension()) === 'xlsx'));
     }
 
     public function importTerritories(): void
@@ -179,6 +192,7 @@ class Onboarding extends Page
     {
         $organization = app(CompanyOnboardingService::class)->organization();
         $this->organization = [
+            'uses_divisions' => (int) ($organization?->metadata['uses_divisions'] ?? true),
             'name' => $organization?->name ?? Tenant::current()?->name,
             'email' => $organization?->email ?? auth()->user()->email,
             'phone' => $organization?->phone ?: (Tenant::current()?->registration_mobile ?? ''),
@@ -245,6 +259,7 @@ class Onboarding extends Page
     {
         $this->validate([
             'organization.name' => ['required', 'string', 'max:255'],
+            'organization.uses_divisions' => ['required', 'boolean'],
             'organization.email' => ['required', 'email', 'max:255'],
             'organization.phone' => ['required', 'string', 'max:30'],
             'organization.legal_name' => ['nullable', 'string', 'max:255'],

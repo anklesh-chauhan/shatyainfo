@@ -1,4 +1,7 @@
 <x-filament-panels::page>
+    @if (\App\Filament\Pages\FieldTravelImport::canAccess())
+        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\FieldTravelImport::getUrl()">Import patches, customer assignments, standard fares or historical travel</x-filament::button>
+    @endif
     @php
         $module = $this->selectedModule();
         $isEmployeeImport = $module?->modelClass === \App\Models\Employee::class;

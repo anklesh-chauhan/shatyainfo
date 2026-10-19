@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources\Patches\Pages;
 
-use Filament\Actions\CreateAction;
+use App\Filament\Pages\FieldTravelImport;
 use App\Filament\Resources\Patches\PatchResource;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListPatches extends ListRecords
@@ -15,6 +16,10 @@ class ListPatches extends ListRecords
     {
         return [
             CreateAction::make(),
+            Action::make('importWorkbook')
+                ->label('Import workbook')
+                ->visible(fn (): bool => FieldTravelImport::canAccess())
+                ->url(fn (): string => FieldTravelImport::getUrl()),
         ];
     }
 }

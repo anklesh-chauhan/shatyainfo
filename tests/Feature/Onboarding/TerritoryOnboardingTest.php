@@ -1,21 +1,31 @@
 <?php
 
 use App\Filament\Pages\Onboarding;
+use App\Models\City;
+use App\Models\CityPinCode;
+use App\Models\Country;
 use App\Models\Employee;
 use App\Models\Organization;
+use App\Models\OrganizationalUnit;
 use App\Models\Position;
+use App\Models\State;
 use App\Models\Tenant;
 use App\Models\Territory;
+use App\Models\TypeMaster;
 use App\Models\User;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\EmployeeHierarchyImport;
+use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\TerritoryOnboardingService;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Reader\XLSX\Reader;
+use OpenSpout\Writer\XLSX\Writer;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -28,14 +38,22 @@ beforeEach(function () {
     {
         public function authorize(): void {}
     });
+    $type = TypeMaster::firstOrCreate(['name' => 'Division', 'typeable_type' => OrganizationalUnit::class]);
+    OrganizationalUnit::create(['code' => 'DIV-WEST', 'name' => 'West Division', 'type_master_id' => $type->id]);
+    OrganizationalUnit::create(['code' => 'DIV-SOUTH', 'name' => 'South Division', 'type_master_id' => $type->id]);
+    $country = Country::create(['name' => 'India']);
+    $state = State::create(['name' => 'Maharashtra', 'country_id' => $country->id]);
+    $city = City::create(['name' => 'Mumbai', 'state_id' => $state->id, 'country_id' => $country->id]);
+    CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Andheri', 'pin_code' => 400058]);
+    CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Bandra', 'pin_code' => 400050]);
     $this->service = app(TerritoryOnboardingService::class);
 });
 
 function territoryRows(): array
 {
     return [
-        ['code' => 'MUMBAI', 'name' => 'Mumbai', 'parent_code' => 'WEST'],
-        ['code' => 'WEST', 'name' => 'West', 'parent_code' => ''],
+        ['code' => 'MUMBAI', 'name' => 'Mumbai', 'parent_code' => 'WEST', 'division_codes' => 'DIV-WEST', 'cities_and_areas' => 'Mumbai|Andheri|400058'],
+        ['code' => 'WEST', 'name' => 'West', 'parent_code' => '', 'division_codes' => 'DIV-WEST', 'cities_and_areas' => 'Mumbai|Andheri|400058'],
     ];
 }
 
@@ -136,7 +154,7 @@ it('previews a CSV upload and imports only after confirmation', function () {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::test(Onboarding::class)
-            ->set('territoryFile', UploadedFile::fake()->createWithContent('territories.csv', "code,name,parent_code\nMUMBAI,Mumbai,WEST\nWEST,West,\n"))
+            ->set('territoryFile', UploadedFile::fake()->createWithContent('territories.csv', "code,name,parent_code,division_codes,cities_and_areas\nMUMBAI,Mumbai,WEST,DIV-WEST,Mumbai|Andheri|400058\nWEST,West,,DIV-WEST,Mumbai|Andheri|400058\n"))
             ->call('previewTerritories')->assertHasNoErrors()->assertSee('Review before importing');
         $this->assertDatabaseCount('territories', 0);
         $page->call('importTerritories')->assertHasNoErrors()->call('next')->assertSet('step', 3);
@@ -159,4 +177,100 @@ it('uses imported position territories to resolve a scoped approval approver', f
     $input['common']['l1_role_id'] = Position::where('code', 'WEST-MGR')->sole()->job_role_id;
     $input['common']['l1_scope'] = 'self';
     expect($setup->review($input)['flows'][0]['steps'][0]['approver'])->toBe($approver->name);
+});
+
+it('provides a blank territory workbook with instructions and separate examples', function () {
+    $path = sys_get_temp_dir().'/territory-template-'.bin2hex(random_bytes(8)).'.xlsx';
+    try {
+        app(TerritoryImportTemplate::class)->write($path);
+        $reader = new Reader;
+        $reader->open($path);
+        $sheets = [];
+        try {
+            foreach ($reader->getSheetIterator() as $sheet) {
+                $sheets[$sheet->getName()] = [];
+                foreach ($sheet->getRowIterator() as $row) {
+                    $sheets[$sheet->getName()][] = $row->toArray();
+                }
+            }
+        } finally {
+            $reader->close();
+        }
+        expect(array_keys($sheets))->toBe(['Territories', 'Instructions', 'Examples']);
+        expect($sheets['Territories'][0])->toBe(TerritoryOnboardingService::COLUMNS);
+        expect(count($sheets['Instructions']))->toBeGreaterThan(10);
+        expect($sheets['Examples'][1][0])->toBe('MUMBAI');
+        expect($this->service->readFile($path, true))->toBe([]);
+        $this->assertDatabaseCount('territories', 0);
+    } finally {
+        unlink($path);
+    }
+});
+
+it('reads only the Territories worksheet even when instructions come first', function () {
+    $path = sys_get_temp_dir().'/territory-upload-'.bin2hex(random_bytes(8)).'.xlsx';
+    $writer = new Writer;
+    $writer->openToFile($path);
+    $writer->getCurrentSheet()->setName('Instructions');
+    $writer->addRow(Row::fromValues(['Do not import this sheet']));
+    $writer->addNewSheetAndMakeItCurrent()->setName('Territories');
+    $writer->addRow(Row::fromValues(TerritoryOnboardingService::COLUMNS));
+    $writer->addRow(Row::fromValues(['WEST', 'West', '', 'active', '', 'DIV-WEST', 'Mumbai|Andheri|400058', '']));
+    $writer->addNewSheetAndMakeItCurrent()->setName('Examples');
+    $writer->addRow(Row::fromValues(['EXAMPLE', 'Example', '', 'active', '']));
+    $writer->close();
+    try {
+        $rows = $this->service->readFile($path, true);
+        expect($rows)->toHaveCount(1)->and($rows[0]['code'])->toBe('WEST');
+        expect($this->service->import($rows))->toBe(1);
+        $this->assertDatabaseCount('territories', 1);
+    } finally {
+        unlink($path);
+    }
+});
+
+it('imports all mandatory division and location links without duplicating them on retry', function () {
+    $rows = territoryRows();
+    $rows[0]['division_codes'] = 'DIV-WEST;DIV-SOUTH';
+    $rows[0]['cities_and_areas'] = 'Mumbai|Andheri|400058;Mumbai|Bandra|400050';
+    $this->service->import($rows);
+    $territory = Territory::where('code', 'MUMBAI')->sole();
+    expect($territory->divisions()->count())->toBe(2)->and($territory->cityPinCodes()->count())->toBe(2);
+    $this->service->import($rows);
+    expect($territory->divisions()->count())->toBe(2)->and($territory->cityPinCodes()->count())->toBe(2);
+    $changed = $rows;
+    $changed[0]['division_codes'] = 'DIV-WEST';
+    expect(fn () => $this->service->import($changed))->toThrow(ValidationException::class);
+    expect($territory->divisions()->count())->toBe(2);
+});
+
+it('rejects missing invalid and ambiguous mandatory references without partial imports', function (string $case) {
+    $rows = territoryRows();
+    if ($case === 'missing_division') {
+        $rows[1]['division_codes'] = '';
+    } elseif ($case === 'missing_location') {
+        $rows[1]['cities_and_areas'] = '';
+    } elseif ($case === 'unknown_division') {
+        $rows[1]['division_codes'] = 'DOES-NOT-EXIST';
+    } elseif ($case === 'non_division') {
+        $type = TypeMaster::create(['name' => 'Department', 'typeable_type' => OrganizationalUnit::class]);
+        OrganizationalUnit::where('code', 'DIV-WEST')->update(['type_master_id' => $type->id]);
+    } elseif ($case === 'unknown_location') {
+        $rows[1]['cities_and_areas'] = 'Mumbai|Missing|400058';
+    } elseif ($case === 'invalid_pin') {
+        $rows[1]['cities_and_areas'] = 'Mumbai|Andheri|400058abc';
+    } elseif ($case === 'ambiguous_location') {
+        CityPinCode::create(['city_id' => City::where('name', 'Mumbai')->value('id'), 'area_town' => 'Andheri', 'pin_code' => 400058]);
+    } else {
+        $rows[1]['name'] = $rows[0]['name'];
+    }
+    expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('territories', 0);
+})->with(['missing_division', 'missing_location', 'unknown_division', 'non_division', 'unknown_location', 'invalid_pin', 'ambiguous_location', 'duplicate_name']);
+
+it('revalidates mandatory location links at confirmation', function () {
+    $preview = $this->service->preview(territoryRows());
+    CityPinCode::where('area_town', 'Andheri')->delete();
+    expect(fn () => $this->service->import($preview))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('territories', 0);
 });

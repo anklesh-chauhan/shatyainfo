@@ -72,6 +72,7 @@ class CompanyOnboardingService
         abort_unless((Tenant::current()?->accountIsConfigured() ?? true), 409, 'Your account is still being configured.');
         $data = Validator::make($data, [
             'name' => ['required', 'string', 'max:255'],
+            'uses_divisions' => ['sometimes', 'boolean'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'legal_name' => ['nullable', 'string', 'max:255'],
@@ -83,8 +84,13 @@ class CompanyOnboardingService
             'contact_person_phone' => ['nullable', 'string', 'max:255'],
         ])->validate();
         $organization = $this->organization() ?? new Organization;
+        $usesDivisions = $data['uses_divisions'] ?? null;
+        unset($data['uses_divisions']);
         $organization->fill($data);
         $metadata = $organization->metadata ?? [];
+        if ($usesDivisions !== null) {
+            $metadata['uses_divisions'] = (bool) $usesDivisions;
+        }
         $metadata['company_setup']['organization_saved'] = true;
         $organization->metadata = $metadata;
         $organization->save();

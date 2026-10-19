@@ -10,6 +10,7 @@ class TravelSegment extends BaseModel
     use HasFactory;
 
     protected $fillable = [
+        'import_reference',
         'sales_dcr_id',
         'visit_id',
         'sales_tour_plan_detail_id',

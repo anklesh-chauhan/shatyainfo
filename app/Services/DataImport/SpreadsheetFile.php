@@ -30,7 +30,7 @@ class SpreadsheetFile
                     }
                 }
                 if (! $hasPreferredSheet && ($sheetCount > 1 || in_array($firstSheetName, ['Instructions', 'Examples'], true))) {
-                    throw new ImportRowException('Add or restore the Employees sheet. Instructions and Examples cannot be imported.');
+                    throw new ImportRowException('Add or restore the '.$preferredSheet.' sheet. Instructions and Examples cannot be imported.');
                 }
             }
             foreach ($reader->getSheetIterator() as $sheet) {

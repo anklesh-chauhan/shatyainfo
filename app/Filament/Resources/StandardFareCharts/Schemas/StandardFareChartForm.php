@@ -26,11 +26,11 @@ class StandardFareChartForm
                         Forms\Components\Select::make('territory_id')
                             ->relationship('territory', 'name')
                             ->searchable()
-                            ->preload(),
+                            ->optionsLimit(50),
 
                         Forms\Components\Select::make('patch_id')
                             ->relationship('patch', 'name')
-                            ->preload()
+                            ->optionsLimit(50)
                             ->searchable(),
 
                         Forms\Components\Select::make('from_area_town_id')
@@ -38,7 +38,7 @@ class StandardFareChartForm
                             ->relationship('fromAreaTown', 'area_town')
                             ->searchable()
                             ->debounce(300)
-                            ->preload()
+                            ->optionsLimit(50)
                             ->required()
                             ->getOptionLabelFromRecordUsing(fn (CityPinCode $record) => $record->full_location)
                             ->getSearchResultsUsing(function (string $search) {
@@ -69,7 +69,7 @@ class StandardFareChartForm
                             ->relationship('toAreaTown', 'area_town')
                             ->searchable()
                             ->debounce(300)
-                            ->preload()
+                            ->optionsLimit(50)
                             ->required()
                             ->getOptionLabelFromRecordUsing(fn (CityPinCode $record) => $record->full_location)
                             ->getSearchResultsUsing(function (string $search) {

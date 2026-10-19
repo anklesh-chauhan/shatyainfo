@@ -55,7 +55,7 @@ class Patch extends BaseModel
 
             // Admins bypass
             if (
-                $user->hasRole('super_admin') ||
+                $user->hasAnyRole(['super_admin', 'administration_admin']) ||
                 $user->can('AccessAllRecords')
             ) {
                 return;

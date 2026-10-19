@@ -3,7 +3,10 @@
 namespace App\Services\DataImport;
 
 use App\Models\Employee;
+use App\Models\Patch;
+use App\Models\StandardFareChart;
 use App\Models\Tenant;
+use App\Models\TravelSegment;
 use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -31,6 +34,9 @@ class ResourceImportCatalog
     private const EXCLUDED_MODELS = [
         Tenant::class,
         User::class,
+        Patch::class,
+        StandardFareChart::class,
+        TravelSegment::class,
     ];
 
     /**

@@ -27,6 +27,8 @@ class StandardFareChart extends BaseModel
 
     protected $casts = [
         'is_active' => 'boolean',
+        'distance_km' => 'decimal:2',
+        'fare_amount' => 'decimal:2',
     ];
 
     public static function normalizeCityPair(int $fromAreaTownId, int $toAreaTownId): array

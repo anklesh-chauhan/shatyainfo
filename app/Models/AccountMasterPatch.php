@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\DataImport\FieldTravelImport;
 use App\Services\Travel\PatchStandardFareChartService;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -95,6 +96,9 @@ class AccountMasterPatch extends Pivot
         });
 
         static::created(function (self $model): void {
+            if (FieldTravelImport::isRunning()) {
+                return;
+            }
             $patch = $model->patch;
 
             if ($patch === null) {

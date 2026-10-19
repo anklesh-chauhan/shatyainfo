@@ -11,6 +11,7 @@ use App\Filament\Resources\Territories\Pages\EditTerritory;
 use App\Filament\Resources\Territories\Pages\ListTerritories;
 use App\Filament\Resources\Territories\RelationManagers\PatchesRelationManager;
 use App\Models\CityPinCode;
+use App\Models\Organization;
 use App\Models\Territory;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\HasVisibilityScope;
@@ -97,8 +98,8 @@ class TerritoryResource extends BaseResource
                         )
                         ->searchable()
                         ->preload()
-                        ->helperText('Select one or more divisions operating in this territory')
-                        ->required(),
+                        ->helperText('Select divisions when enabled in company setup. Existing links are preserved when divisions are disabled.')
+                        ->required(fn (): bool => Organization::divisionsEnabled()),
 
                     Select::make('positions')
                         ->label('Associated Positions')

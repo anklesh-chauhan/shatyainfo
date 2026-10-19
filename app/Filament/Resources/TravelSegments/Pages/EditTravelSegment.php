@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TravelSegments\Pages;
 
 use App\Filament\Resources\TravelSegments\TravelSegmentResource;
+use App\Services\Travel\TravelSegmentValidation;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
@@ -19,5 +20,13 @@ class EditTravelSegment extends EditRecord
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        app(TravelSegmentValidation::class)->validate(['sales_dcr_id' => $this->record->sales_dcr_id]);
+        app(TravelSegmentValidation::class)->validate($data);
+
+        return $data;
     }
 }

@@ -70,6 +70,10 @@ class PatchResource extends BaseResource
 
                             $user = Auth::user();
 
+                            if ($user && ($user->hasAnyRole(['super_admin', 'administration_admin']) || $user->can('AccessAllRecords'))) {
+                                return;
+                            }
+
                             if (! $user?->employee) {
                                 // No employee → no territory
                                 $query->whereRaw('1 = 0');
