@@ -18,6 +18,7 @@ use App\Models\Visit;
 use App\Models\VisitOutcome;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Livewire\livewire;
@@ -36,6 +37,13 @@ it('lists the salesperson assistant roadmap', function () {
 });
 
 it('briefs a salesperson from the last completed visit', function () {
+    config([
+        'salesperson_ai.enabled' => true,
+        'salesperson_ai.allow_standalone' => true,
+        'salesperson_ai.provider' => 'openai',
+        'salesperson_ai.providers.openai' => ['api_key' => 'test-key', 'model' => 'test-model'],
+    ]);
+    Http::preventStrayRequests();
     $user = reportingUser('Briefing Rep');
     $territory = reportingTerritory('Briefing Terr');
     $patch = reportingPatch($territory, 'Briefing Patch');
@@ -73,14 +81,24 @@ it('briefs a salesperson from the last completed visit', function () {
 
     Sanctum::actingAs($user);
 
+    Http::fake(['api.openai.com/*' => Http::response([
+        'status' => 'completed',
+        'output' => [['type' => 'message', 'content' => [
+            ['type' => 'output_text', 'text' => json_encode(['fact_ids' => ['visit:'.$past->id]])],
+        ]]],
+    ])]);
+
     $this->getJson('/api/v1/visits/'.$visit->id.'/briefing')
         ->assertSuccessful()
         ->assertJsonPath('data.account.name', 'Dr Brief')
+        ->assertJsonPath('data.ai.status', 'assisted')
+        ->assertJsonCount(1, 'data.ai_highlights')
         ->assertJsonPath('data.last_visits.0.remarks', 'Asked about samples');
 
     Sanctum::actingAs(reportingUser('Briefing Other'));
 
     $this->getJson('/api/v1/visits/'.$visit->id.'/briefing')->assertNotFound();
+    Http::assertSentCount(1);
 });
 
 it('keeps a voice note as a draft until the salesperson applies it', function () {

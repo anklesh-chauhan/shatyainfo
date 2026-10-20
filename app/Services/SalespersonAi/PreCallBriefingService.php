@@ -10,7 +10,10 @@ use Illuminate\Support\Carbon;
 
 class PreCallBriefingService
 {
-    public function __construct(private SgipSuggestionService $samples) {}
+    public function __construct(
+        private SgipSuggestionService $samples,
+        private AiBriefingService $ai,
+    ) {}
 
     /**
      * @return array{
@@ -87,7 +90,7 @@ class PreCallBriefingService
             ];
         })->values()->all();
 
-        return [
+        return $this->ai->enrich($visit, [
             'account' => $account instanceof AccountMaster ? [
                 'id' => $account->id,
                 'name' => $account->name,
@@ -96,7 +99,7 @@ class PreCallBriefingService
             'open_follow_ups' => $openFollowUps,
             'samples' => $samplePayload,
             'summary' => $this->summary($account instanceof AccountMaster ? $account : null, $lastVisits, $openFollowUps, $samplePayload),
-        ];
+        ]);
     }
 
     /**

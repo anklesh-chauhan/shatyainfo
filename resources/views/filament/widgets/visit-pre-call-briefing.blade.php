@@ -4,6 +4,15 @@
     <p class="text-sm font-semibold text-gray-950 dark:text-white">Pre-call briefing</p>
     <p class="mt-2 text-sm text-gray-700 dark:text-gray-200">{{ $briefing['summary'] }}</p>
 
+    @if (($briefing['ai_highlights'] ?? []) !== [])
+        <p class="mt-2 text-sm font-semibold">AI-selected highlights from recorded history</p>
+        <ul class="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+            @foreach ($briefing['ai_highlights'] as $highlight)
+                <li>{{ $highlight }}</li>
+            @endforeach
+        </ul>
+    @endif
+
     @if (($briefing['open_follow_ups'] ?? []) !== [])
         <ul class="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
             @foreach ($briefing['open_follow_ups'] as $followUp)
