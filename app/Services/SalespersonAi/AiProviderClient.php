@@ -9,16 +9,18 @@ class AiProviderClient
 {
     /**
      * @param  array<string, string>  $facts
+     * @param  array<string, mixed>|null  $configuration
      * @return array{fact_ids: list<string>, input_tokens: int, output_tokens: int}
      */
-    public function selectFacts(string $provider, array $facts): array
+    public function selectFacts(string $provider, array $facts, ?array $configuration = null): array
     {
-        if (! in_array($provider, ['openai', 'anthropic'], true)) {
+        $configuration ??= config('salesperson_ai');
+        if (! in_array($provider, ['openai', 'anthropic', 'ollama'], true)) {
             throw new RuntimeException('Unsupported AI provider.');
         }
 
-        $settings = config("salesperson_ai.providers.{$provider}");
-        if (blank($settings['api_key'] ?? null) || blank($settings['model'] ?? null)) {
+        $settings = $configuration['providers'][$provider] ?? [];
+        if (($provider !== 'ollama' && blank($settings['api_key'] ?? null)) || blank($settings['model'] ?? null)) {
             throw new RuntimeException('AI provider is not configured.');
         }
 
@@ -27,15 +29,26 @@ class AiProviderClient
             .'Do not infer clinical claims, prescribing commitments, or sample entitlements. '
             .'Return only a JSON object with a fact_ids array of existing IDs. Do not write new text.';
         $input = json_encode($facts, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-        if (strlen($input) > (int) config('salesperson_ai.max_input_bytes', 12000)) {
+        if (strlen($input) > (int) ($configuration['max_input_bytes'] ?? 12000)) {
             throw new RuntimeException('AI input is too large.');
         }
 
         $http = Http::acceptJson()
             ->connectTimeout(3)
-            ->timeout(max(1, min(15, (int) config('salesperson_ai.timeout_seconds', 8))))
+            ->timeout(max(1, min(120, (int) ($configuration['timeout_seconds'] ?? 8))))
             ->withoutRedirecting();
-        $maxTokens = max(128, min(2048, (int) config('salesperson_ai.max_output_tokens', 512)));
+        $maxTokens = max(128, min(2048, (int) ($configuration['max_output_tokens'] ?? 512)));
+        $schema = [
+            'type' => 'object',
+            'properties' => ['fact_ids' => [
+                'type' => 'array',
+                'items' => ['type' => 'string', 'enum' => array_keys($facts)],
+                'minItems' => 1,
+                'maxItems' => 4,
+            ]],
+            'required' => ['fact_ids'],
+            'additionalProperties' => false,
+        ];
 
         if ($provider === 'openai') {
             $response = $http->withToken($settings['api_key'])->post('https://api.openai.com/v1/responses', [
@@ -48,20 +61,10 @@ class AiProviderClient
                     'type' => 'json_schema',
                     'name' => 'briefing_facts',
                     'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => ['fact_ids' => [
-                            'type' => 'array',
-                            'items' => ['type' => 'string', 'enum' => array_keys($facts)],
-                            'minItems' => 1,
-                            'maxItems' => 4,
-                        ]],
-                        'required' => ['fact_ids'],
-                        'additionalProperties' => false,
-                    ],
+                    'schema' => $schema,
                 ]],
             ]);
-        } else {
+        } elseif ($provider === 'anthropic') {
             $response = $http->withHeaders([
                 'x-api-key' => $settings['api_key'],
                 'anthropic-version' => '2023-06-01',
@@ -70,6 +73,21 @@ class AiProviderClient
                 'max_tokens' => $maxTokens,
                 'system' => $instructions,
                 'messages' => [['role' => 'user', 'content' => $input]],
+            ]);
+        } else {
+            $baseUrl = rtrim((string) ($settings['base_url'] ?? ''), '/');
+            if (! app(AiSettingsService::class)->isLocalEndpoint($baseUrl)) {
+                throw new RuntimeException('Invalid local AI endpoint.');
+            }
+            $response = $http->post($baseUrl.'/api/chat', [
+                'model' => $settings['model'],
+                'stream' => false,
+                'format' => $schema,
+                'messages' => [
+                    ['role' => 'system', 'content' => $instructions],
+                    ['role' => 'user', 'content' => $input],
+                ],
+                'options' => ['num_predict' => $maxTokens, 'temperature' => 0],
             ]);
         }
 
@@ -95,7 +113,7 @@ class AiProviderClient
                     }
                 }
             }
-        } else {
+        } elseif ($provider === 'anthropic') {
             if (($body['stop_reason'] ?? null) !== 'end_turn') {
                 throw new RuntimeException('Incomplete AI response.');
             }
@@ -104,6 +122,11 @@ class AiProviderClient
                     $text .= $part['text'] ?? '';
                 }
             }
+        } else {
+            if (($body['done'] ?? false) !== true || ($body['done_reason'] ?? null) !== 'stop') {
+                throw new RuntimeException('Incomplete AI response.');
+            }
+            $text = $body['message']['content'] ?? '';
         }
 
         $result = json_decode($text, true, 16, JSON_THROW_ON_ERROR);
@@ -123,8 +146,8 @@ class AiProviderClient
 
         return [
             'fact_ids' => $ids,
-            'input_tokens' => max(0, (int) ($body['usage']['input_tokens'] ?? 0)),
-            'output_tokens' => max(0, (int) ($body['usage']['output_tokens'] ?? 0)),
+            'input_tokens' => max(0, (int) ($body['usage']['input_tokens'] ?? $body['prompt_eval_count'] ?? 0)),
+            'output_tokens' => max(0, (int) ($body['usage']['output_tokens'] ?? $body['eval_count'] ?? 0)),
         ];
     }
 }

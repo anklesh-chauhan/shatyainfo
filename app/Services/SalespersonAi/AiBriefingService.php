@@ -2,7 +2,6 @@
 
 namespace App\Services\SalespersonAi;
 
-use App\Models\Tenant;
 use App\Models\Visit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +9,10 @@ use Throwable;
 
 class AiBriefingService
 {
-    public function __construct(private AiProviderClient $client) {}
+    public function __construct(
+        private AiProviderClient $client,
+        private AiSettingsService $settings,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $briefing
@@ -19,22 +21,23 @@ class AiBriefingService
     public function enrich(Visit $visit, array $briefing): array
     {
         $briefing['ai'] = ['status' => 'disabled', 'source_ids' => []];
-        if (! config('salesperson_ai.enabled')) {
+        try {
+            $configuration = $this->settings->configuration();
+        } catch (Throwable) {
+            $briefing['ai']['status'] = 'unavailable';
+
+            return $briefing;
+        }
+        if (! $configuration['enabled']) {
             return $briefing;
         }
 
-        $tenantId = Tenant::current()?->getKey();
-        $scope = $tenantId === null ? 'standalone' : (string) $tenantId;
-        $allowed = array_map('strval', config('salesperson_ai.allowed_tenants', []));
-        if (($tenantId === null && ! config('salesperson_ai.allow_standalone'))
-            || ($tenantId !== null && ! in_array($scope, $allowed, true))) {
-            return $briefing;
-        }
-
-        $provider = config("salesperson_ai.tenant_providers.{$scope}", config('salesperson_ai.provider'));
-        if (! in_array($provider, ['openai', 'anthropic'], true)
-            || blank(config("salesperson_ai.providers.{$provider}.api_key"))
-            || blank(config("salesperson_ai.providers.{$provider}.model"))) {
+        $scope = $this->settings->scope();
+        $provider = $configuration['provider'];
+        $providerSettings = $configuration['providers'][$provider] ?? [];
+        if (! in_array($provider, ['openai', 'anthropic', 'ollama'], true)
+            || ($provider !== 'ollama' && blank($providerSettings['api_key'] ?? null))
+            || blank($providerSettings['model'] ?? null)) {
             $briefing['ai']['status'] = 'not_configured';
 
             return $briefing;
@@ -52,24 +55,23 @@ class AiBriefingService
         $usage = [];
         try {
             $input = json_encode($facts, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-            if (strlen($input) > (int) config('salesperson_ai.max_input_bytes', 12000)) {
+            if (strlen($input) > (int) $configuration['max_input_bytes']) {
                 $status = 'context_too_large';
                 $briefing['ai']['status'] = $status;
 
                 return $briefing;
             }
-            $model = config("salesperson_ai.providers.{$provider}.model");
             $key = 'salesperson-ai:'.$scope.':'.$visit->employee_id.':'.$visit->getKey().':'
-                .hash('sha256', 'briefing-v1'.$provider.$model.$input);
+                .hash('sha256', 'briefing-v1'.$provider.json_encode($providerSettings, JSON_THROW_ON_ERROR).$input);
             $selection = Cache::get($key);
             if ($selection === null) {
-                if (! $this->reserveRequest($scope, (int) $visit->employee_id)) {
+                if (! $this->reserveRequest($scope, (int) $visit->employee_id, $configuration)) {
                     $status = 'limited';
                     $briefing['ai']['status'] = $status;
 
                     return $briefing;
                 }
-                $selection = $this->client->selectFacts($provider, $facts);
+                $selection = $this->client->selectFacts($provider, $facts, $configuration);
                 $usage = [
                     'input_tokens' => $selection['input_tokens'],
                     'output_tokens' => $selection['output_tokens'],
@@ -91,7 +93,7 @@ class AiBriefingService
                 'scope' => $scope,
                 'user_id' => $visit->employee_id,
                 'provider' => $provider,
-                'model' => config("salesperson_ai.providers.{$provider}.model"),
+                'model' => $providerSettings['model'],
                 'prompt_version' => 'briefing-v1',
                 'status' => $status,
                 'latency_ms' => (int) ((microtime(true) - $started) * 1000),
@@ -102,15 +104,18 @@ class AiBriefingService
         return $briefing;
     }
 
-    private function reserveRequest(string $scope, int $userId): bool
+    /**
+     * @param  array<string, mixed>  $configuration
+     */
+    private function reserveRequest(string $scope, int $userId, array $configuration): bool
     {
-        return (bool) Cache::lock('salesperson-ai:budget:'.$scope, 5)->get(function () use ($scope, $userId): bool {
+        return (bool) Cache::lock('salesperson-ai:budget:'.$scope, 5)->get(function () use ($scope, $userId, $configuration): bool {
             $dailyKey = 'salesperson-ai:daily:'.$scope.':'.now()->format('Y-m-d');
             $minuteKey = 'salesperson-ai:minute:'.$scope.':'.$userId.':'.now()->format('Y-m-d-H-i');
             $daily = (int) Cache::get($dailyKey, 0);
             $minute = (int) Cache::get($minuteKey, 0);
-            if ($daily >= (int) config('salesperson_ai.daily_requests', 1000)
-                || $minute >= (int) config('salesperson_ai.user_requests_per_minute', 10)) {
+            if ($daily >= (int) $configuration['daily_requests']
+                || $minute >= (int) $configuration['user_requests_per_minute']) {
                 return false;
             }
             Cache::put($dailyKey, $daily + 1, now()->addDays(2));

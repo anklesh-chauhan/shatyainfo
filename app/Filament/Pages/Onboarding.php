@@ -150,7 +150,9 @@ class Onboarding extends Page
 
     protected static ?string $title = 'Setup Checklist';
 
-    protected static ?int $navigationSort = -10;
+    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+
+    protected static ?int $navigationSort = 80;
 
     protected string $view = 'filament.pages.onboarding';
 

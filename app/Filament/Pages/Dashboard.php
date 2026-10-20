@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Widgets\CompanySetupReminder;
 use App\Filament\Widgets\FieldActivityStatsWidget;
 use App\Jobs\ProcessDailyAttendanceJob;
 use App\Models\AttendancePunch;
@@ -26,6 +27,7 @@ class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            CompanySetupReminder::class,
             FieldActivityStatsWidget::class,
         ];
     }

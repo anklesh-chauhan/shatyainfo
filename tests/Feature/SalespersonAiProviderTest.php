@@ -3,9 +3,12 @@
 use App\Models\Tenant;
 use App\Models\Visit;
 use App\Services\SalespersonAi\AiBriefingService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     config([
