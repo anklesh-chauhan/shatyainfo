@@ -1,7 +1,8 @@
-<section class="setup-note" aria-label="Account master import">
-    <h3>Import account masters</h3>
-    <p>{{ $checklist['account_count'] }} accounts available. Bring in doctors, institutions, pharmacies and other account types using your company masters.</p>
-    <button type="button" class="setup-text-button" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download account Excel template</button>
+<section class="setup-import-card" aria-label="Account master import">
+    <div class="setup-card-heading"><span class="setup-card-number">1</span><div><h3>Import account masters</h3><p>Bring your accounts, contacts and business details into one place.</p></div></div>
+    <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span><span>Excel or CSV · Up to 500 rows</span></div>
+    <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download account Excel template</x-filament::button>
+    <p class="setup-card-help">Includes account details, addresses, contacts, reporting, bank, credit, GST and statutory fields. Only four columns are required to start.</p>
     <details class="setup-optional">
         <summary>How account import works</summary>
         <p>Fill the Accounts sheet only. Instructions explain every field group; References lists your company’s master values. Required: external_reference, name, account_type and owner_email.</p>
@@ -10,7 +11,7 @@
         <p>Preview does not save records. Correct every error before importing; the whole file saves together. To link manually entered accounts, set their External Reference in Accounts first.</p>
     </details>
     <form wire:submit="previewAccounts" class="setup-form">
-        <div class="setup-field"><label for="account-file">Account Excel or CSV (up to 500 rows, 2 MB)</label><input id="account-file" type="file" accept=".xlsx,.csv" wire:model="accountFile"></div>
+        <div class="setup-field setup-upload-box"><label for="account-file">Upload your completed file</label><input id="account-file" type="file" accept=".xlsx,.csv" wire:model="accountFile"><p class="setup-card-help">.xlsx or .csv · Maximum 2 MB. Preview before saving.</p></div>
         <p wire:loading wire:target="accountFile">Uploading file…</p>
         <x-filament::button type="submit" wire:loading.attr="disabled">Preview accounts</x-filament::button>
     </form>

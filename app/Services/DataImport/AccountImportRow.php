@@ -3,13 +3,17 @@
 namespace App\Services\DataImport;
 
 use App\Models\AccountMaster;
+use App\Models\AccountOwnership;
 use App\Models\AccountReportingMaster;
 use App\Models\AccountStatus;
 use App\Models\Address;
 use App\Models\CityPinCode;
+use App\Models\ContactDetail;
+use App\Models\IndustryType;
 use App\Models\OrganizationalUnit;
 use App\Models\Patch;
 use App\Models\RatingType;
+use App\Models\Region;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
@@ -41,6 +45,12 @@ class AccountImportRow
         }
         $rules['owner_email'][] = 'email';
         $rules['email'][] = 'email';
+        $rules['secondary_email'][] = 'email';
+        $rules['ref_contact_email'][] = 'email';
+        foreach (['website', 'twitter', 'linked_in'] as $field) {
+            $rules[$field][] = 'url:http,https';
+        }
+        $rules['description'] = ['nullable', 'string', 'max:10000'];
         $rules['phone_number'] = ['nullable', 'string', 'max:30'];
         $rules['patch_codes'] = ['nullable', 'string', 'max:5000'];
         $rules['commission'] = ['nullable', 'numeric', 'between:0,100'];
@@ -71,7 +81,15 @@ class AccountImportRow
             'type_master_id' => $this->match(TypeMaster::where('typeable_type', AccountMaster::class)->where('name', $row['account_type']), 'Account type '.$row['account_type']),
             'owner_id' => $this->match(User::where('email', $row['owner_email']), 'Owner email '.$row['owner_email']),
         ];
-        foreach (['phone_number', 'email', 'commission'] as $field) {
+        if ($row['account_subtype'] !== '') {
+            $attributes['type_master_id'] = $this->match(TypeMaster::where('typeable_type', AccountMaster::class)->where('parent_id', $attributes['type_master_id'])->where('name', $row['account_subtype']), 'Account subtype');
+        }
+        foreach (['industry' => [IndustryType::class, 'industry_type_id'], 'region' => [Region::class, 'region_id'], 'account_ownership' => [AccountOwnership::class, 'account_ownership_id'], 'ref_contact_email' => [ContactDetail::class, 'ref_dealer_contact']] as $column => [$model, $field]) {
+            if ($row[$column] !== '') {
+                $attributes[$field] = $this->match($model::where($column === 'ref_contact_email' ? 'email' : 'name', $row[$column]), $column);
+            }
+        }
+        foreach (['phone_number', 'email', 'commission', 'alias', 'secondary_email', 'website', 'no_of_employees', 'twitter', 'linked_in', 'annual_revenue', 'sic_code', 'ticker_symbol', 'description'] as $field) {
             if ($row[$field] !== '') {
                 $attributes[$field] = $row[$field];
             }
@@ -155,6 +173,7 @@ class AccountImportRow
         $similar = ! $account && AccountMaster::where('name', $row['name'])->exists();
 
         return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'address' => $address, 'profile' => $profile, 'target' => $target,
+            'details' => app(AccountImportDetails::class)->resolve($row, $account, $address),
             'warning' => $similar ? 'An account with this name already exists. This new external reference will create a separate account; review before importing.' : null];
     }
 

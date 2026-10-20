@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AccountMaster;
 use App\Models\Organization;
 use App\Models\Tenant;
+use App\Services\DataImport\AccountImportDetails;
 use App\Services\DataImport\AccountImportRow;
 use App\Services\DataImport\ImportRowException;
 use App\Services\DataImport\SpreadsheetFile;
@@ -19,6 +20,9 @@ class AccountOnboardingService
         'address_type', 'street', 'city', 'area', 'pin_code', 'parent_reference', 'institution_reference', 'supplier_reference',
         'division_code', 'segment', 'profile_from', 'profile_to', 'potential_value', 'potential_unit_code', 'potential_period', 'currency', 'assessed_on',
         'calls_per_month', 'target_from', 'target_to',
+        'account_subtype', 'alias', 'secondary_email', 'website', 'no_of_employees', 'twitter', 'linked_in',
+        'annual_revenue', 'sic_code', 'ticker_symbol', 'description', 'industry', 'region', 'account_ownership', 'ref_contact_email',
+        ...AccountImportDetails::COLUMNS,
     ];
 
     public function authorize(): void
@@ -97,8 +101,18 @@ class AccountOnboardingService
         $references = array_count_values(array_column(array_column($rows, 'data'), 'external_reference'));
         $plans = [];
         $errors = [];
+        $uniqueDetails = [];
         foreach ($rows as $item) {
             try {
+                foreach (['bank_account_number', 'gst_number'] as $field) {
+                    $value = strtoupper($item['data'][$field]);
+                    if ($value !== '' && isset($uniqueDetails[$field][$value])) {
+                        throw new ImportRowException('Duplicate '.$field.' in this file.');
+                    }
+                    if ($value !== '') {
+                        $uniqueDetails[$field][$value] = true;
+                    }
+                }
                 if (($references[$item['data']['external_reference']] ?? 0) > 1) {
                     throw new ImportRowException('Duplicate external reference in this file. Use one row per account.');
                 }
@@ -161,6 +175,7 @@ class AccountOnboardingService
                     if ($plan['patches'] !== []) {
                         $account->patches()->syncWithoutDetaching($plan['patches']);
                     }
+                    app(AccountImportDetails::class)->save($account, $plan['details']);
                     foreach (['profile' => 'divisionProfiles', 'target' => 'callTargets'] as $key => $relation) {
                         if ($plan[$key] !== []) {
                             $match = ['effective_from' => $plan[$key]['effective_from']];

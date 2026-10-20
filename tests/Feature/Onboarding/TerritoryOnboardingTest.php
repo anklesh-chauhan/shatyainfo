@@ -141,13 +141,13 @@ it('shows territory upload before employees and resumes after skipping', functio
         Livewire::test(Onboarding::class)->assertSet('step', 3)
             ->call('next')->assertSet('step', 4);
         Livewire::test(Onboarding::class)->assertSet('step', 4)
-            ->assertSee('Accounts, patches and standard fares (optional)')
+            ->assertSee('Set up field routes')
             ->assertSee('Skip and complete later')
             ->call('reviewFieldTravel')->assertSet('step', 5)
             ->assertSee('Does your team need approvals?');
         Livewire::test(Onboarding::class)->assertSet('step', 5);
         Livewire::withQueryParams(['section' => 'field-travel'])->test(Onboarding::class)
-            ->assertSet('step', 4)->assertSee('Customers and addresses');
+            ->assertSet('step', 4)->assertSee('Import account masters')->assertDontSee('Customers and addresses');
         foreach (['Patch', 'StandardFareChart'] as $model) {
             auth()->user()->givePermissionTo(Permission::findOrCreate('Create:'.$model, 'web'));
         }

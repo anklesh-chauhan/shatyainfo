@@ -3,12 +3,18 @@
 namespace App\Services\DataImport;
 
 use App\Models\AccountMaster;
+use App\Models\AccountOwnership;
 use App\Models\AccountReportingMaster;
 use App\Models\AccountStatus;
 use App\Models\Address;
+use App\Models\ContactDetail;
+use App\Models\Department;
+use App\Models\Designation;
+use App\Models\IndustryType;
 use App\Models\OrganizationalUnit;
 use App\Models\Patch;
 use App\Models\RatingType;
+use App\Models\Region;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
@@ -30,8 +36,20 @@ class AccountImportTemplate
         $text = (new Style)->setFormat('@')->setShouldWrapText();
         try {
             $writer->getCurrentSheet()->setName('Accounts')->setColumnWidthForRange(26, 1, count(AccountOnboardingService::COLUMNS));
-            $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2));
-            $writer->addRow(Row::fromValues(AccountOnboardingService::COLUMNS, $heading));
+            $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2)->setFreezeColumn('C'));
+            $writer->addRow(new Row(array_map(function (string $column) use ($heading): StringCell {
+                $style = clone $heading;
+                $style->setBackgroundColor(match (true) {
+                    in_array($column, ['external_reference', 'name', 'account_type', 'owner_email']) => '17365D',
+                    str_starts_with($column, 'contact_') => '38761D',
+                    str_starts_with($column, 'bank_') => '674EA7',
+                    str_starts_with($column, 'credit_') => 'A64D79',
+                    str_starts_with($column, 'gst_'), str_contains($column, 'tds'), in_array($column, ['tan_number', 'cin', 'pan_number']) => '8A5A00',
+                    default => '32657A',
+                });
+
+                return new StringCell($column, $style);
+            }, AccountOnboardingService::COLUMNS)));
             for ($index = 0; $index < 20; $index++) {
                 $writer->addRow(Row::fromValues(array_fill(0, count(AccountOnboardingService::COLUMNS), ''), $text));
             }
@@ -53,12 +71,25 @@ class AccountImportTemplate
                 ['Periods and reruns', 'A profile matches account + division + profile_from. A target matches account + target_from. Matching periods are updated. Blank end date preserves an existing end date, or creates an open-ended period. Different periods must not overlap. Close old periods in Accounts before adding new ones.'],
                 ['Call targets', 'calls_per_month is an account-wide integer from 0 to 1000; 0 is an explicit zero target. target_from must be the first day of a month; target_to, if supplied, must be the last day. Blank target fields preserve existing targets.'],
                 ['References', 'References contains your company values at download time. Reporting masters use codes; account/address types and potential ratings use names. Keep identifiers as Text to preserve leading zeros. Use values, not formulas.'],
+                ['Account fields', 'Optional: account_subtype (child of account_type), alias, secondary_email, website, no_of_employees, twitter, linked_in, annual_revenue, sic_code, ticker_symbol, description, industry, region, account_ownership and ref_contact_email. Reference names and emails must match exactly one existing master. URLs require http:// or https://.'],
+                ['Contact details', 'One contact per row. Supply contact_first_name and contact_email or contact_mobile_number. Existing linked contacts match by email or mobile; shared contacts must be edited separately. Optional contact_ fields include salutation, last name, birthday, designation, department, social links and notes.'],
+                ['Bank details', 'Supply bank_name and bank_account_number together. All bank_account_ fields are optional except the number. Numbers match existing bank records for this account; a number used elsewhere is rejected. Keep numbers as Text. One bank account per row; import another file to add more.'],
+                ['Credit and GST', 'Credit details require credit_type: Days, Limit or Both. GST details require gst_number, gst_state_name, gst_state_code and gst_type on creation. GST links to the primary address if present. Blank optional fields preserve existing values.'],
+                ['Statutory details', 'Optional TAN, CIN and TDS fields are imported as entered. tds_rate is 0–100; is_tds_deduct and is_tds_compulsory accept yes/no or 1/0.'],
+                ['System fields', 'Account codes are generated. Database IDs, approval decisions, audit fields, assignment history and verification flags are not uploaded. One primary address, contact, bank account and division profile per row; repeat files can add contacts, bank accounts and divisions.'],
             ] as $instruction) {
                 $writer->addRow(Row::fromValues($instruction, $text)->setHeight(65));
             }
             $writer->addNewSheetAndMakeItCurrent()->setName('References')->setColumnWidthForRange(38, 1, 3);
             $writer->addRow(Row::fromValues(['Field', 'Value to use', 'Description'], $heading));
             $sources = [
+                ['industry', IndustryType::query(), 'name', 'name'],
+                ['region', Region::query(), 'name', 'name'],
+                ['account_ownership', AccountOwnership::query(), 'name', 'name'],
+                ['ref_contact_email', ContactDetail::whereNotNull('email'), 'email', 'first_name'],
+                ['contact_designation', Designation::query(), 'name', 'name'],
+                ['contact_department', Department::query(), 'name', 'name'],
+                ['account_subtype', TypeMaster::where('typeable_type', AccountMaster::class)->whereNotNull('parent_id'), 'name', 'name'],
                 ['account_type', TypeMaster::where('typeable_type', AccountMaster::class), 'name', 'name'],
                 ['address_type', TypeMaster::where('typeable_type', Address::class), 'name', 'name'],
                 ['owner_email', User::query(), 'email', 'name'],
@@ -75,6 +106,19 @@ class AccountImportTemplate
                 foreach ($query->orderBy('id')->lazy() as $record) {
                     $writer->addRow(new Row(array_map(fn ($cell) => new StringCell((string) $cell, $text), [$field, $record->$value, $record->$description])));
                 }
+            }
+            $writer->addNewSheetAndMakeItCurrent()->setName('Field Guide')->setColumnWidthForRange(32, 1, 3);
+            $writer->addRow(Row::fromValues(['Column', 'Required', 'Field group'], $heading));
+            foreach (AccountOnboardingService::COLUMNS as $column) {
+                $group = match (true) {
+                    str_starts_with($column, 'contact_') => 'Contact',
+                    str_starts_with($column, 'bank_') => 'Bank',
+                    str_starts_with($column, 'credit_') => 'Credit',
+                    str_starts_with($column, 'gst_'), $column === 'pan_number' => 'GST',
+                    str_contains($column, 'tds'), in_array($column, ['tan_number', 'cin']) => 'Statutory',
+                    default => 'Account / reporting',
+                };
+                $writer->addRow(Row::fromValues([$column, in_array($column, ['external_reference', 'name', 'account_type', 'owner_email']) ? 'Yes' : 'Optional / see Instructions', $group], $text));
             }
         } finally {
             $writer->close();

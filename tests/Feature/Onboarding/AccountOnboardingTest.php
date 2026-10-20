@@ -6,6 +6,7 @@ use App\Models\Address;
 use App\Models\City;
 use App\Models\CityPinCode;
 use App\Models\Country;
+use App\Models\IndustryType;
 use App\Models\Organization;
 use App\Models\Patch;
 use App\Models\RatingType;
@@ -153,7 +154,7 @@ it('creates a blank Excel template with tenant references and reads only the Acc
             $sheets[] = $sheet->getName();
         }
         $reader->close();
-        expect($sheets)->toBe(['Accounts', 'Instructions', 'References'])->and($this->service->readFile($path, true))->toBe([]);
+        expect($sheets)->toBe(['Accounts', 'Instructions', 'References', 'Field Guide'])->and($this->service->readFile($path, true))->toBe([]);
         $writer = new Writer;
         $writer->openToFile($path);
         $writer->getCurrentSheet()->setName('Accounts');
@@ -232,4 +233,51 @@ it('rejects malformed headers and preserves actual source line numbers', functio
     } finally {
         unlink($path);
     }
+});
+
+it('imports expanded account and related details and safely repeats them', function () {
+    $subtype = TypeMaster::create(['name' => 'Specialist', 'typeable_type' => AccountMaster::class, 'parent_id' => $this->type->id]);
+    $industry = IndustryType::create(['name' => 'Healthcare']);
+    $rows = accountImportRows([
+        'account_subtype' => 'Specialist', 'industry' => 'Healthcare', 'alias' => 'Clinic alias', 'secondary_email' => 'secondary@example.test',
+        'website' => 'https://example.test', 'description' => 'Imported business details', 'no_of_employees' => '12', 'annual_revenue' => '150000', 'sic_code' => '8011',
+        'contact_first_name' => 'Asha', 'contact_last_name' => 'Shah', 'contact_email' => 'asha@example.test', 'contact_mobile_number' => '9000000012',
+        'bank_name' => 'Example Bank', 'bank_account_number' => '000123456', 'bank_account_ifsc_code' => 'EXAM0000001', 'bank_account_iban' => 'EXAMPLE123',
+        'credit_type' => 'Both', 'credit_days' => '30', 'credit_limit' => '50000',
+        'gst_number' => 'EXAMPLE-GST-001', 'gst_state_name' => 'Gujarat', 'gst_state_code' => '24', 'gst_type' => 'Regular', 'pan_number' => 'EXAMPLEPAN',
+        'tan_number' => 'EXAMPLETAN', 'tds_rate' => '2', 'is_tds_deduct' => 'yes',
+    ]);
+    expect($this->service->preview($rows)['errors'])->toBe([]);
+    $this->service->import($rows);
+    $this->service->import($rows);
+    $account = AccountMaster::where('external_reference', 'ERP:0001')->sole();
+    expect($account->type_master_id)->toBe($subtype->id)->and($account->industry_type_id)->toBe($industry->id)
+        ->and($account->secondary_email)->toBe('secondary@example.test')->and($account->alias)->toBe('Clinic alias')
+        ->and($account->contactDetails()->count())->toBe(1)->and($account->bankDetail()->count())->toBe(1)
+        ->and($account->bankDetail()->first()->bank_account_number)->toBe('000123456')
+        ->and($account->creditDetail->credit_days)->toBe(30)->and($account->gstDetail->pan_number)->toBe('EXAMPLEPAN')
+        ->and($account->statutoryDetail->tan_number)->toBe('EXAMPLETAN');
+    $this->service->import(accountImportRows());
+    expect($account->fresh()->creditDetail->credit_limit)->toBe('50000.00');
+});
+
+it('rejects partial and conflicting optional details during preview', function (array $fields) {
+    $preview = $this->service->preview(accountImportRows($fields));
+    expect($preview['errors'])->not->toBeEmpty();
+    expect(fn () => $this->service->import($preview['rows']))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('account_masters', 0);
+})->with([
+    [['bank_name' => 'Missing number']],
+    [['gst_number' => 'Missing required GST details']],
+    [['credit_limit' => '1000']],
+    [['contact_first_name' => 'Missing identity']],
+    [['account_subtype' => 'Unknown subtype']],
+    [['website' => 'not-a-url']],
+]);
+
+it('rejects bank numbers repeated across source accounts before writing', function () {
+    $rows = accountImportRows(['bank_name' => 'Bank', 'bank_account_number' => '000123']);
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'])];
+    expect($this->service->preview($rows)['errors'][0]['message'])->toContain('Duplicate bank_account_number');
+    $this->assertDatabaseCount('account_masters', 0);
 });

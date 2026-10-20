@@ -4,6 +4,7 @@
         .dark .setup-shell{color:#e8eaed}.dark .setup-description,.dark .setup-content>p,.dark .setup-steps li,.dark .setup-account,.dark .setup-option small,.dark .setup-review dt,.dark .setup-footer{color:#bdc1c6}.dark .setup-option,.dark .setup-review>div,.dark .setup-footer{border-color:#5f6368}.dark .setup-note,.dark .setup-option:hover{background:#292a2d;color:#bdc1c6}.dark .setup-text-button,.dark .setup-review-link,.dark .setup-optional a,.dark .setup-steps .is-current{color:#8ab4f8}
         @media(max-width:700px){.setup-wizard{grid-template-columns:1fr;gap:24px;padding:4px;min-height:0}.setup-brand{margin-bottom:24px}.setup-intro h1{font-size:28px}.setup-description,.setup-account,.setup-eyebrow{display:none}.setup-steps{display:flex;gap:12px;margin:20px 0 0;flex-wrap:wrap}.setup-steps li{font-size:11px;margin:0;gap:6px}.setup-step-number{width:23px;height:23px;flex-shrink:0}.setup-content h2{font-size:22px}.setup-option{padding:16px}.setup-content{padding-top:0}.setup-actions{margin-top:26px}}
         .setup-territories{width:100%;border-collapse:collapse;text-align:left}.setup-territories th,.setup-territories td{padding:8px;border-bottom:1px solid #dadce0;vertical-align:top}
+        .setup-import-card{margin-top:22px;padding:24px;border:1px solid #dfe4ec;border-radius:16px;background:#fff;box-shadow:0 2px 6px #18315306}.setup-card-heading{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px}.setup-card-number{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:10px;background:#e8f0fe;color:#1967d2;font-weight:600}.setup-card-heading h3{font-size:17px;font-weight:600;margin:2px 0 6px}.setup-card-heading p,.setup-card-help{font-size:13px;line-height:1.6;color:#667085;margin:0}.setup-card-help{margin-top:12px}.setup-card-stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.setup-card-stats span{background:#f1f5f9;border-radius:6px;padding:5px 9px;font-size:12px;color:#475467}.setup-upload-box{padding:18px;border:1px dashed #b8c9e2;border-radius:10px;background:#f8faff}.setup-upload-box input{max-width:100%;font-size:13px}.setup-upload-box input::file-selector-button{padding:8px 12px;border:1px solid #d0d5dd;border-radius:6px;background:white;margin-right:10px;color:#344054;cursor:pointer}.setup-import-card .setup-optional{border-top:1px solid #eaecf0;padding-top:14px;margin-top:18px}.setup-import-card .setup-form{margin-top:18px}.dark .setup-import-card{background:#20242c;border-color:#414957}.dark .setup-card-heading p,.dark .setup-card-help{color:#b7c1d2}.dark .setup-upload-box{background:#252d3a;border-color:#52627b}.dark .setup-card-stats span{background:#303b4b;color:#d5dfef}.dark .setup-import-card .setup-optional{border-color:#414957}@media(max-width:700px){.setup-import-card{padding:18px}}
     </style>
     @if (! \App\Models\Tenant::current()->accountIsConfigured())
         <div wire:poll.3s="refreshSetup" role="status" aria-live="polite">
@@ -111,21 +112,19 @@
                     <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
-                    <h2>Accounts, patches and standard fares (optional)</h2>
-                    <p>Prepare your field routes now, or skip this step and finish it later.</p>
+                    <h2>Accounts & field routes</h2>
+                    <p>Import your accounts, then organize their field routes. Both steps can be completed later.</p>
                     @include('filament.pages.partials.onboarding-account-import')
-                    <div class="setup-note">
-                        <strong>1. Customers and addresses</strong>
-                        <p>Customer records and their addresses must exist before assigning them to patches. You can import patches and fares first and add customer assignments later.</p>
-                        <a class="setup-review-link" href="{{ \App\Filament\Resources\AccountMasters\AccountMasterResource::getUrl('index', panel: 'admin') }}">Manage customers and addresses →</a>
-                    </div>
+                    <section class="setup-import-card" aria-label="Field route setup">
+                    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Set up field routes</h3><p>Import patches and standard fares for your team's visits.</p></div></div>
+                    <div class="setup-card-stats"><span>{{ $checklist['patch_count'] }} patches</span><span>{{ $checklist['fare_count'] }} fare routes</span></div>
                     @if (\App\Filament\Pages\FieldTravelImport::canAccess())
-                        <a class="setup-option" href="{{ \App\Filament\Pages\FieldTravelImport::getUrl(['onboarding' => 1], panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">↑</span><span><strong>2. Import patches and standard fares</strong><small>Use the existing Excel template, instructions and preview. Include Patch Customers only when customers and addresses are ready.</small></span><span aria-hidden="true">→</span></a>
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\FieldTravelImport::getUrl(['onboarding' => 1], panel: 'admin')">Import patches and standard fares</x-filament::button>
+                        <p class="setup-card-help">Assign accounts to patches now, or add assignments after importing your accounts.</p>
                     @else
                         <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
                     @endif
-                    <p class="setup-hint">{{ $checklist['patch_count'] }} patches and {{ $checklist['fare_count'] }} standard fare routes currently saved.</p>
-                    <p class="setup-hint">Historical travel is available separately under Data Import after daily call reports exist.</p>
+                    </section>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
                 @elseif ($step === 5)
                     <h2>Does your team need approvals?</h2>
