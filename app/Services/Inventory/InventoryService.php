@@ -23,19 +23,20 @@ use App\Models\SgipDistribution;
 use App\Models\VisitPreference;
 use App\Services\Marketing\MarketingCampaignQuotaService;
 use App\Services\SGIPComplianceService;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class InventoryService
 {
-    public function postAdjustment(InventoryAdjustment $adjustment, ?int $userId = null): void
+    public function postAdjustment(InventoryAdjustment $adjustment, ?int $userId = null, ?CarbonInterface $movementAt = null): void
     {
         if ($adjustment->isPosted()) {
             return;
         }
 
-        DB::transaction(function () use ($adjustment, $userId): void {
+        DB::transaction(function () use ($adjustment, $userId, $movementAt): void {
             $adjustment = $adjustment->newQuery()->lockForUpdate()->findOrFail($adjustment->id);
             if ($adjustment->isPosted()) {
                 return;
@@ -65,6 +66,7 @@ class InventoryService
                 reference: $adjustment,
                 unitCost: $adjustment->unit_cost !== null ? (float) $adjustment->unit_cost : null,
                 remarks: $adjustment->reason.($adjustment->remarks ? ': '.$adjustment->remarks : null),
+                movementAt: $movementAt,
             );
 
             $adjustment->forceFill([
@@ -483,6 +485,7 @@ class InventoryService
         Model $reference,
         ?float $unitCost,
         ?string $remarks,
+        ?CarbonInterface $movementAt = null,
     ): InventoryMovement {
         if ($quantity == 0.0) {
             throw new RuntimeException('Inventory movement quantity cannot be zero.');
@@ -511,7 +514,7 @@ class InventoryService
             'quantity_on_hand' => $newQuantity,
             'quantity_available' => $newQuantity - (float) $stock->quantity_reserved,
             'average_cost' => $averageCost,
-            'last_movement_at' => now(),
+            'last_movement_at' => $movementAt ?? now(),
         ])->save();
 
         DB::table('item_location')->updateOrInsert(
@@ -537,7 +540,7 @@ class InventoryService
             'balance_after' => $newQuantity,
             'unit_cost' => $resolvedUnitCost,
             'total_value' => $totalValue,
-            'movement_at' => now(),
+            'movement_at' => $movementAt ?? now(),
             'remarks' => $remarks,
         ]);
     }

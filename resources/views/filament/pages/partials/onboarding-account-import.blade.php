@@ -1,25 +1,22 @@
 <section class="setup-import-card" aria-label="Account master import">
     <div class="setup-card-heading"><span class="setup-card-number">1</span><div><h3>Import account masters</h3><p>Bring your accounts, contacts and business details into one place.</p></div></div>
     <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span><span>Excel or CSV · Up to 500 rows</span></div>
-    <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download account Excel template</x-filament::button>
+    <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
     <p class="setup-card-help">Includes account details, addresses, contacts, reporting, bank, credit, GST and statutory fields. Only four columns are required to start.</p>
     <details class="setup-optional">
-        <summary>How account import works</summary>
+        <summary>Instructions and examples</summary>
         <p>Fill the Accounts sheet only. Instructions explain every field group; References lists your company’s master values. Required: external_reference, name, account_type and owner_email.</p>
         <p>External reference is a stable source ID such as ERP:000123. Matching references update existing accounts. New references create accounts with generated application codes. Names are never used to match accounts.</p>
         <p>Blank optional cells preserve existing values. Patch codes add assignments. New accounts default to Prospect; Active status requires complete activation fields. Parent, institution and supplier references can appear in any row order.</p>
         <p>Preview does not save records. Correct every error before importing; the whole file saves together. To link manually entered accounts, set their External Reference in Accounts first.</p>
     </details>
-    <form wire:submit="previewAccounts" class="setup-form">
-        <div class="setup-field setup-upload-box"><label for="account-file">Upload your completed file</label><input id="account-file" type="file" accept=".xlsx,.csv" wire:model="accountFile"><p class="setup-card-help">.xlsx or .csv · Maximum 2 MB. Preview before saving.</p></div>
-        <p wire:loading wire:target="accountFile">Uploading file…</p>
-        <x-filament::button type="submit" wire:loading.attr="disabled">Preview accounts</x-filament::button>
-    </form>
+    @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewAccounts', 'fileProperty' => 'accountFile', 'inputId' => 'account-file', 'accept' => '.xlsx,.csv', 'fileHelp' => '.xlsx or .csv · Maximum 2 MB.'])
     @if ($accountImportResult !== [])
         <p class="setup-success" role="status">{{ $accountImportResult['created'] }} accounts created; {{ $accountImportResult['updated'] }} existing accounts updated.</p>
     @endif
     @if ($accountPreview !== [])
-        <h4>Review account import</h4>
+        <div class="setup-note">
+        <h4>Review before importing</h4>
         <p>{{ count($accountPreview['rows']) }} source rows · {{ $accountPreview['created'] }} to create · {{ $accountPreview['updated'] }} to update · {{ count($accountPreview['errors']) }} errors.</p>
         @if ($accountPreview['errors'] !== [])
             <p class="setup-error">Nothing has been imported. Correct all errors and upload the file again.</p>
@@ -37,7 +34,8 @@
             @endforeach
         </tbody></table></div>
         @if ($accountPreview['errors'] === [])
-            <x-filament::button wire:click="importAccounts" wire:loading.attr="disabled">Import reviewed accounts</x-filament::button>
+            <x-filament::button wire:click="importAccounts" wire:loading.attr="disabled">Confirm import</x-filament::button>
         @endif
+        </div>
     @endif
 </section>

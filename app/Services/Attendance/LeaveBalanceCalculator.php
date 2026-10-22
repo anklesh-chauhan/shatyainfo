@@ -83,7 +83,7 @@ class LeaveBalanceCalculator
             ->sum('days');
 
         $closing =
-            $balance->opening_balance
+            ($asOnDate->toDateString() >= $balance->year_start_date->toDateString() ? $balance->opening_balance : 0)
             + $adjustedPositive
             - $applied
             - $lapsed

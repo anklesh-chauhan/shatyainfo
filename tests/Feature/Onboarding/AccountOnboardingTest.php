@@ -188,7 +188,7 @@ it('supports preview and confirmation in company setup and invalidates changed u
         $csv = 'external_reference,name,account_type,owner_email'."\n".'ERP:0001,Import Doctor One,Import Doctor,'.auth()->user()->email."\n";
         $page = Livewire::test(Onboarding::class)->assertSet('step', 4)->assertSee('Import account masters')
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', $csv))
-            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review account import');
+            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review before importing');
         $this->assertDatabaseCount('account_masters', 0);
         $page->call('importAccounts')->assertHasNoErrors()->assertSet('accountPreview', [])->assertSee('1 accounts created');
         $this->assertDatabaseCount('account_masters', 1);

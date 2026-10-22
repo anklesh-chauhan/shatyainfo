@@ -37,6 +37,21 @@ class LeaveLedgerQuery
                         -leave_instances.pay_factor as amount
                     ")
                     ->unionAll(
+                        DB::table('leave_balances')
+                            ->join('employees', 'employees.id', '=', 'leave_balances.employee_id')
+                            ->join('users', 'users.id', '=', 'employees.login_id')
+                            ->whereNull('leave_balances.deleted_at')
+                            ->selectRaw("
+                                leave_balances.employee_id,
+                                employees.login_id as user_id,
+                                leave_balances.leave_type_id,
+                                users.name as employee_name,
+                                leave_balances.year_start_date as date,
+                                'Opening Balance' as source,
+                                leave_balances.opening_balance as amount
+                            ")
+                    )
+                    ->unionAll(
                         DB::table('leave_adjustments')
                             ->join('employees', 'employees.id', '=', 'leave_adjustments.employee_id')
                             ->join('users', 'users.id', '=', 'employees.login_id')

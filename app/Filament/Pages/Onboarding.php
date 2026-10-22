@@ -10,6 +10,7 @@ use App\Services\AccountOnboardingService;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\AccountImportTemplate;
+use App\Services\DataImport\ImportDownloadResponse;
 use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
@@ -44,7 +45,7 @@ class Onboarding extends Page
     {
         app(AccountOnboardingService::class)->authorize();
 
-        return response()->streamDownload(function (): void {
+        return ImportDownloadResponse::from(response()->streamDownload(function (): void {
             $path = tempnam(sys_get_temp_dir(), 'account-template-');
             try {
                 app(AccountImportTemplate::class)->write($path);
@@ -52,7 +53,7 @@ class Onboarding extends Page
             } finally {
                 unlink($path);
             }
-        }, 'accounts-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+        }, 'accounts-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']));
     }
 
     public function previewAccounts(): void
@@ -79,7 +80,7 @@ class Onboarding extends Page
     {
         app(AccountOnboardingService::class)->authorize();
 
-        return response()->streamDownload(function (): void {
+        return ImportDownloadResponse::from(response()->streamDownload(function (): void {
             $stream = fopen('php://output', 'w');
             fputcsv($stream, ['Row', 'External reference', 'Error'], ',', '"', '');
             foreach ($this->accountPreview['errors'] ?? [] as $error) {
@@ -87,7 +88,7 @@ class Onboarding extends Page
                 fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $cells), ',', '"', '');
             }
             fclose($stream);
-        }, 'account-import-errors.csv', ['Content-Type' => 'text/csv']);
+        }, 'account-import-errors.csv', ['Content-Type' => 'text/csv']));
     }
 
     public function usesDivisions(): bool
@@ -109,7 +110,7 @@ class Onboarding extends Page
     {
         app(CompanyOnboardingService::class)->authorize();
 
-        return response()->streamDownload(function (): void {
+        return ImportDownloadResponse::from(response()->streamDownload(function (): void {
             $path = tempnam(sys_get_temp_dir(), 'territory-template-');
             try {
                 app(TerritoryImportTemplate::class)->write($path);
@@ -117,7 +118,7 @@ class Onboarding extends Page
             } finally {
                 unlink($path);
             }
-        }, 'territories-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+        }, 'territories-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']));
     }
 
     public function previewTerritories(): void

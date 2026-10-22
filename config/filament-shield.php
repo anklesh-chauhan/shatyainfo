@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Filament\Clusters\GlobalConfiguration\UserAndAccessCluster;
 use BezhanSalleh\FilamentShield\Resources\Roles\RoleResource;
 use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
@@ -22,7 +23,7 @@ return [
     'shield_resource' => [
         'slug' => 'shield/roles',
         'show_model_path' => true,
-        'cluster' => null,
+        'cluster' => UserAndAccessCluster::class,
         'tabs' => [
             'pages' => true,
             'widgets' => true,

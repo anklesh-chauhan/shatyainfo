@@ -23,8 +23,8 @@
     @else
         @php
             $checklist = $this->checklist();
-            $titles = ['A great place to start.', 'Tell us about your company.', 'Map your territories.', 'Bring your team together.', 'Prepare your field routes.', 'Choose how approvals work.', 'Ready for your first day.'];
-            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Create the territory hierarchy your team will work in.', 'Add employees and give everyone a place in your organization.', 'Optionally add customers, patches and standard fares. You can complete this later.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
+            $titles = ['A great place to start.', 'Tell us about your company.', 'Map your territories.', 'Bring your team together.', 'Prepare your workspace.', 'Choose how approvals work.', 'Ready for your first day.'];
+            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Create the territory hierarchy your team will work in.', 'Add employees and give everyone a place in your organization.', 'Optionally import accounts, field routes, products, shift assignments and holidays. You can complete these later.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -33,7 +33,7 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Territories', 'Add employees', 'Accounts & field routes', 'Approvals', 'Review & finish'] as $label)
+                    @foreach (['Company information', 'Territories', 'Add employees', 'Optional imports', 'Approvals', 'Review & finish'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
@@ -112,19 +112,19 @@
                     <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
-                    <h2>Accounts & field routes</h2>
-                    <p>Import your accounts, then organize their field routes. Both steps can be completed later.</p>
+                    <h2>Optional setup imports</h2>
+                    <p>Add accounts, field routes, products and HR setup. You can complete any of these imports later.</p>
                     @include('filament.pages.partials.onboarding-account-import')
-                    <section class="setup-import-card" aria-label="Field route setup">
-                    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Set up field routes</h3><p>Import patches and standard fares for your team's visits.</p></div></div>
-                    <div class="setup-card-stats"><span>{{ $checklist['patch_count'] }} patches</span><span>{{ $checklist['fare_count'] }} fare routes</span></div>
                     @if (\App\Filament\Pages\FieldTravelImport::canAccess())
-                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\FieldTravelImport::getUrl(['onboarding' => 1], panel: 'admin')">Import patches and standard fares</x-filament::button>
-                        <p class="setup-card-help">Assign accounts to patches now, or add assignments after importing your accounts.</p>
+                        @livewire(\App\Filament\Pages\FieldTravelImport::class, ['embedded' => true], key('onboarding-field-import'))
                     @else
-                        <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
+                        <section class="setup-import-card" aria-label="Field route setup">
+                            <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Set up field routes</h3><p>Import patches, account assignments and standard fares for your team's visits.</p></div></div>
+                            <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
+                        </section>
                     @endif
-                    </section>
+                    @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'products'], key('onboarding-product-import'))
+                    @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hr'], key('onboarding-hr-import'))
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
                 @elseif ($step === 5)
                     <h2>Does your team need approvals?</h2>

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Taxes;
 
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Clusters\GlobalConfiguration\ItemConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Taxes\Pages\CreateTax;
 use App\Filament\Resources\Taxes\Pages\EditTax;
@@ -30,7 +31,7 @@ class TaxResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedReceiptPercent;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Tax Management';
+    protected static ?string $cluster = ItemConfigurationCluster::class;
 
     public static function form(Schema $schema): Schema
     {

@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TravelSegment;
 use App\Services\DataImport\FieldTravelImport as Importer;
 use App\Services\DataImport\FieldTravelTemplate;
+use App\Services\DataImport\ImportDownloadResponse;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -37,6 +38,9 @@ class FieldTravelImport extends Page
     #[Locked]
     public bool $fromOnboarding = false;
 
+    #[Locked]
+    public bool $embedded = false;
+
     public int $previewPage = 1;
 
     #[Locked]
@@ -59,9 +63,12 @@ class FieldTravelImport extends Page
         return auth()->check() && collect([Patch::class, StandardFareChart::class, TravelSegment::class])->contains(fn ($class) => Gate::allows('create', $class));
     }
 
-    public function mount(): void
+    public function mount(bool $embedded = false): void
     {
-        $this->fromOnboarding = request()->boolean('onboarding') && Onboarding::canAccess();
+        abort_unless(static::canAccess(), 403);
+        $this->embedded = $embedded;
+        $this->fromOnboarding = ($embedded || request()->boolean('onboarding')) && Onboarding::canAccess();
+        abort_if($embedded && ! $this->fromOnboarding, 403);
         $token = session($this->sessionKey());
         if (is_string($token) && preg_match('/^[a-f0-9-]{36}$/', $token)) {
             $this->token = $token;
@@ -74,6 +81,11 @@ class FieldTravelImport extends Page
                 $this->resetPreview();
             }
         }
+    }
+
+    public function getView(): string
+    {
+        return $this->embedded ? 'filament.pages.partials.onboarding-field-import' : parent::getView();
     }
 
     private function sessionKey(): string
@@ -107,7 +119,7 @@ class FieldTravelImport extends Page
         abort_unless(static::canAccess(), 403);
         $historical = ! $this->fromOnboarding && $this->historical;
 
-        return response()->streamDownload(function () use ($historical): void {
+        return ImportDownloadResponse::from(response()->streamDownload(function () use ($historical): void {
             $path = tempnam(sys_get_temp_dir(), 'field-travel-');
             try {
                 app(FieldTravelTemplate::class)->write($path, $historical);
@@ -115,7 +127,7 @@ class FieldTravelImport extends Page
             } finally {
                 unlink($path);
             }
-        }, $historical ? 'historical-travel.xlsx' : 'patches-and-fares.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+        }, $historical ? 'historical-travel.xlsx' : 'patches-and-fares.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']));
     }
 
     public function previewFile(): void
