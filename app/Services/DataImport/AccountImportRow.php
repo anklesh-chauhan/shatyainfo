@@ -7,6 +7,7 @@ use App\Models\AccountOwnership;
 use App\Models\AccountReportingMaster;
 use App\Models\AccountStatus;
 use App\Models\Address;
+use App\Models\City;
 use App\Models\CityPinCode;
 use App\Models\ContactDetail;
 use App\Models\IndustryType;
@@ -68,6 +69,7 @@ class AccountImportRow
         foreach (['street', 'address_type', 'city', 'area', 'pin_code'] as $field) {
             $rules[$field] = ['nullable', 'required_with:street,address_type,city,area,pin_code', 'string', 'max:255'];
         }
+        $rules['pin_code'] = ['nullable', 'required_with:street,address_type,city,area', 'regex:/^[0-9]+$/', 'numeric', 'between:0,2147483647'];
         Validator::make($row, $rules)->validate();
         $matches = AccountMaster::withTrashed()->where('external_reference', $row['external_reference'])->limit(2)->get();
         if ($matches->count() > 1) {
@@ -117,12 +119,17 @@ class AccountImportRow
             }
         }
         $address = [];
+        $areaPlan = [];
         if ($row['street'] !== '') {
-            $area = CityPinCode::findOrFail($this->match(CityPinCode::where('area_town', $row['area'])->where('pin_code', $row['pin_code'])->whereHas('city', fn ($query) => $query->where('name', $row['city'])), 'City / area / PIN'));
+            $city = City::findOrFail($this->match(City::where('name', $row['city']), 'City '.$row['city']));
+            $area = CityPinCode::where('city_id', $city->id)->where('pin_code', $row['pin_code'])->orderBy('id')->first();
+            if (! $area) {
+                $areaPlan = ['city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id, 'pin_code' => (int) $row['pin_code'], 'area_town' => $row['area']];
+            }
             if ($account && $account->addresses()->where('is_primary', true)->count() > 1) {
                 throw new ImportRowException('Multiple primary addresses exist. Correct these in Accounts first.');
             }
-            $address = ['street' => $row['street'], 'type_master_id' => $this->match(TypeMaster::where('typeable_type', Address::class)->where('name', $row['address_type']), 'Address type'), 'area_town_id' => $area->id, 'pin_code' => $area->pin_code, 'city_id' => $area->city_id, 'state_id' => $area->city?->state_id, 'country_id' => $area->city?->country_id, 'is_primary' => true];
+            $address = ['street' => $row['street'], 'type_master_id' => $this->match(TypeMaster::where('typeable_type', Address::class)->where('name', $row['address_type']), 'Address type'), 'area_town_id' => $area?->id, 'pin_code' => (int) $row['pin_code'], 'city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id, 'is_primary' => true];
         }
         foreach (['parent_reference', 'institution_reference', 'supplier_reference'] as $field) {
             if ($row[$field] === '') {
@@ -176,7 +183,7 @@ class AccountImportRow
         }
         $similar = ! $account && AccountMaster::where('name', $row['name'])->exists();
 
-        return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'address' => $address, 'profile' => $profile, 'target' => $target,
+        return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'address' => $address, 'area_plan' => $areaPlan, 'profile' => $profile, 'target' => $target,
             'details' => app(AccountImportDetails::class)->resolve($row, $account, $address),
             'warning' => $similar ? 'An account with this name already exists. This new external reference will create a separate account; review before importing.' : null];
     }

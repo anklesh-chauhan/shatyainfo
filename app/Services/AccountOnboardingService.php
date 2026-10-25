@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccountMaster;
+use App\Models\CityPinCode;
 use App\Models\Organization;
 use App\Models\Tenant;
 use App\Services\DataImport\AccountImportDetails;
@@ -170,6 +171,13 @@ class AccountOnboardingService
                     $account->account_status_id = null;
                     $account->save();
                     if ($plan['address'] !== []) {
+                        if ($plan['area_plan'] !== []) {
+                            $area = CityPinCode::query()->orderBy('id')->firstOrCreate(
+                                ['city_id' => $plan['area_plan']['city_id'], 'pin_code' => $plan['area_plan']['pin_code']],
+                                $plan['area_plan'],
+                            );
+                            $plan['address']['area_town_id'] = $area->id;
+                        }
                         $account->addresses()->updateOrCreate(['is_primary' => true], $plan['address']);
                     }
                     if ($plan['patches'] !== []) {

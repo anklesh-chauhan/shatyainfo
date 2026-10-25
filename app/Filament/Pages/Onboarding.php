@@ -19,6 +19,8 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -61,10 +63,17 @@ class Onboarding extends Page
     public array $accountPreview = [];
 
     #[Locked]
+    public ?string $accountPreviewToken = null;
+
+    #[Locked]
+    public int $accountPreviewPage = 1;
+
+    #[Locked]
     public array $accountImportResult = [];
 
     public function updatedAccountFile(): void
     {
+        $this->forgetAccountPreview();
         $this->accountPreview = [];
         $this->accountImportResult = [];
         $this->resetErrorBag();
@@ -89,17 +98,60 @@ class Onboarding extends Page
     {
         $service = app(AccountOnboardingService::class);
         $service->authorize();
+        $this->forgetAccountPreview();
         $this->accountPreview = [];
         $this->accountImportResult = [];
         $this->validate(['accountFile' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:2048']]);
-        $this->accountPreview = $service->preview($service->readFile($this->accountFile->getRealPath(), strtolower($this->accountFile->getClientOriginalExtension()) === 'xlsx'));
+        $preview = $service->preview($service->readFile($this->accountFile->getRealPath(), strtolower($this->accountFile->getClientOriginalExtension()) === 'xlsx'));
+        $this->accountPreviewToken = (string) Str::uuid();
+        Cache::put($this->accountPreviewCacheKey(), $preview, now()->addHour());
+        $this->showAccountPreviewPage(1);
+    }
+
+    public function showAccountPreviewPage(int $page): void
+    {
+        app(AccountOnboardingService::class)->authorize();
+        $preview = $this->storedAccountPreview();
+        $pages = max(1, (int) ceil(count($preview['plans']) / 25));
+        $this->accountPreviewPage = max(1, min($page, $pages));
+        $this->accountPreview = [
+            'row_count' => count($preview['rows']), 'created' => $preview['created'], 'updated' => $preview['updated'],
+            'error_count' => count($preview['errors']), 'errors' => array_slice($preview['errors'], 0, 25),
+            'plans' => array_slice($preview['plans'], ($this->accountPreviewPage - 1) * 25, 25), 'pages' => $pages,
+        ];
+    }
+
+    private function accountPreviewCacheKey(): string
+    {
+        return 'account-import-preview:'.(Tenant::current()?->getKey() ?? 'central').':'.auth()->id().':'.$this->accountPreviewToken;
+    }
+
+    private function storedAccountPreview(): array
+    {
+        $preview = $this->accountPreviewToken ? Cache::get($this->accountPreviewCacheKey()) : null;
+        if (! is_array($preview)) {
+            throw ValidationException::withMessages(['accountFile' => 'The account preview has expired. Preview your file again.']);
+        }
+
+        return $preview;
+    }
+
+    private function forgetAccountPreview(): void
+    {
+        if ($this->accountPreviewToken !== null) {
+            Cache::forget($this->accountPreviewCacheKey());
+        }
+        $this->accountPreviewToken = null;
+        $this->accountPreviewPage = 1;
     }
 
     public function importAccounts(): void
     {
         app(AccountOnboardingService::class)->authorize();
-        abort_unless($this->accountPreview !== [] && $this->accountPreview['errors'] === [], 422, 'Preview a valid file first.');
-        $this->accountImportResult = app(AccountOnboardingService::class)->import($this->accountPreview['rows']);
+        $preview = $this->storedAccountPreview();
+        abort_unless($preview['errors'] === [], 422, 'Preview a valid file first.');
+        $this->accountImportResult = app(AccountOnboardingService::class)->import($preview['rows']);
+        $this->forgetAccountPreview();
         $this->accountPreview = [];
         $this->reset('accountFile');
         Notification::make()->title($this->accountImportResult['created'].' accounts created; '.$this->accountImportResult['updated'].' existing accounts updated.')->success()->send();
@@ -109,10 +161,13 @@ class Onboarding extends Page
     {
         app(AccountOnboardingService::class)->authorize();
 
-        return ImportDownloadResponse::from(response()->streamDownload(function (): void {
+        $errors = $this->storedAccountPreview()['errors'];
+        $this->skipRender();
+
+        return ImportDownloadResponse::from(response()->streamDownload(function () use ($errors): void {
             $stream = fopen('php://output', 'w');
             fputcsv($stream, ['Row', 'External reference', 'Error'], ',', '"', '');
-            foreach ($this->accountPreview['errors'] ?? [] as $error) {
+            foreach ($errors as $error) {
                 $cells = [$error['row'], $error['reference'], $error['message']];
                 fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $cells), ',', '"', '');
             }

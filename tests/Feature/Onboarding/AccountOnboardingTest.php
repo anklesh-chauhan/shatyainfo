@@ -281,3 +281,135 @@ it('rejects bank numbers repeated across source accounts before writing', functi
     expect($this->service->preview($rows)['errors'][0]['message'])->toContain('Duplicate bank_account_number');
     $this->assertDatabaseCount('account_masters', 0);
 });
+
+function accountImportAddress(): array
+{
+    $country = Country::create(['name' => 'Import Country']);
+    $state = State::create(['name' => 'Import State', 'country_id' => $country->id]);
+    City::create(['name' => 'Import City', 'state_id' => $state->id, 'country_id' => $country->id]);
+    TypeMaster::create(['name' => 'Office Address', 'typeable_type' => Address::class]);
+
+    return ['address_type' => 'Office Address', 'street' => '76, Business Road', 'city' => 'Import City', 'area' => 'Uploaded area', 'pin_code' => '411005'];
+}
+
+it('matches account addresses by city and PIN ignoring area spelling and duplicate PINs', function () {
+    $fields = accountImportAddress();
+    $city = City::where('name', 'Import City')->sole();
+    $area = CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Existing area', 'pin_code' => 411005]);
+    CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Another area', 'pin_code' => 411005]);
+    $preview = $this->service->preview(accountImportRows($fields));
+    expect($preview['errors'])->toBe([])->and($preview['plans'][0]['address']['area_town_id'])->toBe($area->id);
+    $this->service->import($preview['rows']);
+    $this->service->import($preview['rows']);
+    expect(AccountMaster::sole()->addresses()->sole()->area_town_id)->toBe($area->id);
+    expect($area->fresh()->area_town)->toBe('Existing area');
+    $this->assertDatabaseCount('city_pin_codes', 2);
+});
+
+it('creates one missing account area only on confirmation and reuses it across rows and retries', function () {
+    $fields = accountImportAddress();
+    $rows = accountImportRows($fields);
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002', 'area' => 'Different spelling'])];
+    $preview = $this->service->preview($rows);
+    expect($preview['errors'])->toBe([]);
+    $this->assertDatabaseCount('city_pin_codes', 0);
+    $this->service->import($preview['rows']);
+    $this->service->import($preview['rows']);
+    $area = CityPinCode::sole();
+    $city = City::where('name', 'Import City')->sole();
+    expect($area->area_town)->toBe('Uploaded area')->and($area->state_id)->toBe($city->state_id)->and($area->country_id)->toBe($city->country_id);
+    foreach (AccountMaster::all() as $account) {
+        expect($account->addresses()->sole()->area_town_id)->toBe($area->id);
+    }
+});
+
+it('does not reuse the same PIN from another city for an account address', function () {
+    $fields = accountImportAddress();
+    $city = City::where('name', 'Import City')->sole();
+    $otherCity = City::create(['name' => 'Other City', 'state_id' => $city->state_id, 'country_id' => $city->country_id]);
+    CityPinCode::create(['city_id' => $otherCity->id, 'area_town' => 'Other area', 'pin_code' => 411005]);
+    $this->service->import(accountImportRows($fields));
+    $address = AccountMaster::sole()->addresses()->sole();
+    expect($address->city_id)->toBe($city->id)->and(CityPinCode::findOrFail($address->area_town_id)->city_id)->toBe($city->id);
+    $this->assertDatabaseCount('city_pin_codes', 2);
+});
+
+it('rejects missing cities and invalid PINs without creating account areas', function (array $override) {
+    $fields = array_replace(accountImportAddress(), $override);
+    expect($this->service->preview(accountImportRows($fields))['errors'])->not->toBeEmpty();
+    expect(fn () => $this->service->import(accountImportRows($fields)))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('city_pin_codes', 0);
+})->with([[['city' => 'Missing City']], [['pin_code' => '411005abc']], [['pin_code' => '99999999999']]]);
+
+it('rolls back a newly created account area if a later account write fails', function () {
+    $rows = accountImportRows(accountImportAddress());
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'])];
+    $dispatcher = AccountMaster::getEventDispatcher();
+    AccountMaster::setEventDispatcher(clone $dispatcher);
+    AccountMaster::creating(function ($account): void {
+        if ($account->external_reference === 'ERP:0002') {
+            throw ValidationException::withMessages(['name' => 'Rejected account']);
+        }
+    });
+    try {
+        expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+        $this->assertDatabaseCount('city_pin_codes', 0);
+        $this->assertDatabaseCount('account_masters', 0);
+    } finally {
+        AccountMaster::setEventDispatcher($dispatcher);
+    }
+});
+
+it('keeps a full workbook preview on the server and downloads every error without rerendering', function () {
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    try {
+        auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $rows = $plans = $errors = [];
+        for ($index = 1; $index <= 500; $index++) {
+            $data = array_fill_keys(AccountOnboardingService::COLUMNS, '');
+            $data = array_replace($data, accountImportRows()[0]['data'], ['external_reference' => 'SAMPLE:ACC'.str_pad((string) $index, 4, '0', STR_PAD_LEFT)]);
+            $rows[] = ['line' => $index + 1, 'data' => $data];
+            if ($index % 2 === 0) {
+                $plans[] = ['line' => $index + 1, 'id' => null, 'data' => $data];
+            } else {
+                $errors[] = ['row' => $index + 1, 'reference' => $data['external_reference'], 'message' => 'City was not found.'];
+            }
+        }
+        $service = Mockery::mock(AccountOnboardingService::class)->makePartial();
+        $service->shouldReceive('readFile')->twice()->andReturn($rows);
+        $service->shouldReceive('preview')->twice()->with($rows)->andReturn(
+            ['rows' => $rows, 'plans' => $plans, 'errors' => $errors, 'created' => 250, 'updated' => 0],
+            ['rows' => $rows, 'plans' => $plans, 'errors' => [], 'created' => 500, 'updated' => 0],
+        );
+        $service->shouldReceive('import')->once()->with($rows)->andReturn(['created' => 500, 'updated' => 0]);
+        app()->instance(AccountOnboardingService::class, $service);
+        $page = Livewire::test(Onboarding::class)
+            ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
+            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Confirm import')->assertSee('Working… Previewing file')
+            ->assertSet('accountPreview.row_count', 500)->assertSet('accountPreview.error_count', 250);
+        expect($page->get('accountPreview')['plans'])->toHaveCount(25);
+        expect($page->get('accountPreview')['errors'])->toHaveCount(25);
+        expect($page->get('accountPreview'))->not->toHaveKey('rows');
+        expect(strlen(json_encode($page->get('accountPreview'))))->toBeLessThan(150000);
+        $page->call('showAccountPreviewPage', 10)->assertSet('accountPreviewPage', 10)->assertSee('SAMPLE:ACC0500');
+        $page->call('downloadAccountErrors')->assertFileDownloaded('account-import-errors.csv');
+        $csv = base64_decode($page->effects['download']['content']);
+        expect($csv)->toContain('SAMPLE:ACC0499')->and(substr_count(trim($csv), "\n"))->toBe(250);
+        expect($page->effects)->not->toHaveKey('html');
+        $page->call('importAccounts')->assertStatus(422);
+        $page = Livewire::test(Onboarding::class)
+            ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
+            ->call('previewAccounts')->assertHasNoErrors()
+            ->call('showAccountPreviewPage', 10)
+            ->call('importAccounts')->assertHasNoErrors()->assertSee('500 accounts created')
+            ->assertSet('accountPreviewToken', null)->assertSet('accountPreview', []);
+        $page->call('downloadAccountErrors')->assertHasErrors('accountFile');
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
