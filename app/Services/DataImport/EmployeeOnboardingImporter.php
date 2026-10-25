@@ -11,12 +11,14 @@ use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\Territory;
 use App\Models\TypeMaster;
+use App\Models\User;
 use App\Services\OrganizationalUnitService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class EmployeeOnboardingImporter
 {
@@ -33,6 +35,7 @@ class EmployeeOnboardingImporter
             'hire_date' => '2026-10-01', 'employment_type' => 'Permanent',
             'is_primary_position' => 'Yes', 'reports_to_position_code' => '',
             'reports_to_employee_code' => '', 'reporting_action' => '', 'assignment_action' => '',
+            'temporary_password' => '',
         ];
 
         return collect($examples)->map(fn (string $example, string $header): ImportColumnDefinition => new ImportColumnDefinition(
@@ -152,8 +155,56 @@ class EmployeeOnboardingImporter
                 $detail->organizationalUnits()->syncWithoutDetaching([$unit->id]);
             }
         }
+        if (! $deferAssignments) {
+            $this->provisionLogin($employee, $row);
+        }
 
         return $existing ? 'updated' : 'created';
+    }
+
+    public function provisionLogin(Employee $employee, array $row): void
+    {
+        $roles = [];
+        foreach ($employee->positions()->with('jobRole')->get() as $position) {
+            if (! $position->jobRole) {
+                continue;
+            }
+            $name = Str::slug($position->jobRole->name, '_');
+            if ($name === '') {
+                throw new ImportRowException('Job role must contain a usable role name.');
+            }
+            if (in_array($name, ['super_admin', 'sales_admin', 'administration_admin'], true) && ! auth()->user()->hasRole('super_admin')) {
+                throw new ImportRowException('Only Super Admin can assign an administrator role through employee import.');
+            }
+            $this->authorize('create', \App\Models\Role::class);
+            $roles[] = Role::findOrCreate($name, (new User)->getGuardName());
+        }
+        $user = $employee->login_id ? User::find($employee->login_id) : null;
+        $email = $employee->email;
+        if (! $email) {
+            if (filled($row['temporary_password'] ?? null)) {
+                throw new ImportRowException('An email is required when supplying temporary_password.');
+            }
+
+            return;
+        }
+        $this->authorize($user ? 'update' : 'create', $user ?? User::class);
+        if (User::where('email', $email)->when($user, fn ($query) => $query->whereKeyNot($user->id))->exists()) {
+            throw new ImportRowException('This email already belongs to another login. Link or correct the existing user before importing.');
+        }
+        if ($user && (($user->employee_id && (int) $user->employee_id !== (int) $employee->id) || Employee::withTrashed()->where('login_id', $user->id)->whereKeyNot($employee->id)->exists())) {
+            throw new ImportRowException('This login is already linked to another employee. Correct the link before importing.');
+        }
+        if (! $user) {
+            Validator::make($row, ['temporary_password' => ['required', 'string', 'min:8', 'max:72']])->validate();
+            $user = new User(['password' => $row['temporary_password']]);
+        }
+        $user->fill(['name' => trim($employee->first_name.' '.$employee->last_name), 'email' => $email, 'employee_id' => $employee->id]);
+        $user->save();
+        $employee->forceFill(['login_id' => $user->id])->saveQuietly();
+        foreach ($roles as $role) {
+            $user->assignRole($role);
+        }
     }
 
     /** @param class-string<Model> $class */

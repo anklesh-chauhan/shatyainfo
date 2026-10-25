@@ -86,7 +86,7 @@ class FullDemoSeeder extends Seeder
             'Demo Salesperson',
             'DEMO-SE-01',
             '9000000001',
-            'sales_user',
+            'sales_admin',
         );
 
         $this->ensureAdminCanSignIn();

@@ -14,7 +14,7 @@ return [
     'roles' => [
 
         /* ================= ADMIN ================= */
-        'administration_admin' => [
+        'super_admin' => [
             '*' => 'F', // Full access to everything
         ],
 

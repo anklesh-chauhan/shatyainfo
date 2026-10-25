@@ -28,10 +28,10 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
 
         foreach (config('permission-map.roles') as $roleName => $rules) {
 
-            $role = $roleModel::firstOrCreate([
+            $role = in_array($roleName, ['super_admin', 'sales_admin'], true) ? $roleModel::firstOrCreate([
                 'name' => $roleName,
                 'guard_name' => 'web',
-            ]);
+            ]) : null;
 
             $permissions = collect();
 
@@ -61,10 +61,11 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
                 }
             }
 
-            $role->syncPermissions($permissions->unique('name'));
+            $role?->syncPermissions($permissions->unique('name'));
         }
 
         $this->call(HrApprovalPermissionSeeder::class);
+        $roleModel::findByName('super_admin', 'web')->syncPermissions($permissionModel::where('guard_name', 'web')->get());
 
         $this->command->info('Shield permissions synced using Action:Model format.');
     }

@@ -88,7 +88,8 @@ class ResourceCsvImporter
             foreach ($reader->getRecords() as $offset => $record) {
                 $row = [];
                 foreach ($record as $header => $value) {
-                    $row[$this->normalizeHeader((string) $header)] = is_string($value) ? trim($value) : $value;
+                    $key = $this->normalizeHeader((string) $header);
+                    $row[$key] = is_string($value) && $key !== 'temporary_password' ? trim($value) : $value;
                 }
                 if (! collect($row)->every(fn (mixed $value): bool => blank($value))) {
                     $rows[$offset + 1] = $row;

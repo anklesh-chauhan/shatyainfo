@@ -8,8 +8,10 @@ use App\Models\Address;
 use App\Models\EmpDepartment;
 use App\Models\Employee;
 use App\Models\EmploymentDetail;
+use App\Models\Organization;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
+use App\Models\Tenant;
 use App\Models\TypeMaster;
 use App\Models\User;
 use App\Services\Approval\OnboardingApprovalService;
@@ -20,11 +22,14 @@ use App\Services\DataImport\ImportResult;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use App\Services\OrganizationalUnitService;
+use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
+use Database\Seeders\DepartmentRoleSeeder;
 use Database\Seeders\TypeMasterSeeder;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -79,6 +84,45 @@ function hierarchyUpload(array $rows): ImportResult
         unlink($path);
     }
 }
+
+it('requires a temporary password for new employee logins and preserves passwords on rerun', function () {
+    $row = app(EmployeeImportTemplate::class)->examples()[1];
+    $row['email'] = 'new.employee@example.test';
+    $result = hierarchyUpload([$row]);
+    expect($result->failed)->toHaveCount(1)->and($result->failed[0]['message'])->toContain('temporary password');
+    expect(Employee::count())->toBe(0)->and(Role::where('name', 'sales_head')->exists())->toBeFalse();
+    $row['temporary_password'] = ' First-Password-42 ';
+    expect(hierarchyUpload([$row])->failed)->toBe([]);
+    $employee = Employee::sole();
+    $user = User::findOrFail($employee->login_id);
+    expect(Hash::check($row['temporary_password'], $user->password))->toBeTrue();
+    $original = $user->password;
+    $row['temporary_password'] = 'Different-Password-42';
+    expect(hierarchyUpload([$row])->failed)->toBe([]);
+    expect($user->fresh()->password)->toBe($original)->and($user->hasRole('sales_head'))->toBeTrue();
+    unset($row['temporary_password']);
+    expect(hierarchyUpload([$row])->failed)->toBe([]);
+    expect(User::where('email', $row['email'])->count())->toBe(1);
+});
+
+it('rejects login email collisions without linking another users account', function () {
+    $row = app(EmployeeImportTemplate::class)->examples()[1];
+    $row['email'] = auth()->user()->email;
+    $row['temporary_password'] = 'Temporary-Password-42';
+    $password = auth()->user()->password;
+    $result = hierarchyUpload([$row]);
+    expect($result->failed)->toHaveCount(1)->and($result->failed[0]['message'])->toContain('another login');
+    expect(Employee::count())->toBe(0)->and(auth()->user()->fresh()->password)->toBe($password);
+});
+
+it('seeds only the two administrator roles without deleting imported roles', function () {
+    $this->seed(ConfigDrivenShieldPermissionSeeder::class);
+    $this->seed(DepartmentRoleSeeder::class);
+    expect(Role::orderBy('name')->pluck('name')->all())->toBe(['sales_admin', 'super_admin']);
+    Role::findOrCreate('imported_job_role', 'web');
+    $this->seed(ConfigDrivenShieldPermissionSeeder::class);
+    expect(Role::where('name', 'imported_job_role')->exists())->toBeTrue();
+});
 
 it('creates a division from the organizational unit form and requires a valid OU type', function () {
     foreach (['ViewAny:OrganizationalUnit', 'Create:OrganizationalUnit'] as $permission) {
@@ -214,20 +258,31 @@ it('shares a newly imported department across employee organizational units', fu
 });
 
 it('shows persistent escaped row errors in the import notification', function () {
-    Storage::fake('local');
-    $message = 'Unknown position <MISSING>. No rows were saved.';
-    $this->mock(ResourceCsvImporter::class)->shouldReceive('import')->once()
-        ->andReturn(new ImportResult(failed: [['row' => 2, 'message' => $message]]));
-    $upload = UploadedFile::fake()->createWithContent('employees.csv', "employee_id,first_name\nEMP004,Asha\n");
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+    Organization::create(['name' => 'Import Company', 'metadata' => ['company_setup' => ['organization_saved' => true]]]);
+    try {
+        Storage::fake('local');
+        $message = 'Unknown position <MISSING>. No rows were saved.';
+        $this->mock(ResourceCsvImporter::class)->shouldReceive('import')->once()
+            ->andReturn(new ImportResult(failed: [['row' => 2, 'message' => $message]]));
+        $upload = UploadedFile::fake()->createWithContent('employees.csv', "employee_id,first_name\nEMP004,Asha\n");
 
-    Livewire::test(DataImport::class)
-        ->fillForm(['resource' => EmployeeResource::class, 'file' => $upload])
-        ->call('import')
-        ->assertHasNoFormErrors()
-        ->assertNotified(Notification::make()
-            ->title('Import failed')
-            ->body(nl2br(e("0 created, 0 updated. 1 failed.\nRow 2: ".$message)))
-            ->danger()->persistent());
+        Livewire::test(DataImport::class)
+            ->fillForm(['resource' => EmployeeResource::class, 'file' => $upload])
+            ->call('import')
+            ->assertHasNoFormErrors()
+            ->assertNotified(Notification::make()
+                ->title('Import failed')
+                ->body(nl2br(e("0 created, 0 updated. 1 failed.\nRow 2: ".$message)))
+                ->danger()->persistent());
+    } finally {
+        Tenant::forgetCurrent();
+    }
 });
 
 it('rolls back the whole file for invalid reporting references', function (string $failure) {

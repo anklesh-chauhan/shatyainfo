@@ -19,6 +19,7 @@ use Database\Seeders\TypeMasterSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use OpenSpout\Common\Entity\Row;
@@ -44,6 +45,7 @@ it('imports all employee setup from excel and reuses records on repeat upload', 
     $writer->addRow(Row::fromValues(array_map(fn ($column) => $column->header, $columns)));
     $values = array_map(fn ($column) => $column->example, $columns);
     $values[4] = 'asha@example.test';
+    $values[array_search('temporary_password', array_map(fn ($column) => $column->header, $columns))] = 'Temporary-Secret-42';
     $writer->addRow(Row::fromValues($values));
     $writer->close();
     try {
@@ -59,7 +61,14 @@ it('imports all employee setup from excel and reuses records on repeat upload', 
         expect($employee->employmentDetail->department->department_name)->toBe('Sales')
             ->and($employee->positions()->first()->pivot->is_primary)->toBe(1)
             ->and($employee->employmentDetail->organizationalUnits()->count())->toBe(1)
-            ->and($employee->login_id)->toBeNull();
+            ->and($employee->login_id)->not->toBeNull();
+        $login = User::findOrFail($employee->login_id);
+        expect($login->name)->toBe('Asha Shah')->and($login->email)->toBe('asha@example.test')
+            ->and($login->employee_id)->toBe($employee->id)
+            ->and(Hash::check('Temporary-Secret-42', $login->password))->toBeTrue()
+            ->and($login->hasRole('sales_representative'))->toBeTrue()
+            ->and($login->canAccessPanel(Filament::getPanel('admin')))->toBeTrue();
+        expect(Role::findByName('sales_representative')->permissions()->count())->toBe(0);
         Notification::assertNothingSent();
     } finally {
         unlink($path);

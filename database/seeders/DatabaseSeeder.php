@@ -37,7 +37,6 @@ class DatabaseSeeder extends Seeder
             ShippingMethodsSeeder::class,
             AddressTypeSeeder::class,
             EmployeeAttendanceStatusSeeder::class,
-            DepartmentRoleSeeder::class,
             LeaveRuleCategorySeeder::class,
             LeaveRuleSeeder::class,
             HolidaySeeder::class,

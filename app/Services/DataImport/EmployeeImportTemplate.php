@@ -69,7 +69,7 @@ class EmployeeImportTemplate
             ['Hierarchy validation', 'Self-reporting, circular position/employee chains, missing codes, conflicting shared position details and ambiguous manager occupants are rejected. No first matching manager is chosen.'],
             ['Shared setup', 'Departments, grades and job titles are reused by name; job roles and org units by name; positions by code. Existing conflicting details must be corrected separately or given a different name/code.'],
             ['Data format', 'Format codes and phone numbers as Text to preserve leading zeros. Use YYYY-MM-DD for dates and Yes/No for primary flags. Enter values, not formulas. Examples are fictitious and must be replaced.'],
-            ['Permissions and accounts', 'You need permission to create/update employees and any setup/position records changed. Approval locks still apply. This import does not create login accounts or send invitations.'],
+            ['Permissions and accounts', 'Employee job roles create or reuse login roles (Area Sales Manager becomes area_sales_manager). New roles have no permissions; configure them in Roles. Email creates a login named after the employee and links it to the employee. Supply temporary_password for each new login. Existing linked login passwords are preserved. No invitation is sent. Employee, user and role permissions and approval locks apply.'],
         ];
     }
 
@@ -81,7 +81,8 @@ class EmployeeImportTemplate
             'first_name' => 'Required for a new employee; maximum 50 characters. Blank preserves the existing name.',
             'last_name' => 'Required for a new employee; maximum 50 characters. Blank preserves the existing name.',
             'mobile_number' => 'Required and unique for a new employee; enter as Text, maximum 100 characters.',
-            'email' => 'Optional valid unique email, maximum 100 characters. No invitation is sent.',
+            'email' => 'Valid unique login email, maximum 100 characters. Required for login creation. Blank leaves an employee without a login. An email belonging to another login is rejected; correct/link it separately.',
+            'temporary_password' => 'Required for a new login: 8 to 72 characters. Choose a separate password for each employee. Repeated assignment rows must agree. Existing login passwords are never reset by import. No password is included in import results or notifications.',
             'department' => 'Optional department name, maximum 100 characters; creates or reuses the department.',
             'job_role' => 'Required when defining a new position. Shared role name, for example Area Sales Manager.',
             'job_role_level' => 'Positive whole number; new roles default to 1. This is descriptive hierarchy level, not a reporting link.',

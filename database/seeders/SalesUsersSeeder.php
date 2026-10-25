@@ -41,7 +41,7 @@ class SalesUsersSeeder extends Seeder
         /* ================= SALES EXECUTIVES ================= */
         $this->createSalesUsers(
             title: 'Sales Executive',
-            role: 'sales_user',
+            role: 'sales_admin',
             count: 6,
             ou: $salesN,
             territories: $northTerritories,
@@ -51,7 +51,7 @@ class SalesUsersSeeder extends Seeder
 
         $this->createSalesUsers(
             title: 'Sales Executive',
-            role: 'sales_user',
+            role: 'sales_admin',
             count: 6,
             ou: $salesS,
             territories: $southTerritories,
@@ -62,7 +62,7 @@ class SalesUsersSeeder extends Seeder
         /* ================= ASSISTANT SALES MANAGERS ================= */
         $this->createSalesUsers(
             title: 'Assistant Sales Manager',
-            role: 'sales_user',
+            role: 'sales_admin',
             count: 2,
             ou: $salesN,
             territories: array_merge($northTerritories, $southTerritories),
