@@ -151,17 +151,19 @@ class AccountOnboardingService
         return ['rows' => $rows, 'plans' => $plans, 'errors' => $errors, 'created' => count(array_filter($plans, fn ($plan): bool => $plan['id'] === null)), 'updated' => count(array_filter($plans, fn ($plan): bool => $plan['id'] !== null))];
     }
 
-    public function import(array $rows): array
+    public function import(array $rows, ?callable $progress = null): array
     {
         $this->authorize();
 
-        return (new AccountMaster)->getConnection()->transaction(function () use ($rows): array {
+        return (new AccountMaster)->getConnection()->transaction(function () use ($rows, $progress): array {
             Organization::query()->orderBy('id')->lockForUpdate()->firstOrFail();
             $preview = $this->preview($rows);
             if ($preview['errors'] !== []) {
                 throw ValidationException::withMessages(['accountFile' => collect($preview['errors'])->map(fn ($error): string => 'Row '.$error['row'].': '.$error['message'])->implode(' ')]);
             }
             $accounts = [];
+            $total = count($preview['plans']);
+            $progress && $progress('Importing accounts', 0, $total);
             foreach ($preview['plans'] as $plan) {
                 try {
                     $account = $plan['id'] ? AccountMaster::findOrFail($plan['id']) : new AccountMaster;
@@ -194,10 +196,14 @@ class AccountOnboardingService
                         }
                     }
                     $accounts[$plan['data']['external_reference']] = $account;
+                    if (count($accounts) % 10 === 0 || count($accounts) === $total) {
+                        $progress && $progress('Importing accounts', count($accounts), $total);
+                    }
                 } catch (ValidationException $exception) {
                     throw ValidationException::withMessages(['accountFile' => 'Row '.$plan['line'].': '.collect($exception->errors())->flatten()->implode(' ')]);
                 }
             }
+            $progress && $progress('Finalizing relationships and saving', $total, $total);
             foreach ($preview['plans'] as $plan) {
                 $account = $accounts[$plan['data']['external_reference']];
                 foreach (['parent_reference' => 'parent_id', 'institution_reference' => 'institution_account_id', 'supplier_reference' => 'supplier_account_id'] as $column => $field) {

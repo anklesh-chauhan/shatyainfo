@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\Onboarding;
+use App\Jobs\ProcessAccountImport;
 use App\Models\AccountMaster;
 use App\Models\Address;
 use App\Models\City;
@@ -22,6 +23,10 @@ use Database\Seeders\AccountStatusSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use OpenSpout\Common\Entity\Row;
@@ -33,6 +38,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    config(['cache.stores.file' => ['driver' => 'array']]);
+    Storage::fake('local');
     $this->actingAs(reportingUser('Account Setup Owner'));
     auth()->user()->assignRole(Role::findOrCreate('super_admin', 'web'));
     $this->organization = Organization::create(['name' => 'Account Import Company', 'metadata' => ['company_setup' => ['organization_saved' => true, 'employees_reviewed' => true]]]);
@@ -177,6 +184,7 @@ it('requires onboarding authorization for reading previewing importing and downl
 });
 
 it('supports preview and confirmation in company setup and invalidates changed uploads', function () {
+    Queue::fake();
     config(['multitenancy.switch_tenant_tasks' => []]);
     app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
     $tenant = new Tenant;
@@ -190,7 +198,16 @@ it('supports preview and confirmation in company setup and invalidates changed u
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', $csv))
             ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review before importing');
         $this->assertDatabaseCount('account_masters', 0);
-        $page->call('importAccounts')->assertHasNoErrors()->assertSet('accountPreview', [])->assertSee('1 accounts created');
+        $page->call('importAccounts')->assertHasNoErrors()->assertSet('accountPreview', [])->assertSee('Account import queued');
+        $page->call('importAccounts')->assertHasNoErrors();
+        Queue::assertPushed(ProcessAccountImport::class, 1);
+        $this->assertDatabaseCount('account_masters', 0);
+        Livewire::test(Onboarding::class)->assertSee('Account import queued');
+        $job = Queue::pushed(ProcessAccountImport::class)->first();
+        expect($job->connection)->toBe('database');
+        $job->handle($this->service);
+        $page->call('refreshAccountImport')->assertSee('1 accounts created');
+        Livewire::test(Onboarding::class)->assertSee('1 accounts created');
         $this->assertDatabaseCount('account_masters', 1);
         $page->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', str_replace('Import Doctor,', 'Missing Type,', $csv)))
             ->call('previewAccounts')->assertSee('Nothing has been imported')->call('downloadAccountErrors')->assertFileDownloaded('account-import-errors.csv');
@@ -361,6 +378,7 @@ it('rolls back a newly created account area if a later account write fails', fun
 });
 
 it('keeps a full workbook preview on the server and downloads every error without rerendering', function () {
+    Queue::fake();
     config(['multitenancy.switch_tenant_tasks' => []]);
     app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
     $tenant = new Tenant;
@@ -386,7 +404,7 @@ it('keeps a full workbook preview on the server and downloads every error withou
             ['rows' => $rows, 'plans' => $plans, 'errors' => $errors, 'created' => 250, 'updated' => 0],
             ['rows' => $rows, 'plans' => $plans, 'errors' => [], 'created' => 500, 'updated' => 0],
         );
-        $service->shouldReceive('import')->once()->with($rows)->andReturn(['created' => 500, 'updated' => 0]);
+        $service->shouldReceive('import')->once()->with($rows, Mockery::type('callable'))->andReturn(['created' => 500, 'updated' => 0]);
         app()->instance(AccountOnboardingService::class, $service);
         $page = Livewire::test(Onboarding::class)
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
@@ -406,10 +424,62 @@ it('keeps a full workbook preview on the server and downloads every error withou
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
             ->call('previewAccounts')->assertHasNoErrors()
             ->call('showAccountPreviewPage', 10)
-            ->call('importAccounts')->assertHasNoErrors()->assertSee('500 accounts created')
+            ->call('importAccounts')->assertHasNoErrors()->assertSee('Account import queued')
             ->assertSet('accountPreviewToken', null)->assertSet('accountPreview', []);
+        $job = Queue::pushed(ProcessAccountImport::class)->first();
+        $job->handle($service);
+        $page->call('refreshAccountImport')->assertSee('500 accounts created');
         $page->call('downloadAccountErrors')->assertHasErrors('accountFile');
     } finally {
         Tenant::forgetCurrent();
     }
+});
+
+it('reports job progress and restores authentication after importing accounts', function () {
+    $job = new ProcessAccountImport((string) Str::uuid(), (int) auth()->id(), null);
+    $key = ProcessAccountImport::statusKey((int) auth()->id(), null);
+    Cache::store('file')->put($key, ['token' => $job->token, 'status' => 'queued', 'processed' => 0, 'total' => 1]);
+    Storage::disk('local')->put($job->payloadPath(), json_encode(accountImportRows()));
+    $previous = auth()->user();
+    $states = [];
+    $importer = Mockery::mock(AccountOnboardingService::class)->makePartial();
+    $importer->shouldReceive('import')->once()->andReturnUsing(function ($rows, $progress) use (&$states, $key) {
+        $states[] = Cache::store('file')->get($key);
+        $progress('Importing accounts', 1, 1);
+        $states[] = Cache::store('file')->get($key);
+
+        return $this->service->import($rows);
+    });
+    $job->handle($importer);
+    expect($states[0]['status'])->toBe('running')->and($states[1]['processed'])->toBe(1);
+    expect(Cache::store('file')->get($key)['status'])->toBe('complete');
+    expect(auth()->user())->toBe($previous);
+    Storage::disk('local')->assertMissing($job->payloadPath());
+    $job->handle($importer);
+    $this->assertDatabaseCount('account_masters', 1);
+});
+
+it('reports failed account jobs and preserves completed status on a late failure callback', function () {
+    $job = new ProcessAccountImport((string) Str::uuid(), (int) auth()->id(), null);
+    $key = ProcessAccountImport::statusKey((int) auth()->id(), null);
+    Cache::store('file')->put($key, ['token' => $job->token, 'status' => 'queued']);
+    Storage::disk('local')->put($job->payloadPath(), json_encode(accountImportRows(['account_type' => 'Missing'])));
+    $previous = auth()->user();
+    expect(fn () => $job->handle($this->service))->toThrow(ValidationException::class);
+    expect(Cache::store('file')->get($key)['status'])->toBe('failed');
+    expect(Cache::store('file')->get($key)['message'])->toContain('Missing');
+    expect(auth()->user())->toBe($previous);
+    $this->assertDatabaseCount('account_masters', 0);
+    Cache::store('file')->put($key, ['token' => $job->token, 'status' => 'running']);
+    $job->failed(new RuntimeException('timeout'));
+    expect(Cache::store('file')->get($key)['status'])->toBe('failed');
+    Cache::store('file')->put($key, ['token' => $job->token, 'status' => 'complete']);
+    $job->failed(new RuntimeException('late callback'));
+    expect(Cache::store('file')->get($key)['status'])->toBe('complete');
+});
+
+it('rejects an account job in the wrong company context', function () {
+    $job = new ProcessAccountImport((string) Str::uuid(), (int) auth()->id(), 123);
+    expect(fn () => $job->handle($this->service))->toThrow(RuntimeException::class, 'company context');
+    $this->assertDatabaseCount('account_masters', 0);
 });

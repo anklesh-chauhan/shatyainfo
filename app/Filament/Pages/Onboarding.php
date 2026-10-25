@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Resources\Organizations\OrganizationResource;
+use App\Jobs\ProcessAccountImport;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Organization;
 use App\Models\Tenant;
@@ -71,6 +72,26 @@ class Onboarding extends Page
     #[Locked]
     public array $accountImportResult = [];
 
+    #[Locked]
+    public array $accountImportStatus = [];
+
+    public function refreshAccountImport(): void
+    {
+        app(CompanyOnboardingService::class)->authorize();
+        $this->accountImportStatus = Cache::store('file')->get(ProcessAccountImport::statusKey((int) auth()->id(), Tenant::current()?->id), []);
+        if (($this->accountImportStatus['status'] ?? null) === 'complete') {
+            $this->accountImportResult = $this->accountImportStatus['result'];
+        }
+    }
+
+    private function ensureAccountImportIdle(): void
+    {
+        $this->refreshAccountImport();
+        if (in_array($this->accountImportStatus['status'] ?? null, ['queued', 'running'], true)) {
+            throw ValidationException::withMessages(['accountFile' => 'Your account import is still in progress. Wait for it to complete before starting another.']);
+        }
+    }
+
     public function updatedAccountFile(): void
     {
         $this->forgetAccountPreview();
@@ -96,6 +117,7 @@ class Onboarding extends Page
 
     public function previewAccounts(): void
     {
+        $this->ensureAccountImportIdle();
         $service = app(AccountOnboardingService::class);
         $service->authorize();
         $this->forgetAccountPreview();
@@ -148,13 +170,33 @@ class Onboarding extends Page
     public function importAccounts(): void
     {
         app(AccountOnboardingService::class)->authorize();
-        $preview = $this->storedAccountPreview();
-        abort_unless($preview['errors'] === [], 422, 'Preview a valid file first.');
-        $this->accountImportResult = app(AccountOnboardingService::class)->import($preview['rows']);
-        $this->forgetAccountPreview();
-        $this->accountPreview = [];
-        $this->reset('accountFile');
-        Notification::make()->title($this->accountImportResult['created'].' accounts created; '.$this->accountImportResult['updated'].' existing accounts updated.')->success()->send();
+        $key = ProcessAccountImport::statusKey((int) auth()->id(), Tenant::current()?->id);
+        Cache::store('file')->lock($key.':dispatch', 30)->block(5, function () use ($key): void {
+            $this->refreshAccountImport();
+            if (in_array($this->accountImportStatus['status'] ?? null, ['queued', 'running'], true)) {
+                return;
+            }
+            $preview = $this->storedAccountPreview();
+            abort_unless($preview['errors'] === [], 422, 'Preview a valid file first.');
+            $job = new ProcessAccountImport((string) Str::uuid(), (int) auth()->id(), Tenant::current()?->id);
+            try {
+                if (! Storage::disk('local')->put($job->payloadPath(), json_encode($preview['rows'], JSON_THROW_ON_ERROR))) {
+                    throw new \RuntimeException('The account import file could not be stored.');
+                }
+                Cache::store('file')->put($key, ['token' => $job->token, 'status' => 'queued', 'message' => 'Waiting for the import worker', 'processed' => 0, 'total' => count($preview['rows'])], now()->addDays(7));
+                dispatch($job);
+            } catch (\Throwable $exception) {
+                Cache::store('file')->forget($key);
+                Storage::disk('local')->delete($job->payloadPath());
+                report($exception);
+                throw ValidationException::withMessages(['accountFile' => 'The import could not be queued. Please try again.']);
+            }
+            $this->forgetAccountPreview();
+            $this->accountPreview = [];
+            $this->accountImportResult = [];
+            $this->reset('accountFile');
+            $this->refreshAccountImport();
+        });
     }
 
     public function downloadAccountErrors(): StreamedResponse
@@ -298,6 +340,9 @@ class Onboarding extends Page
     {
         abort_unless($importSection === null || in_array($importSection, ['territories', 'accounts'], true), 422);
         $this->importSection = $importSection;
+        if (Tenant::current()?->accountIsConfigured()) {
+            $this->refreshAccountImport();
+        }
         if ($importSection !== null) {
             app(CompanyOnboardingService::class)->authorize();
             abort_unless(Tenant::current()->accountIsConfigured(), 409);

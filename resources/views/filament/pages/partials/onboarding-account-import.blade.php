@@ -11,7 +11,20 @@
         <p>Addresses match by city and PIN only. The oldest matching area is reused regardless of spelling. If no area matches, the supplied area is created during import. The city must already exist.</p>
         <p>Preview does not save records. Correct every error before importing; the whole file saves together. To link manually entered accounts, set their External Reference in Accounts first.</p>
     </details>
-    @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewAccounts', 'fileProperty' => 'accountFile', 'inputId' => 'account-file', 'accept' => '.xlsx,.csv', 'fileHelp' => '.xlsx or .csv · Maximum 2 MB.'])
+    @if (in_array($accountImportStatus['status'] ?? null, ['queued', 'running'], true))
+        <div class="setup-note" wire:poll.3s="refreshAccountImport" role="status" aria-live="polite">
+            <h4>{{ $accountImportStatus['status'] === 'queued' ? 'Account import queued' : 'Importing account masters' }}</h4>
+            <p>{{ $accountImportStatus['message'] }}</p>
+            <progress max="{{ $accountImportStatus['total'] }}" value="{{ $accountImportStatus['processed'] }}" aria-label="Account import progress"></progress>
+            <p>{{ $accountImportStatus['processed'] }} of {{ $accountImportStatus['total'] }} accounts processed. Records are saved when the whole import completes.</p>
+            <p>You can leave this page and return. The import continues in the background.</p>
+        </div>
+    @else
+        @if (($accountImportStatus['status'] ?? null) === 'failed')
+            <p class="setup-error" role="alert">Account import failed. {{ $accountImportStatus['message'] }}</p>
+        @endif
+        @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewAccounts', 'fileProperty' => 'accountFile', 'inputId' => 'account-file', 'accept' => '.xlsx,.csv', 'fileHelp' => '.xlsx or .csv · Maximum 2 MB.'])
+    @endif
     @if ($accountImportResult !== [])
         <p class="setup-success" role="status">{{ $accountImportResult['created'] }} accounts created; {{ $accountImportResult['updated'] }} existing accounts updated.</p>
     @endif
