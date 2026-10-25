@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\City;
 use App\Models\CityPinCode;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
@@ -111,7 +112,9 @@ class TerritoryOnboardingService
         $existing = $existing->keyBy(fn (Territory $territory): string => strtoupper((string) $territory->code));
         $pending = collect($rows)->keyBy('code');
         $errors = [];
+        $areaPlans = [];
         foreach ($rows as $index => &$row) {
+            $row['area_plans'] = [];
             $row['division_plans'] = array_values(array_intersect_key($divisionPlans, array_flip(array_map(fn ($code) => strtoupper(trim($code)), explode(';', $row['division_codes'])))));
             $parent = $row['parent_code'];
             $record = $existing->get($row['code']);
@@ -146,15 +149,31 @@ class TerritoryOnboardingService
 
                             continue;
                         }
-                        $matches = CityPinCode::query()->where('area_town', $parts[1])->where('pin_code', $parts[2])
-                            ->whereHas('city', fn ($query) => $query->where('name', $parts[0]))->limit(2)->get();
-                    }
-                    if ($matches->count() !== 1) {
-                        $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': '.$item.' must match exactly one existing '.($field === 'division_codes' ? 'division code' : 'city and area').'.';
+                        $cities = City::query()->where('name', $parts[0])->limit(2)->get();
+                        if ($cities->count() !== 1) {
+                            $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': '.$parts[0].' must match exactly one existing city.';
 
-                        continue;
+                            continue;
+                        }
+                        $city = $cities->first();
+                        $pin = ltrim($parts[2], '0') ?: '0';
+                        if (strlen($pin) > 10 || (int) $pin > 2147483647 || mb_strlen($parts[1]) > 255) {
+                            $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': supply a valid PIN and an area name of up to 255 characters.';
+
+                            continue;
+                        }
+                        $key = $city->id.'|'.$pin;
+                        if (! isset($areaPlans[$key])) {
+                            $area = CityPinCode::query()->where('city_id', $city->id)->where('pin_code', $pin)->orderBy('id')->first();
+                            $areaPlans[$key] = [
+                                'id' => $area?->id ?? -(count($areaPlans) + 1),
+                                'city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id,
+                                'pin_code' => (int) $pin, 'area_town' => $area?->area_town ?? $parts[1],
+                            ];
+                        }
+                        $row['area_plans'][$key] = $areaPlans[$key];
+                        $resolved[] = $areaPlans[$key]['id'];
                     }
-                    $resolved[] = $matches->first()->id;
                 }
                 $resolved = array_values(array_unique($resolved));
                 sort($resolved);
@@ -202,7 +221,16 @@ class TerritoryOnboardingService
             Organization::query()->lockForUpdate()->findOrFail($organization->id);
             $rows = $this->preview($rows);
             $divisionIds = [];
+            $areaIds = [];
             foreach ($rows as $row) {
+                foreach ($row['area_plans'] as $plan) {
+                    if ($plan['id'] > 0 || isset($areaIds[$plan['id']])) {
+                        continue;
+                    }
+                    $temporaryId = $plan['id'];
+                    unset($plan['id']);
+                    $areaIds[$temporaryId] = CityPinCode::create($plan)->id;
+                }
                 foreach ($row['division_plans'] as $plan) {
                     if ($plan['id'] > 0 || isset($divisionIds[$plan['id']])) {
                         continue;
@@ -225,7 +253,7 @@ class TerritoryOnboardingService
                             'status' => $row['status'], 'description' => $row['description'] ?: null,
                         ]);
                         $territory->divisions()->sync(array_map(fn ($id) => $divisionIds[$id] ?? $id, $row['division_codes_ids']));
-                        $territory->cityPinCodes()->sync($row['cities_and_areas_ids']);
+                        $territory->cityPinCodes()->sync(array_map(fn ($id) => $areaIds[$id] ?? $id, $row['cities_and_areas_ids']));
                         $ids[$row['code']] = $territory->id;
                         $created++;
                     }

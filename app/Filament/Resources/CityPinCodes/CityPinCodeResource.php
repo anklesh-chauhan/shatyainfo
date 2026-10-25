@@ -82,8 +82,7 @@ class CityPinCodeResource extends BaseResource
                                 ->label('PIN Code')
                                 ->required()
                                 ->maxLength(10)
-                                ->placeholder('380001')
-                                ->unique(ignoreRecord: true),
+                                ->placeholder('380001'),
 
                             TextInput::make('area_town')
                                 ->label('Area / Town')

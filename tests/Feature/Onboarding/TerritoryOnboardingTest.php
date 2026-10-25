@@ -260,7 +260,7 @@ it('imports all mandatory division and location links without duplicating them o
     expect($territory->divisions()->count())->toBe(2);
 });
 
-it('rejects missing invalid and ambiguous mandatory references without partial imports', function (string $case) {
+it('rejects missing and invalid mandatory references without partial imports', function (string $case) {
     $rows = territoryRows();
     if ($case === 'missing_division') {
         $rows[1]['division_codes'] = '';
@@ -272,21 +272,71 @@ it('rejects missing invalid and ambiguous mandatory references without partial i
         $type = TypeMaster::create(['name' => 'Department', 'typeable_type' => OrganizationalUnit::class]);
         OrganizationalUnit::where('code', 'DIV-WEST')->update(['type_master_id' => $type->id]);
     } elseif ($case === 'unknown_location') {
-        $rows[1]['cities_and_areas'] = 'Mumbai|Missing|400058';
+        $rows[1]['cities_and_areas'] = 'Missing City|Missing|400058';
     } elseif ($case === 'invalid_pin') {
         $rows[1]['cities_and_areas'] = 'Mumbai|Andheri|400058abc';
-    } elseif ($case === 'ambiguous_location') {
-        CityPinCode::create(['city_id' => City::where('name', 'Mumbai')->value('id'), 'area_town' => 'Andheri', 'pin_code' => 400058]);
+    } elseif ($case === 'invalid_area_name') {
+        $rows[1]['cities_and_areas'] = 'Mumbai|'.str_repeat('A', 256).'|400099';
     } else {
         $rows[1]['name'] = $rows[0]['name'];
     }
     expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
     $this->assertDatabaseCount('territories', 0);
-})->with(['missing_division', 'missing_location', 'unknown_division', 'non_division', 'unknown_location', 'invalid_pin', 'ambiguous_location', 'duplicate_name']);
+})->with(['missing_division', 'missing_location', 'unknown_division', 'non_division', 'unknown_location', 'invalid_pin', 'invalid_area_name', 'duplicate_name']);
 
-it('revalidates mandatory location links at confirmation', function () {
+it('revalidates mandatory cities at confirmation', function () {
     $preview = $this->service->preview(territoryRows());
-    CityPinCode::where('area_town', 'Andheri')->delete();
+    City::where('name', 'Mumbai')->delete();
     expect(fn () => $this->service->import($preview))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('territories', 0);
+});
+
+it('reuses the oldest city and PIN match regardless of area names and duplicate PINs', function () {
+    $area = CityPinCode::where('area_town', 'Andheri')->sole();
+    CityPinCode::create(['city_id' => $area->city_id, 'area_town' => 'Another area', 'pin_code' => 400058]);
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = 'Mumbai|Different spelling|400058;Mumbai|Another name|400058';
+    expect($this->service->import($rows))->toBe(2);
+    expect(Territory::where('code', 'MUMBAI')->sole()->cityPinCodes->modelKeys())->toBe([$area->id]);
+    expect($area->fresh()->area_town)->toBe('Andheri');
+    expect($this->service->import($rows))->toBe(0);
+    $this->assertDatabaseCount('city_pin_codes', 3);
+});
+
+it('plans new areas without writes and shares each new city and PIN across imported rows', function () {
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = 'Mumbai|New area|400099';
+    $rows[1]['cities_and_areas'] = 'Mumbai|Different name|400099';
+    $preview = $this->service->preview($rows);
+    $this->assertDatabaseCount('city_pin_codes', 2);
+    expect($this->service->import($preview))->toBe(2);
+    $area = CityPinCode::where('pin_code', 400099)->sole();
+    $city = City::where('name', 'Mumbai')->sole();
+    expect($area->area_town)->toBe('New area')
+        ->and($area->state_id)->toBe($city->state_id)
+        ->and($area->country_id)->toBe($city->country_id);
+    foreach (Territory::all() as $territory) {
+        expect($territory->cityPinCodes->modelKeys())->toBe([$area->id]);
+    }
+    expect($this->service->import($rows))->toBe(0);
+    $this->assertDatabaseCount('city_pin_codes', 3);
+});
+
+it('creates a separate area when the same PIN exists only in another city', function () {
+    $city = City::create(['name' => 'Pune', 'state_id' => State::first()->id, 'country_id' => Country::first()->id]);
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = 'Pune|New area|400058';
+    expect($this->service->import($rows))->toBe(2);
+    $area = Territory::where('code', 'MUMBAI')->sole()->cityPinCodes()->sole();
+    expect($area->city_id)->toBe($city->id)->and($area->area_town)->toBe('New area');
+    expect(CityPinCode::where('pin_code', 400058)->count())->toBe(2);
+});
+
+it('does not create planned areas when any territory fails validation', function () {
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = 'Mumbai|New area|400099';
+    $rows[1]['parent_code'] = 'MISSING';
+    expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('city_pin_codes', 2);
     $this->assertDatabaseCount('territories', 0);
 });
