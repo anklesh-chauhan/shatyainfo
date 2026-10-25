@@ -78,6 +78,23 @@ it('previews without writes and imports relationships in any order with safe rer
     expect($this->organization->fresh()->metadata['company_setup']['accounts_reviewed'])->toBeTrue();
 });
 
+it('imports custom account codes and keeps automatic generation available', function () {
+    $this->service->import(accountImportRows(['account_code' => 'MY-0023']));
+    $account = AccountMaster::where('external_reference', 'ERP:0001')->sole();
+    expect($account->account_code)->toBe('MY-0023');
+    $this->service->import(accountImportRows());
+    expect($account->fresh()->account_code)->toBe('MY-0023');
+    $nextCode = 'ACC-'.str_pad((string) ($account->id + 1), 8, '0', STR_PAD_LEFT);
+    $this->service->import(accountImportRows(['account_code' => $nextCode]));
+    $this->service->import(accountImportRows(['external_reference' => 'ERP:0002']));
+    $generated = AccountMaster::where('external_reference', 'ERP:0002')->sole();
+    expect($generated->account_code)->toStartWith('ACC-')->not->toBe($nextCode);
+    expect($this->service->preview(accountImportRows(['external_reference' => 'ERP:0003', 'account_code' => $nextCode]))['errors'])->not->toBeEmpty();
+    $rows = accountImportRows(['external_reference' => 'ERP:0003', 'account_code' => 'DUPLICATE']);
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0004'])];
+    expect($this->service->preview($rows)['errors'][0]['message'])->toContain('Duplicate account_code');
+});
+
 it('rejects invalid mappings and duplicate references without partial imports', function (array $override) {
     $rows = accountImportRows();
     $rows[] = ['line' => 8, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'], $override)];
@@ -110,7 +127,6 @@ it('imports addresses patches profiles and targets before activating and preserv
     $this->type->update(['activation_requirements' => ['primary_address', 'patch', 'specialty']]);
     expect($this->service->preview(accountImportRows(['status_code' => 'active']))['errors'])->not->toBeEmpty();
     $territory = Territory::create(['name' => 'Import West', 'code' => 'IMP-WEST']);
-    $patch = Patch::withoutEvents(fn () => Patch::create(['name' => 'Import Patch', 'code' => 'IMP-PATCH', 'territory_id' => $territory->id]));
     $country = Country::create(['name' => 'Import Country']);
     $state = State::create(['name' => 'Import State', 'country_id' => $country->id]);
     $city = City::create(['name' => 'Import City', 'state_id' => $state->id, 'country_id' => $country->id]);
@@ -118,12 +134,17 @@ it('imports addresses patches profiles and targets before activating and preserv
     TypeMaster::create(['name' => 'Clinic', 'typeable_type' => Address::class]);
     $rows = accountImportRows(['status_code' => 'active', 'territory_code' => 'IMP-WEST', 'patch_codes' => 'IMP-PATCH', 'specialty_code' => 'specialty_cardiology', 'address_type' => 'Clinic', 'street' => 'Clinic Road', 'city' => 'Import City', 'area' => 'Import Area', 'pin_code' => '400001', 'segment' => 'Import A', 'profile_from' => '2026-01-01', 'profile_to' => '2026-12-31', 'potential_value' => '12000', 'potential_unit_code' => 'potential_unit_revenue', 'potential_period' => 'monthly', 'currency' => 'INR', 'assessed_on' => '2026-01-01', 'calls_per_month' => '4', 'target_from' => '2026-01-01', 'target_to' => '2026-12-31']);
     expect($this->service->preview($rows)['errors'])->toBe([]);
+    $this->assertDatabaseCount('patches', 0);
     $this->service->import($rows);
+    $patch = Patch::where('code', 'IMP-PATCH')->sole();
+    expect($patch->name)->toBe('IMP-PATCH')->and($patch->territory_id)->toBe($territory->id)
+        ->and($patch->city_pin_code_id)->toBe(CityPinCode::where('pin_code', 400001)->sole()->id);
     $account = AccountMaster::where('external_reference', 'ERP:0001')->sole();
     expect($account->accountStatus->code)->toBe('active')->and($account->patches->modelKeys())->toBe([$patch->id]);
     $rows[0]['data']['profile_to'] = '';
     $rows[0]['data']['target_to'] = '';
     $this->service->import($rows);
+    $this->assertDatabaseCount('patches', 1);
     expect($account->addresses()->count())->toBe(1)->and($account->divisionProfiles()->count())->toBe(1)->and($account->callTargets()->count())->toBe(1)
         ->and($account->callTargets()->first()->effective_to->toDateString())->toBe('2026-12-31');
     $rows[0]['data']['target_from'] = '2026-02-01';
@@ -131,7 +152,8 @@ it('imports addresses patches profiles and targets before activating and preserv
 });
 
 it('rolls back the whole file when a model rejects a write after preview', function () {
-    $rows = accountImportRows();
+    Territory::create(['name' => 'Rollback territory', 'code' => 'ROLLBACK']);
+    $rows = accountImportRows(['territory_code' => 'ROLLBACK', 'patch_codes' => 'ROLLBACK-PATCH']);
     $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'])];
     // A one-time account listener simulates a save-time business rule on the second row.
     $dispatcher = AccountMaster::getEventDispatcher();
@@ -144,10 +166,39 @@ it('rolls back the whole file when a model rejects a write after preview', funct
     try {
         expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class, 'Row 3');
         $this->assertDatabaseCount('account_masters', 0);
+        $this->assertDatabaseCount('patches', 0);
         $this->assertDatabaseCount('account_assignment_histories', 0);
     } finally {
         AccountMaster::setEventDispatcher($dispatcher);
     }
+});
+
+it('creates a missing patch once for multiple accounts and preserves it on reruns', function () {
+    $territory = Territory::create(['name' => 'Shared territory', 'code' => 'SHARED']);
+    $rows = accountImportRows(['territory_code' => 'SHARED', 'patch_codes' => 'PATCH-0023; PATCH-0023;']);
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'])];
+    expect($this->service->preview($rows)['errors'])->toBe([]);
+    $this->assertDatabaseCount('patches', 0);
+    $this->service->import($rows);
+    $patch = Patch::sole();
+    expect($patch->territory_id)->toBe($territory->id)->and($patch->companies()->count())->toBe(2);
+    $patch->update(['name' => 'Renamed patch']);
+    $this->service->import($rows);
+    expect(Patch::sole()->name)->toBe('Renamed patch');
+});
+
+it('rejects missing patch territories deleted patches and conflicting new patch territories', function () {
+    expect($this->service->preview(accountImportRows(['patch_codes' => 'MISSING']))['errors'][0]['message'])->toContain('territory_code');
+    $first = Territory::create(['name' => 'First territory', 'code' => 'FIRST']);
+    Territory::create(['name' => 'Second territory', 'code' => 'SECOND']);
+    $patch = Patch::create(['name' => 'Deleted patch', 'code' => 'DELETED', 'territory_id' => $first->id]);
+    $patch->delete();
+    expect($this->service->preview(accountImportRows(['patch_codes' => 'DELETED']))['errors'][0]['message'])->toContain('deleted');
+    $rows = accountImportRows(['territory_code' => 'FIRST', 'patch_codes' => 'NEW']);
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002', 'territory_code' => 'SECOND'])];
+    expect($this->service->preview($rows)['errors'][0]['message'])->toContain('different territories');
+    expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('account_masters', 0);
 });
 
 it('creates a blank Excel template with tenant references and reads only the Accounts sheet', function () {

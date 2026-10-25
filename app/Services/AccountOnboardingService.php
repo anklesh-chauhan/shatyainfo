@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AccountMaster;
 use App\Models\CityPinCode;
 use App\Models\Organization;
+use App\Models\Patch;
 use App\Models\Tenant;
 use App\Services\DataImport\AccountImportDetails;
 use App\Services\DataImport\AccountImportRow;
@@ -16,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class AccountOnboardingService
 {
     public const COLUMNS = [
-        'external_reference', 'name', 'account_type', 'owner_email', 'status_code', 'phone_number', 'email', 'commission',
+        'external_reference', 'account_code', 'name', 'account_type', 'owner_email', 'status_code', 'phone_number', 'email', 'commission',
         'territory_code', 'patch_codes', 'rating', 'specialty_code', 'therapy_area_code',
         'address_type', 'street', 'city', 'area', 'pin_code', 'parent_reference', 'institution_reference', 'supplier_reference',
         'division_code', 'segment', 'profile_from', 'profile_to', 'potential_value', 'potential_unit_code', 'potential_period', 'currency', 'assessed_on',
@@ -103,9 +104,10 @@ class AccountOnboardingService
         $plans = [];
         $errors = [];
         $uniqueDetails = [];
+        $newPatchTerritories = [];
         foreach ($rows as $item) {
             try {
-                foreach (['bank_account_number', 'gst_number'] as $field) {
+                foreach (['account_code', 'bank_account_number', 'gst_number'] as $field) {
                     $value = strtoupper($item['data'][$field]);
                     if ($value !== '' && isset($uniqueDetails[$field][$value])) {
                         throw new ImportRowException('Duplicate '.$field.' in this file.');
@@ -117,7 +119,15 @@ class AccountOnboardingService
                 if (($references[$item['data']['external_reference']] ?? 0) > 1) {
                     throw new ImportRowException('Duplicate external reference in this file. Use one row per account.');
                 }
-                $plans[] = [...$item, ...app(AccountImportRow::class)->resolve($item['data'], array_map('strval', array_keys($references)))];
+                $plan = [...$item, ...app(AccountImportRow::class)->resolve($item['data'], array_map('strval', array_keys($references)))];
+                foreach ($plan['patch_plans'] as $patchPlan) {
+                    $key = mb_strtoupper($patchPlan['code']);
+                    if (isset($newPatchTerritories[$key]) && $newPatchTerritories[$key] !== $patchPlan['territory_id']) {
+                        throw new ImportRowException('Missing patch '.$patchPlan['code'].' is assigned to different territories in this file. Use one territory per new patch.');
+                    }
+                    $newPatchTerritories[$key] = $patchPlan['territory_id'];
+                }
+                $plans[] = $plan;
             } catch (ValidationException $exception) {
                 $errors[] = ['row' => $item['line'], 'reference' => $item['data']['external_reference'], 'message' => collect($exception->errors())->flatten()->implode(' ')];
             } catch (ImportRowException $exception) {
@@ -164,7 +174,7 @@ class AccountOnboardingService
             $accounts = [];
             $total = count($preview['plans']);
             $progress && $progress('Importing accounts', 0, $total);
-            foreach ($preview['plans'] as $plan) {
+            foreach (collect($preview['plans'])->sortBy(fn ($plan): bool => $plan['data']['account_code'] === '') as $plan) {
                 try {
                     $account = $plan['id'] ? AccountMaster::findOrFail($plan['id']) : new AccountMaster;
                     $account->fill($plan['attributes']);
@@ -172,6 +182,9 @@ class AccountOnboardingService
                     // Apply status after required addresses and patch assignments exist.
                     $account->account_status_id = null;
                     $account->save();
+                    if ($plan['data']['account_code'] !== '') {
+                        $account->forceFill(['account_code' => $plan['data']['account_code']])->saveQuietly();
+                    }
                     if ($plan['address'] !== []) {
                         if ($plan['area_plan'] !== []) {
                             $area = CityPinCode::query()->orderBy('id')->firstOrCreate(
@@ -181,6 +194,11 @@ class AccountOnboardingService
                             $plan['address']['area_town_id'] = $area->id;
                         }
                         $account->addresses()->updateOrCreate(['is_primary' => true], $plan['address']);
+                    }
+                    foreach ($plan['patch_plans'] as $patchPlan) {
+                        $patchPlan['city_pin_code_id'] = $plan['address']['area_town_id'] ?? $patchPlan['city_pin_code_id'];
+                        $patch = Patch::firstOrCreate(['code' => $patchPlan['code']], $patchPlan);
+                        $plan['patches'][] = $patch->id;
                     }
                     if ($plan['patches'] !== []) {
                         $account->patches()->syncWithoutDetaching($plan['patches']);

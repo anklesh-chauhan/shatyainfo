@@ -11,6 +11,7 @@ use App\Services\DataImport\FieldTravelImport as Importer;
 use App\Services\DataImport\FieldTravelTemplate;
 use App\Services\DataImport\ImportDownloadResponse;
 use Filament\Pages\Page;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -53,6 +54,9 @@ class FieldTravelImport extends Page
 
     #[Locked]
     public array $result = [];
+
+    #[Locked]
+    public array $progress = [];
 
     #[Locked]
     public array $importErrors = [];
@@ -98,13 +102,31 @@ class FieldTravelImport extends Page
 
     public function updatedFile(): void
     {
+        $this->ensureImportIdle();
         $this->resetPreview();
     }
 
     public function updatedHistorical(): void
     {
+        $this->ensureImportIdle();
         $this->file = null;
         $this->resetPreview();
+    }
+
+    private function ensureImportIdle(): void
+    {
+        $token = session($this->sessionKey());
+        if (is_string($token) && preg_match('/^[a-f0-9-]{36}$/', $token)) {
+            $path = 'field-travel-imports/'.auth()->id().'/'.$token.'.json';
+            if (Storage::disk('local')->exists($path)) {
+                $payload = json_decode(Storage::disk('local')->get($path), true, flags: JSON_THROW_ON_ERROR);
+                if (in_array($payload['status'], ['queued', 'running'], true)) {
+                    $this->token = $token;
+                    $this->refreshStatus();
+                    throw ValidationException::withMessages(['file' => 'Your field travel import is still in progress. Wait for it to finish.']);
+                }
+            }
+        }
     }
 
     private function resetPreview(): void
@@ -137,6 +159,7 @@ class FieldTravelImport extends Page
     public function previewFile(): void
     {
         abort_unless(static::canAccess(), 403);
+        $this->ensureImportIdle();
         $this->resetPreview();
         $this->validate(['file' => 'required|file|mimes:xlsx|max:10240']);
         $importer = app(Importer::class);
@@ -148,6 +171,7 @@ class FieldTravelImport extends Page
             report($exception);
             throw ValidationException::withMessages(['file' => 'Unable to read this workbook. Upload a valid .xlsx template.']);
         }
+        $this->historical = isset($rows['Travel Segments']);
         $preview = $importer->preview($rows);
         $this->importErrors = $preview['errors'];
         $this->preview = array_map(fn ($plan) => array_intersect_key($plan, array_flip(['sheet', 'row', 'key', 'action', 'values'])), $preview['plans']);
@@ -162,25 +186,26 @@ class FieldTravelImport extends Page
     public function importReviewed(): void
     {
         abort_unless(static::canAccess(), 403);
-        if (! $this->token || $this->status !== 'preview') {
-            throw ValidationException::withMessages(['file' => 'Preview your workbook first.']);
-        }
-        $payload = json_decode(Storage::disk('local')->get($this->payloadPath()), true, flags: JSON_THROW_ON_ERROR);
-        if ($payload['status'] !== 'preview') {
+        if ($this->token && in_array($this->status, ['queued', 'running', 'complete'], true)) {
             $this->refreshStatus();
 
             return;
         }
-        $large = count($this->preview) > 100;
-        if ($large && in_array(config('queue.connections.'.config('queue.default').'.driver'), ['sync', 'null', null], true)) {
-            throw ValidationException::withMessages(['file' => 'For more than 100 rows configure a background queue and start its worker, or split the workbook.']);
+        if (! $this->token || $this->status !== 'preview') {
+            throw ValidationException::withMessages(['file' => 'Preview your workbook first.']);
         }
-        $payload['status'] = 'queued';
-        Storage::disk('local')->put($this->payloadPath(), json_encode($payload, JSON_THROW_ON_ERROR));
-        $this->status = 'queued';
-        session()->put($this->sessionKey(), $this->token);
-        $job = new ProcessFieldTravelImport($this->token, (int) auth()->id(), Tenant::current()?->id);
-        if ($large) {
+        Cache::lock('field-travel-dispatch:'.(Tenant::current()?->id ?? 'landlord').':'.$this->token, 30)->block(5, function (): void {
+            $payload = json_decode(Storage::disk('local')->get($this->payloadPath()), true, flags: JSON_THROW_ON_ERROR);
+            if ($payload['status'] !== 'preview') {
+                $this->refreshStatus();
+
+                return;
+            }
+            $payload['status'] = 'queued';
+            Storage::disk('local')->put($this->payloadPath(), json_encode($payload, JSON_THROW_ON_ERROR));
+            $this->status = 'queued';
+            session()->put($this->sessionKey(), $this->token);
+            $job = new ProcessFieldTravelImport($this->token, (int) auth()->id(), Tenant::current()?->id);
             try {
                 dispatch($job);
             } catch (\Throwable $exception) {
@@ -190,10 +215,9 @@ class FieldTravelImport extends Page
                 report($exception);
                 throw ValidationException::withMessages(['file' => 'The background job could not be queued. Check the queue connection and try again.']);
             }
-        } else {
-            $job->handle(app(Importer::class));
-        }
-        $this->refreshStatus();
+            $this->preview = [];
+            $this->refreshStatus();
+        });
     }
 
     public function refreshStatus(): void
@@ -205,6 +229,8 @@ class FieldTravelImport extends Page
         $payload = json_decode(Storage::disk('local')->get($this->payloadPath()), true, flags: JSON_THROW_ON_ERROR);
         $this->status = $payload['status'];
         $this->result = $payload['result'] ?? [];
+        $job = new ProcessFieldTravelImport($this->token, (int) auth()->id(), Tenant::current()?->id);
+        $this->progress = Cache::store('file')->get($job->progressKey(), ['processed' => 0, 'total' => array_sum(array_map('count', $payload['rows'] ?? []))]);
         $this->importErrors = $payload['errors'] ?? [];
     }
 

@@ -1,5 +1,5 @@
 <section class="setup-import-card" aria-label="Account master import">
-    <div class="setup-card-heading"><span class="setup-card-number">1</span><div><h3>Import account masters</h3><p>Bring your accounts, contacts and business details into one place.</p></div></div>
+    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Import account masters</h3><p>After patches and standard fares, import accounts. Supply your own account_code or leave it blank for automatic generation. Then return to field routes to assign customers using account codes or external references.</p></div></div>
     <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span><span>Excel or CSV · Up to 500 rows</span></div>
     <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
     <p class="setup-card-help">Includes account details, addresses, contacts, reporting, bank, credit, GST and statutory fields. Only four columns are required to start.</p>

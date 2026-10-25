@@ -85,15 +85,15 @@
                 @elseif ($step === 4)
                     <h2>Optional setup imports</h2>
                     <p>Add accounts, field routes, products and HR setup. You can complete any of these imports later.</p>
-                    @include('filament.pages.partials.onboarding-account-import')
                     @if (\App\Filament\Pages\FieldTravelImport::canAccess())
                         @livewire(\App\Filament\Pages\FieldTravelImport::class, ['embedded' => true], key('onboarding-field-import'))
                     @else
                         <section class="setup-import-card" aria-label="Field route setup">
-                            <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Set up field routes</h3><p>Import patches, account assignments and standard fares for your team's visits.</p></div></div>
+                            <div class="setup-card-heading"><span class="setup-card-number">1</span><div><h3>Set up field routes</h3><p>Import Patches and Standard Fares first with Patch Customers empty. Add customer assignments after importing accounts.</p></div></div>
                             <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
                         </section>
                     @endif
+                    @include('filament.pages.partials.onboarding-account-import')
                     @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'products'], key('onboarding-product-import'))
                     @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hr'], key('onboarding-hr-import'))
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>

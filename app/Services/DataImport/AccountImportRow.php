@@ -76,6 +76,9 @@ class AccountImportRow
             throw new ImportRowException('Multiple accounts match this external reference. Resolve duplicates before importing.');
         }
         $account = $matches->first();
+        if ($row['account_code'] !== '' && AccountMaster::withTrashed()->where('account_code', $row['account_code'])->when($account, fn ($query) => $query->whereKeyNot($account->id))->exists()) {
+            throw new ImportRowException('Account code '.$row['account_code'].' already belongs to another account. Use a unique code.');
+        }
         if ($account?->trashed()) {
             throw new ImportRowException('This external reference belongs to a deleted account. Restore it in Accounts first.');
         }
@@ -113,9 +116,26 @@ class AccountImportRow
         }
         $status = $row['status_code'] !== '' ? $this->match(AccountStatus::where('code', $row['status_code']), 'Status code') : ($account ? $account->account_status_id : $this->match(AccountStatus::where('code', 'prospect'), 'Prospect status'));
         $patches = [];
+        $patchPlans = [];
         if ($row['patch_codes'] !== '') {
-            foreach (array_unique(array_map('trim', explode(';', $row['patch_codes']))) as $code) {
-                $patches[] = $this->match(Patch::where('code', $code), 'Patch code '.$code);
+            foreach (array_unique(array_filter(array_map('trim', explode(';', $row['patch_codes'])), fn ($code): bool => $code !== '')) as $code) {
+                $matches = Patch::withTrashed()->where('code', $code)->limit(2)->get();
+                if ($matches->count() > 1 || $matches->first()?->trashed()) {
+                    throw new ImportRowException('Patch code '.$code.' is duplicated or deleted. Resolve or restore it in Patches first.');
+                }
+                if ($patch = $matches->first()) {
+                    $patches[] = $patch->id;
+
+                    continue;
+                }
+                $territoryId = $attributes['territory_id'] ?? $account?->territory_id;
+                if (! $territoryId) {
+                    throw new ImportRowException('Provide territory_code to create missing patch '.$code.'.');
+                }
+                if (mb_strlen($code) > 255 || Patch::withTrashed()->where('name', $code)->exists()) {
+                    throw new ImportRowException('Cannot create patch '.$code.': use a code of at most 255 characters that is not another patch name.');
+                }
+                $patchPlans[] = ['code' => $code, 'name' => $code, 'territory_id' => $territoryId];
             }
         }
         $address = [];
@@ -172,9 +192,15 @@ class AccountImportRow
                 $this->checkOverlap($account->callTargets()->getQuery(), $target, 'Call target');
             }
         }
+        if ($patchPlans !== []) {
+            foreach ($patchPlans as &$patchPlan) {
+                $patchPlan['city_pin_code_id'] = $address['area_town_id'] ?? $account?->addresses()->where('is_primary', true)->first()?->area_town_id;
+            }
+            unset($patchPlan);
+        }
         if (AccountStatus::find($status)?->code === 'active') {
             $proposed = array_replace($account?->getAttributes() ?? [], $attributes);
-            $checks = ['territory' => filled($proposed['territory_id'] ?? null), 'patch' => $patches !== [] || ($account?->patches()->exists() ?? false), 'primary_address' => $address !== [] || ($account?->addresses()->where('is_primary', true)->whereNotNull('street')->where('street', '<>', '')->exists() ?? false), 'contact' => filled($proposed['phone_number'] ?? null) || filled($proposed['email'] ?? null), 'specialty' => filled($proposed['specialty_id'] ?? null), 'therapy_area' => filled($proposed['therapy_area_id'] ?? null), 'rating' => filled($proposed['rating_type_id'] ?? null)];
+            $checks = ['territory' => filled($proposed['territory_id'] ?? null), 'patch' => $patches !== [] || $patchPlans !== [] || ($account?->patches()->exists() ?? false), 'primary_address' => $address !== [] || ($account?->addresses()->where('is_primary', true)->whereNotNull('street')->where('street', '<>', '')->exists() ?? false), 'contact' => filled($proposed['phone_number'] ?? null) || filled($proposed['email'] ?? null), 'specialty' => filled($proposed['specialty_id'] ?? null), 'therapy_area' => filled($proposed['therapy_area_id'] ?? null), 'rating' => filled($proposed['rating_type_id'] ?? null)];
             foreach (TypeMaster::find($attributes['type_master_id'])->activation_requirements ?? [] as $requirement) {
                 if (! ($checks[$requirement] ?? false)) {
                     throw new ImportRowException('Active status requires '.(AccountActivationService::REQUIREMENTS[$requirement] ?? $requirement).'. Complete the row or use prospect.');
@@ -182,10 +208,17 @@ class AccountImportRow
             }
         }
         $similar = ! $account && AccountMaster::where('name', $row['name'])->exists();
+        $warnings = [];
+        if ($similar) {
+            $warnings[] = 'An account with this name already exists. This new external reference will create a separate account; review before importing.';
+        }
+        if ($patchPlans !== []) {
+            $warnings[] = 'Will create patches on confirmation (code used as name): '.implode(', ', array_column($patchPlans, 'code')).'.';
+        }
 
-        return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'address' => $address, 'area_plan' => $areaPlan, 'profile' => $profile, 'target' => $target,
+        return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'patch_plans' => $patchPlans, 'address' => $address, 'area_plan' => $areaPlan, 'profile' => $profile, 'target' => $target,
             'details' => app(AccountImportDetails::class)->resolve($row, $account, $address),
-            'warning' => $similar ? 'An account with this name already exists. This new external reference will create a separate account; review before importing.' : null];
+            'warning' => $warnings !== [] ? implode(' ', $warnings) : null];
     }
 
     private function checkOverlap(Builder $query, array $period, string $label): void

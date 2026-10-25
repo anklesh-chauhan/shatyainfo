@@ -263,7 +263,13 @@ class AccountMaster extends BaseModel
         });
 
         static::created(function ($accountMaster) {
-            $accountMaster->forceFill(['account_code' => 'ACC-'.str_pad((string) $accountMaster->id, 8, '0', STR_PAD_LEFT)])->saveQuietly();
+            $base = 'ACC-'.str_pad((string) $accountMaster->id, 8, '0', STR_PAD_LEFT);
+            $code = $base;
+            $suffix = 1;
+            while (self::withTrashed()->where('account_code', $code)->exists()) {
+                $code = $base.'-'.$suffix++;
+            }
+            $accountMaster->forceFill(['account_code' => $code])->saveQuietly();
 
             if ($accountMaster->typeMaster?->typeable_type === self::class && $accountMaster->typeMaster?->creates_company) {
                 $company = Company::create([

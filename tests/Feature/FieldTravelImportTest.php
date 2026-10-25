@@ -4,6 +4,7 @@ use App\Filament\Pages\FieldTravelImport as ImportPage;
 use App\Filament\Resources\TravelSegments\Pages\CreateTravelSegment;
 use App\Jobs\ProcessFieldTravelImport;
 use App\Models\AccountMaster;
+use App\Models\AccountMasterPatch;
 use App\Models\Address;
 use App\Models\City;
 use App\Models\CityPinCode;
@@ -24,7 +25,9 @@ use App\Services\Travel\TravelSegmentValidation;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -51,6 +54,7 @@ function useFieldTravelImportTenant(): void
 }
 
 beforeEach(function () {
+    config(['cache.stores.file' => ['driver' => 'array']]);
     $this->actingAs(reportingUser('Travel Import Owner'));
     auth()->user()->assignRole(Role::findOrCreate('super_admin', 'web'));
     foreach (['Patch', 'StandardFareChart', 'TravelSegment'] as $model) {
@@ -93,6 +97,40 @@ it('previews without writes and imports patches and fares together without dupli
     Http::assertNothingSent();
 });
 
+it('matches patches and fares by city and PIN regardless of area names', function () {
+    CityPinCode::create(['city_id' => $this->from->city_id, 'area_town' => 'Another name', 'pin_code' => $this->from->pin_code]);
+    $rows = fieldTravelRows();
+    $rows['Patches'][0]['data'] = array_replace($rows['Patches'][0]['data'], ['city' => 'Ahmedabad', 'area' => 'Different spelling', 'pin_code' => '380009']);
+    $rows['Standard Fares'][0]['data']['from_area'] = 'Different again';
+    $preview = $this->service->preview($rows);
+    expect($preview['errors'])->toBe([])->and($preview['locations'])->toBe([]);
+    $this->service->import($rows, $preview['fingerprint']);
+    expect(Patch::sole()->city_pin_code_id)->toBe($this->from->id);
+    expect(StandardFareChart::sole()->from_area_town_id)->toBe(min($this->from->id, $this->to->id));
+});
+
+it('plans missing areas without writes and creates shared patch and fare locations on confirmation', function () {
+    $rows = fieldTravelRows();
+    $rows['Patches'][0]['data'] = array_replace($rows['Patches'][0]['data'], ['city' => 'Ahmedabad', 'area' => 'New Area', 'pin_code' => '380099']);
+    $rows['Standard Fares'][0]['data']['from_pin_code'] = '380099';
+    $rows['Standard Fares'][0]['data']['from_area'] = 'Different name';
+    $preview = $this->service->preview($rows);
+    expect($preview['errors'])->toBe([])->and($preview['locations'])->toHaveCount(1);
+    expect(CityPinCode::count())->toBe(2)->and(Patch::count())->toBe(0);
+    $this->service->import($rows, $preview['fingerprint']);
+    $area = CityPinCode::where('pin_code', 380099)->sole();
+    $patch = Patch::sole();
+    $fare = StandardFareChart::sole();
+    expect($area->area_town)->toBe('New Area')->and($patch->city_pin_code_id)->toBe($area->id)
+        ->and($this->territory->cityPinCodes()->whereKey($area->id)->exists())->toBeTrue()
+        ->and($fare->patch_id)->toBe($patch->id)
+        ->and([$fare->from_area_town_id, $fare->to_area_town_id])->toContain($area->id);
+    $preview = $this->service->preview($rows);
+    expect($preview['errors'])->toBe([]);
+    expect($this->service->import($rows, $preview['fingerprint'])['Unchanged'])->toBe(2);
+    expect(CityPinCode::count())->toBe(3);
+});
+
 it('rejects reversed duplicate fares and invalid location without saving patches', function () {
     $rows = fieldTravelRows();
     $reverse = $rows['Standard Fares'][0];
@@ -105,7 +143,7 @@ it('rejects reversed duplicate fares and invalid location without saving patches
     expect(fn () => $this->service->import($rows, 'invalid'))->toThrow(ValidationException::class);
     expect(Patch::count())->toBe(0);
     $rows = fieldTravelRows();
-    $rows['Standard Fares'][0]['data']['from_area'] = 'Missing';
+    $rows['Standard Fares'][0]['data']['from_city'] = 'Missing';
     expect($this->service->preview($rows)['errors'])->not->toBeEmpty();
 });
 
@@ -121,11 +159,14 @@ it('rejects concurrent record changes after preview', function () {
 
 it('rolls back patches when saving a fare fails', function () {
     $rows = fieldTravelRows();
+    $rows['Patches'][0]['data'] = array_replace($rows['Patches'][0]['data'], ['city' => 'Ahmedabad', 'area' => 'Rollback Area', 'pin_code' => '380098']);
+    $rows['Standard Fares'][0]['data']['from_pin_code'] = '380098';
     $preview = $this->service->preview($rows);
     StandardFareChart::creating(fn () => throw new RuntimeException('Simulated failure'));
     try {
         expect(fn () => $this->service->import($rows, $preview['fingerprint']))->toThrow(RuntimeException::class);
         expect(Patch::count())->toBe(0);
+        expect(CityPinCode::count())->toBe(2)->and($this->territory->cityPinCodes()->count())->toBe(2);
         expect(FieldTravelImport::isRunning())->toBeFalse();
     } finally {
         StandardFareChart::flushEventListeners();
@@ -133,13 +174,14 @@ it('rolls back patches when saving a fare fails', function () {
     }
 });
 
-it('imports customer sequence and distance without generating placeholder fares', function () {
+it('imports customer sequence and distance without generating placeholder fares', function (bool $useReference) {
     $customerType = TypeMaster::create(['name' => 'Customer', 'typeable_type' => AccountMaster::class]);
     $customer = AccountMaster::create(['name' => 'Customer One', 'account_code' => 'CUST-001', 'owner_id' => auth()->id(), 'type_master_id' => $customerType->id]);
+    $customer->forceFill(['external_reference' => 'SOURCE:001'])->saveQuietly();
     Address::create(['addressable_id' => $customer->id, 'addressable_type' => AccountMaster::class, 'street' => 'Main road', 'area_town_id' => $this->from->id, 'pin_code' => $this->from->pin_code, 'is_primary' => true]);
     $rows = fieldTravelRows();
     unset($rows['Standard Fares']);
-    $rows['Patch Customers'] = [['row' => 2, 'data' => ['patch_code' => 'PATCH-01', 'customer_code' => $customer->account_code, 'sequence_no' => '1', 'distance_to_next_km' => '12']]];
+    $rows['Patch Customers'] = [['row' => 2, 'data' => ['patch_code' => 'PATCH-01', 'customer_code' => $useReference ? $customer->external_reference : $customer->account_code, 'sequence_no' => '1', 'distance_to_next_km' => '12']]];
     $preview = $this->service->preview($rows);
     $this->assertSame([], $preview['errors']);
     expect($this->service->import($rows, $preview['fingerprint'])['Create'])->toBe(2);
@@ -149,7 +191,19 @@ it('imports customer sequence and distance without generating placeholder fares'
     $this->assertSame([], $preview['errors']);
     expect($this->service->import($rows, $preview['fingerprint'])['Unchanged'])->toBe(2);
     $rows['Patch Customers'][] = $rows['Patch Customers'][0];
+    $rows['Patch Customers'][1]['data']['customer_code'] = $useReference ? $customer->account_code : $customer->external_reference;
     expect($this->service->preview($rows)['errors'])->not->toBeEmpty();
+})->with([true, false]);
+
+it('rejects ambiguous account code and external reference matches', function () {
+    $type = TypeMaster::create(['name' => 'Customer', 'typeable_type' => AccountMaster::class]);
+    $first = AccountMaster::create(['name' => 'First', 'owner_id' => auth()->id(), 'type_master_id' => $type->id]);
+    $second = AccountMaster::create(['name' => 'Second', 'owner_id' => auth()->id(), 'type_master_id' => $type->id]);
+    $second->forceFill(['external_reference' => $first->account_code])->saveQuietly();
+    $rows = fieldTravelRows();
+    $rows['Patch Customers'] = [['row' => 2, 'data' => ['patch_code' => 'PATCH-01', 'customer_code' => $first->account_code, 'sequence_no' => '1', 'distance_to_next_km' => '']]];
+    expect(implode(' ', $this->service->preview($rows)['errors']))->toContain('ambiguous');
+    expect(AccountMasterPatch::count())->toBe(0);
 });
 
 it('denies imports without model permission', function () {
@@ -238,6 +292,7 @@ it('executes a saved import job once and restores the authenticated user', funct
     expect(auth()->id())->toBe($user->id);
     $payload = json_decode(Storage::disk('local')->get($path), true);
     expect($payload['status'])->toBe('complete');
+    expect(Cache::store('file')->get($job->progressKey())['processed'])->toBe(2);
     expect($payload)->not->toHaveKey('rows');
 });
 
@@ -248,6 +303,7 @@ it('refuses a background job in the wrong tenant context', function () {
 });
 
 it('uploads previews and imports through the livewire page', function () {
+    Queue::fake();
     useFieldTravelImportTenant();
     Storage::fake('local');
     $path = tempnam(sys_get_temp_dir(), 'travel-ui-');
@@ -259,11 +315,68 @@ it('uploads previews and imports through the livewire page', function () {
     $writer->close();
     try {
         $upload = UploadedFile::fake()->createWithContent('patches.xlsx', file_get_contents($path));
-        $page = Livewire::test(ImportPage::class, ['embedded' => true])->set('file', $upload)->call('previewFile')->assertHasNoErrors()->assertSet('status', 'preview')->assertSee('PATCH-01');
+        $page = Livewire::test(ImportPage::class, ['embedded' => true])->set('historical', true)->set('file', $upload)->call('previewFile')->assertHasNoErrors()->assertSet('status', 'preview')->assertSet('historical', false)->assertSee('PATCH-01');
         expect(Patch::count())->toBe(0);
-        $page->call('importReviewed')->assertHasNoErrors()->assertSet('status', 'complete')->assertSee('1 created');
+        $page->call('importReviewed')->assertHasNoErrors()->assertSet('status', 'queued')->assertSee('Field travel import queued');
+        expect(Patch::count())->toBe(0);
+        $page->call('importReviewed')->assertHasNoErrors();
+        Queue::assertPushed(ProcessFieldTravelImport::class, 1);
+        $job = Queue::pushed(ProcessFieldTravelImport::class)->first();
+        expect($job->connection)->toBe('database');
+        Livewire::test(ImportPage::class, ['embedded' => true])->assertSet('status', 'queued');
+        $job->handle($this->service);
+        $page->call('refreshStatus')->assertSet('status', 'complete')->assertSee('1 created');
         expect(Patch::count())->toBe(1);
     } finally {
         unlink($path);
     }
+});
+
+it('detects the only supported workbook type and never reads examples', function (bool $historical) {
+    $path = tempnam(sys_get_temp_dir(), 'travel-mode-');
+    $sheet = $historical ? 'Travel Segments' : 'Patches';
+    $writer = new Writer;
+    $writer->openToFile($path);
+    $writer->getCurrentSheet()->setName('Examples');
+    $writer->addRow(Row::fromValues(['Not import data']));
+    $writer->addNewSheetAndMakeItCurrent()->setName($sheet);
+    $writer->addRow(Row::fromValues(FieldTravelTemplate::COLUMNS[$sheet]));
+    $writer->addRow(Row::fromValues(array_fill(0, count(FieldTravelTemplate::COLUMNS[$sheet]), 'Example')));
+    $writer->close();
+    try {
+        $rows = $this->service->read($path, ! $historical);
+        expect(array_keys($rows))->toBe([$sheet])->and($rows[$sheet])->toHaveCount(1);
+    } finally {
+        unlink($path);
+    }
+})->with([true, false]);
+
+it('preserves the selected mode for workbooks containing both import types', function () {
+    $path = tempnam(sys_get_temp_dir(), 'travel-mixed-');
+    $writer = new Writer;
+    $writer->openToFile($path);
+    foreach (['Patches', 'Travel Segments'] as $index => $sheet) {
+        if ($index > 0) {
+            $writer->addNewSheetAndMakeItCurrent();
+        }
+        $writer->getCurrentSheet()->setName($sheet);
+        $writer->addRow(Row::fromValues(FieldTravelTemplate::COLUMNS[$sheet]));
+        $writer->addRow(Row::fromValues(array_fill(0, count(FieldTravelTemplate::COLUMNS[$sheet]), 'Example')));
+    }
+    $writer->close();
+    try {
+        expect(array_keys($this->service->read($path, true)))->toBe(['Travel Segments']);
+        expect(array_keys($this->service->read($path, false)))->toBe(['Patches']);
+    } finally {
+        unlink($path);
+    }
+});
+
+it('marks running field travel jobs failed after a timeout', function () {
+    Storage::fake('local');
+    $token = (string) Str::uuid();
+    $path = 'field-travel-imports/'.auth()->id().'/'.$token.'.json';
+    Storage::disk('local')->put($path, json_encode(['status' => 'running']));
+    (new ProcessFieldTravelImport($token, auth()->id(), null))->failed(new RuntimeException('timeout'));
+    expect(json_decode(Storage::disk('local')->get($path), true)['status'])->toBe('failed');
 });

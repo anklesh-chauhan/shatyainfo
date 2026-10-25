@@ -5,6 +5,7 @@ namespace App\Services\DataImport;
 use App\Models\AccountMaster;
 use App\Models\AccountMasterPatch;
 use App\Models\BaseModel;
+use App\Models\City;
 use App\Models\CityPinCode;
 use App\Models\Employee;
 use App\Models\Organization;
@@ -28,6 +29,8 @@ class FieldTravelImport
 {
     private static bool $running = false;
 
+    private array $locations = [];
+
     public static function isRunning(): bool
     {
         return self::$running;
@@ -41,6 +44,14 @@ class FieldTravelImport
         $count = 0;
         try {
             $reader->open($path);
+            $sheetNames = [];
+            foreach ($reader->getSheetIterator() as $sheet) {
+                $sheetNames[] = $sheet->getName();
+            }
+            $recognized = array_intersect($sheetNames, array_keys(FieldTravelTemplate::COLUMNS));
+            if ($recognized !== [] && array_intersect($sheetNames, $allowed) === []) {
+                $allowed = array_values($recognized);
+            }
             foreach ($reader->getSheetIterator() as $sheet) {
                 if (! in_array($sheet->getName(), $allowed, true)) {
                     continue;
@@ -69,7 +80,7 @@ class FieldTravelImport
             $reader->close();
         }
         if ($count === 0) {
-            throw ValidationException::withMessages(['file' => 'No data found on the expected workbook sheets.']);
+            throw ValidationException::withMessages(['file' => 'No data found. Fill data rows below the headers on '.implode(', ', $allowed).'. Workbook sheets found: '.implode(', ', $sheetNames).'. Instructions and Examples are never imported.']);
         }
 
         return $rows;
@@ -77,6 +88,7 @@ class FieldTravelImport
 
     public function preview(array $sheets): array
     {
+        $this->locations = [];
         $plans = [];
         $patches = [];
         $seen = [];
@@ -144,12 +156,14 @@ class FieldTravelImport
             }
         }
 
-        return ['plans' => $plans, 'errors' => $errors, 'fingerprint' => hash('sha256', serialize($plans))];
+        $locations = array_map(fn (CityPinCode $location): array => $location->getAttributes(), $this->locations);
+
+        return ['plans' => $plans, 'locations' => $locations, 'errors' => $errors, 'fingerprint' => hash('sha256', serialize([$plans, $locations]))];
     }
 
-    public function import(array $sheets, string $fingerprint): array
+    public function import(array $sheets, string $fingerprint, ?callable $progress = null): array
     {
-        return DB::transaction(function () use ($sheets, $fingerprint): array {
+        return DB::transaction(function () use ($sheets, $fingerprint, $progress): array {
             Organization::query()->lockForUpdate()->first();
             $preview = $this->preview($sheets);
             if ($preview['errors'] !== []) {
@@ -163,8 +177,19 @@ class FieldTravelImport
             $previous = self::$running;
             self::$running = true;
             try {
+                $locationIds = [];
+                foreach ($preview['locations'] as $temporaryId => $location) {
+                    unset($location['id']);
+                    $area = CityPinCode::firstOrCreate(['city_id' => $location['city_id'], 'pin_code' => $location['pin_code']], $location);
+                    $locationIds[$temporaryId] = $area->id;
+                }
                 foreach ($preview['plans'] as $index => $plan) {
                     $attributes = $plan['attributes'];
+                    foreach (['city_pin_code_id', 'from_area_town_id', 'to_area_town_id'] as $field) {
+                        if (($attributes[$field] ?? 0) < 0) {
+                            $attributes[$field] = $locationIds[$attributes[$field]];
+                        }
+                    }
                     if (($attributes['patch_id'] ?? 0) < 0) {
                         $attributes['patch_id'] = $ids[$attributes['patch_id']];
                     }
@@ -176,11 +201,17 @@ class FieldTravelImport
                             $record->forceFill(['updated_by' => auth()->id()] + ($record->exists ? [] : ['created_by' => auth()->id()]));
                         }
                         $record->save();
+                        if ($record instanceof Patch && $record->city_pin_code_id) {
+                            $record->territory->cityPinCodes()->syncWithoutDetaching([$record->city_pin_code_id]);
+                        }
                         if ($plan['sheet'] === 'Patches' && ! $plan['id']) {
                             $ids[-($index + 1)] = $record->id;
                         }
                     }
                     $counts[$plan['action']]++;
+                    if ($progress && (($index + 1) % 10 === 0 || $index + 1 === count($preview['plans']))) {
+                        $progress($index + 1, count($preview['plans']));
+                    }
                 }
             } finally {
                 self::$running = $previous;
@@ -224,7 +255,7 @@ class FieldTravelImport
         if ($sheet === 'Patches') {
             $territory = $this->lookup(Territory::class, 'code', $row['territory_code']);
             $location = $this->location($row, '', false);
-            if ($location && ! $territory->cityPinCodes()->whereKey($location->id)->exists()) {
+            if ($location?->exists && ! $territory->cityPinCodes()->where('city_id', $location->city_id)->where('pin_code', $location->pin_code)->exists()) {
                 $this->invalid('The patch location must be linked to its territory.');
             }
             $record = Patch::withTrashed()->where('code', $row['patch_code'])->first() ?? new Patch;
@@ -245,12 +276,14 @@ class FieldTravelImport
             return compact('record', 'attributes') + ['key' => strtoupper($row['patch_code'])];
         }
         if ($sheet === 'Patch Customers') {
-            $customer = $this->lookup(AccountMaster::class, 'account_code', $row['customer_code']);
+            $customer = $this->customer($row['customer_code']);
             if (! $customer->typeMaster || ($customer->typeMaster->name !== 'Customer' && $customer->typeMaster->parent?->name !== 'Customer')) {
                 $this->invalid('Customer code must identify a customer account.');
             }
             $territory = Territory::findOrFail($patch->territory_id);
-            $pins = $patch->city_pin_code_id ? CityPinCode::whereKey($patch->city_pin_code_id)->pluck('pin_code') : $territory->cityPinCodes()->pluck('pin_code');
+            $pins = $patch->city_pin_code_id < 0
+                ? [$this->locations[$patch->city_pin_code_id]->pin_code]
+                : ($patch->city_pin_code_id ? CityPinCode::whereKey($patch->city_pin_code_id)->pluck('pin_code') : $territory->cityPinCodes()->pluck('pin_code'));
             if (! $customer->addresses()->whereIn('pin_code', $pins)->exists()) {
                 $this->invalid('Customer address is outside the patch location/territory.');
             }
@@ -264,7 +297,7 @@ class FieldTravelImport
                 $attributes['distance_km'] = $row['distance_to_next_km'];
             }
 
-            return compact('record', 'attributes') + ['key' => strtoupper($row['patch_code']).':'.strtoupper($row['customer_code'])];
+            return compact('record', 'attributes') + ['key' => strtoupper($row['patch_code']).':'.$customer->id];
         }
         $from = $this->location($row, 'from_');
         $to = $this->location($row, 'to_');
@@ -327,7 +360,7 @@ class FieldTravelImport
         }
         foreach (['from_customer_code' => 'from_account_id', 'to_customer_code' => 'to_account_id'] as $column => $attribute) {
             if (filled($row[$column] ?? null)) {
-                $attributes[$attribute] = $this->lookup(AccountMaster::class, 'account_code', $row[$column])->id;
+                $attributes[$attribute] = $this->customer($row[$column])->id;
             }
         }
         if (filled($row['transport_mode'])) {
@@ -336,6 +369,18 @@ class FieldTravelImport
         app(TravelSegmentValidation::class)->validate(array_merge($record->getAttributes(), $attributes));
 
         return compact('record', 'attributes') + ['key' => strtoupper($row['external_reference'])];
+    }
+
+    private function customer(string $value): AccountMaster
+    {
+        $matches = AccountMaster::query()->applyVisibility('AccountMaster')
+            ->where(fn ($query) => $query->where('account_code', $value)->orWhere('external_reference', $value))
+            ->limit(2)->get();
+        if ($matches->count() !== 1) {
+            $this->invalid('Customer reference '.$value.' must match exactly one accessible account by account code or external reference. Resolve missing or ambiguous references first.');
+        }
+
+        return $matches->first();
     }
 
     private function location(array $row, string $prefix, bool $required = true): ?CityPinCode
@@ -347,13 +392,22 @@ class FieldTravelImport
         if (count(array_filter($values)) !== 3) {
             $this->invalid('Supply city, area and PIN together for '.$prefix.'location.');
         }
-        $matches = CityPinCode::where('area_town', $values[1])->where('pin_code', $values[2])
-            ->whereHas('city', fn ($query) => $query->where('name', $values[0]))->limit(2)->get();
-        if ($matches->count() !== 1) {
-            $this->invalid('Location must match one existing city, area and PIN: '.implode(' / ', $values));
+        Validator::make(['pin_code' => $values[2]], ['pin_code' => ['required', 'regex:/^[0-9]+$/', 'numeric', 'between:0,2147483647']])->validate();
+        $city = $this->lookup(City::class, 'name', $values[0]);
+        $location = CityPinCode::where('city_id', $city->id)->where('pin_code', $values[2])->orderBy('id')->first();
+        if ($location) {
+            return $location;
         }
+        foreach ($this->locations as $location) {
+            if ($location->city_id === $city->id && (int) $location->pin_code === (int) $values[2]) {
+                return $location;
+            }
+        }
+        $location = new CityPinCode(['city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id, 'pin_code' => (int) $values[2], 'area_town' => $values[1]]);
+        $location->id = -(count($this->locations) + 1);
+        $this->locations[$location->id] = $location;
 
-        return $matches->first();
+        return $location;
     }
 
     private function lookup(string $class, string $column, string $value): Model
