@@ -101,6 +101,7 @@ class MarketingController extends Controller
         return view('marketing.status', [
             'tenant' => $tenant,
             'loginUrl' => $loginUrl,
+            'verifyUrl' => URL::temporarySignedRoute('signup.verify', now()->addHours(6), ['tenant' => $tenant]),
             'resendUrl' => URL::temporarySignedRoute('signup.resend', now()->addHours(6), ['tenant' => $tenant]),
             'retryUrl' => URL::temporarySignedRoute(
                 'signup.retry',

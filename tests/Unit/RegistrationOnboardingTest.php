@@ -83,18 +83,63 @@ test('registration waits for email verification without dispatching provisioning
     ])->assertRedirect();
     expect(Tenant::query()->where('name', 'Example')->first()->provisioning_status)->toBe('awaiting_verification');
     expect(Tenant::query()->where('name', 'Example')->first()->registration_mobile)->toBe('+919876543210');
+    expect(Cache::store('registration')->get('registration.verify.'.Tenant::query()->where('name', 'Example')->first()->id))->toHaveKeys(['hash', 'attempts', 'expires']);
+    $statusUrl = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => Tenant::query()->where('name', 'Example')->first()]);
+    $this->get($statusUrl)->assertOk()->assertSee('Email verification code')->assertSee('autocomplete="one-time-code"', false);
     Queue::assertNothingPushed();
 });
 
-test('email verification queues provisioning once and rejects replay', function () {
+test('email code verification queues provisioning once and rejects replay', function () {
     $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification', 'provisioning_owner' => ['name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'long-password-1']])->saveQuietly();
-    $token = str_repeat('a', 64);
-    Cache::store('registration')->put('registration.verify.'.hash('sha256', $token), $this->tenant->id, now()->addHour());
-    $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['token' => $token]);
-    $this->get($url)->assertRedirect()->assertSessionHas('verified_registration', $this->tenant->id);
+    $code = '123456';
+    $key = 'registration.verify.'.$this->tenant->id;
+    Cache::store('registration')->put($key, ['hash' => hash_hmac('sha256', $code, (string) config('app.key')), 'attempts' => 0, 'expires' => now()->addMinutes(10)->getTimestamp()], now()->addMinutes(10));
+    $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->post($url, ['code' => $code])->assertRedirect()->assertSessionHas('verified_registration', $this->tenant->id);
     expect($this->tenant->fresh()->provisioning_status)->toBe('pending')->and($this->tenant->fresh()->provisioning_owner['email_verified_at'])->not->toBeNull();
     Queue::assertPushed(ProvisionTenant::class, 1);
-    $this->get($url)->assertGone();
+    expect(Cache::store('registration')->get($key))->toBeNull();
+    $this->post($url, ['code' => $code])->assertGone();
+});
+
+test('email code rejects wrong attempts and locks after five tries', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification', 'provisioning_owner' => ['email' => 'owner@example.test']])->saveQuietly();
+    $key = 'registration.verify.'.$this->tenant->id;
+    $code = '123456';
+    Cache::store('registration')->put($key, ['hash' => hash_hmac('sha256', $code, (string) config('app.key')), 'attempts' => 0, 'expires' => now()->addMinutes(10)->getTimestamp()], now()->addMinutes(10));
+    $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->post('/register/'.$this->tenant->id.'/verify', ['code' => $code])->assertForbidden();
+    for ($attempt = 1; $attempt <= 5; $attempt++) {
+        $this->post($url, ['code' => '000000'])->assertSessionHasErrors('code');
+    }
+    expect(Cache::store('registration')->get($key))->toBeNull()
+        ->and($this->tenant->fresh()->provisioning_status)->toBe('awaiting_verification');
+    Queue::assertNothingPushed();
+    $this->post($url, ['code' => $code])->assertSessionHasErrors('code');
+});
+
+test('an expired email code cannot start provisioning', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification', 'provisioning_owner' => ['email' => 'owner@example.test']])->saveQuietly();
+    $key = 'registration.verify.'.$this->tenant->id;
+    Cache::store('registration')->put($key, ['hash' => hash_hmac('sha256', '123456', (string) config('app.key')), 'attempts' => 0, 'expires' => now()->addMinutes(10)->getTimestamp()], now()->addMinutes(10));
+    $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->travel(11)->minutes();
+    $this->post($url, ['code' => '123456'])->assertSessionHasErrors('code');
+    expect($this->tenant->fresh()->provisioning_status)->toBe('awaiting_verification');
+    Queue::assertNothingPushed();
+});
+
+test('resending invalidates the previous email code', function () {
+    Mail::fake();
+    $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification', 'provisioning_owner' => ['email' => 'owner@example.test']])->saveQuietly();
+    $key = 'registration.verify.'.$this->tenant->id;
+    Cache::store('registration')->put($key, ['hash' => hash_hmac('sha256', '000000', (string) config('app.key')), 'attempts' => 0, 'expires' => now()->addMinutes(10)->getTimestamp()], now()->addMinutes(10));
+    $url = URL::temporarySignedRoute('signup.resend', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->post($url)->assertRedirect();
+    expect(Cache::store('registration')->get($key)['hash'])->not->toBe(hash_hmac('sha256', '000000', (string) config('app.key')));
+    $verifyUrl = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->post($verifyUrl, ['code' => '000000'])->assertSessionHasErrors('code');
+    Queue::assertNothingPushed();
 });
 
 test('a signed progress URL alone cannot automatically sign in', function () {

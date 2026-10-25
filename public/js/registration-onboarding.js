@@ -13,7 +13,7 @@
             if (!response.ok) return;
             const data = await response.json();
             const messages = {
-                awaiting_verification: 'Check your inbox and verify your email to continue.',
+                awaiting_verification: 'Enter the six-digit code from your email to continue.',
                 pending: 'Email verified. Registration is queued…',
                 provisioning: 'Creating your database and sign-in account…',
                 failed: 'Registration could not finish. Refresh this page to retry.',

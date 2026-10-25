@@ -14,7 +14,7 @@
         @php($status = $tenant->provisioning_status)
         <p id="setup-progress" role="status">
             @if($status === 'awaiting_verification')
-                Check your inbox and verify your email to continue.
+                Enter the six-digit code sent to {{ $tenant->provisioning_owner['email'] }}. It expires in 10 minutes.
             @elseif($status === 'ready')
                 Your company is ready. Opening your workspace…
             @elseif($status === 'failed')
@@ -28,10 +28,20 @@
             <p id="registration-percentage">{{ $tenant->provisioningProgress() }}% complete</p>
         </div>
         @if($status === 'awaiting_verification')
+            <form method="post" action="{{ $verifyUrl }}">
+                @csrf
+                <label>
+                    Email verification code
+                    <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
+                    @error('code') <span class="error">{{ $message }}</span> @enderror
+                </label>
+                <button class="btn btn-primary" type="submit">Verify email</button>
+            </form>
             <form method="post" action="{{ $resendUrl }}">
                 @csrf
-                <button class="btn btn-primary" type="submit">Resend verification email</button>
+                <button class="btn btn-primary" type="submit">Send a new code</button>
             </form>
+            @if(session('status')) <p role="status">{{ session('status') }}</p> @endif
         @elseif($status === 'failed')
             <form method="post" action="{{ $retryUrl }}">
                 @csrf

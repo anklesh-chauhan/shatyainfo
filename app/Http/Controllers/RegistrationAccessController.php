@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CompanyEmailVerificationRequest;
 use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
 use App\Models\User;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -53,11 +54,22 @@ class RegistrationAccessController extends Controller
         if ($tenant->provisioning_status !== 'awaiting_verification') {
             return;
         }
-        $token = Str::random(64);
-        Cache::store('registration')->put('registration.verify.'.hash('sha256', $token), $tenant->id, now()->addHour());
-        $url = URL::temporarySignedRoute('signup.verify', now()->addHour(), ['token' => $token]);
-        Mail::raw('Verify your email to create '.$tenant->name.': '.$url.' This link expires in one hour.', function ($message) use ($tenant): void {
-            $message->to($tenant->provisioning_owner['email'])->subject('Verify your company registration');
+        $key = $this->verificationKey($tenant);
+        Cache::store('registration')->lock($key.'.lock', 30)->block(5, function () use ($tenant, $key): void {
+            $tenant->refresh();
+            if ($tenant->provisioning_status !== 'awaiting_verification') {
+                return;
+            }
+            $code = (string) random_int(100000, 999999);
+            $expires = now()->addMinutes(10);
+            Cache::store('registration')->put($key, [
+                'hash' => hash_hmac('sha256', $code, (string) config('app.key')),
+                'attempts' => 0,
+                'expires' => $expires->getTimestamp(),
+            ], $expires);
+            Mail::raw('Your verification code for '.$tenant->name.' is '.$code.'. It expires in 10 minutes.', function ($message) use ($tenant): void {
+                $message->to($tenant->provisioning_owner['email'])->subject('Verify your company registration');
+            });
         });
     }
 
@@ -65,27 +77,39 @@ class RegistrationAccessController extends Controller
     {
         $this->sendVerification($tenant);
 
-        return back()->with('status', 'Verification email sent. Check your inbox.');
+        return back()->with('status', 'If verification is still pending, a new code was sent. Check your inbox.');
     }
 
-    public function verify(Request $request, string $token): RedirectResponse
+    public function verify(CompanyEmailVerificationRequest $request, Tenant $tenant): RedirectResponse
     {
-        $key = 'registration.verify.'.hash('sha256', $token);
+        $key = $this->verificationKey($tenant);
 
-        return Cache::store('registration')->lock($key.'.lock', 10)->block(5, function () use ($request, $key): RedirectResponse {
-            $tenantId = Cache::store('registration')->pull($key);
-            abort_unless($tenantId, 410, 'Verification link expired or already used.');
-            $tenant = Tenant::query()->findOrFail($tenantId);
+        return Cache::store('registration')->lock($key.'.lock', 30)->block(5, function () use ($request, $tenant, $key): RedirectResponse {
+            $tenant->refresh();
+            abort_unless($tenant->provisioning_status === 'awaiting_verification', 410, 'Email has already been verified.');
+            $challenge = Cache::store('registration')->get($key);
+            if (! is_array($challenge) || ($challenge['expires'] ?? 0) <= now()->getTimestamp()) {
+                throw ValidationException::withMessages(['code' => 'The code has expired. Request a new code.']);
+            }
+            $hash = hash_hmac('sha256', $request->validated('code'), (string) config('app.key'));
+            if (! is_string($challenge['hash'] ?? null) || ! hash_equals($challenge['hash'], $hash)) {
+                $challenge['attempts']++;
+                if ($challenge['attempts'] >= 5) {
+                    Cache::store('registration')->forget($key);
+                    throw ValidationException::withMessages(['code' => 'Too many incorrect attempts. Request a new code.']);
+                }
+                Cache::store('registration')->put($key, $challenge, $challenge['expires'] - now()->getTimestamp());
+                throw ValidationException::withMessages(['code' => 'The code is incorrect. Try again.']);
+            }
             $tenant->getConnection()->transaction(function () use ($tenant): void {
                 $record = Tenant::query()->whereKey($tenant->id)->lockForUpdate()->firstOrFail();
                 abort_unless($record->provisioning_status === 'awaiting_verification', 410, 'Email has already been verified.');
-                if ($record->provisioning_status === 'awaiting_verification') {
-                    $owner = $record->provisioning_owner;
-                    $owner['email_verified_at'] = now()->toDateTimeString();
-                    $record->forceFill(['provisioning_owner' => $owner, 'provisioning_status' => 'pending'])->saveQuietly();
-                    ProvisionTenant::dispatch($record->id);
-                }
+                $owner = $record->provisioning_owner;
+                $owner['email_verified_at'] = now()->toDateTimeString();
+                $record->forceFill(['provisioning_owner' => $owner, 'provisioning_status' => 'pending'])->saveQuietly();
+                ProvisionTenant::dispatch($record->id);
             });
+            Cache::store('registration')->forget($key);
             $request->session()->regenerate();
             $request->session()->forget('registration_login_token');
             $request->session()->put('verified_registration', $tenant->id);
@@ -93,6 +117,11 @@ class RegistrationAccessController extends Controller
 
             return redirect()->to(URL::temporarySignedRoute('signup.status', now()->addHours(6), ['tenant' => $tenant]));
         });
+    }
+
+    private function verificationKey(Tenant $tenant): string
+    {
+        return 'registration.verify.'.$tenant->id;
     }
 
     public function redirectUrl(Request $request, Tenant $tenant): ?string
