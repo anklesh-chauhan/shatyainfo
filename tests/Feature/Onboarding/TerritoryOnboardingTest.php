@@ -125,6 +125,25 @@ it('rejects conflicting position territories without replacing existing assignme
     expect(Position::where('code', 'WEST-MGR')->sole()->territories()->count())->toBe(2);
 });
 
+it('renders a visible territory file picker during onboarding', function () {
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    try {
+        auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(Onboarding::class)
+            ->assertSet('step', 2)
+            ->assertSee('Upload your completed territory file')
+            ->assertSee('id="territory-file"', false)
+            ->assertSee('wire:model="territoryFile"', false);
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
+
 it('shows territory upload before employees and resumes after skipping', function () {
     config(['multitenancy.switch_tenant_tasks' => []]);
     app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
