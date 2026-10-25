@@ -1,6 +1,8 @@
 <?php
 
 use App\Filament\Pages\Reports\AccountReachFrequency;
+use App\Filament\Resources\AccountMasters\AccountMasterResource;
+use App\Filament\Resources\AccountMasters\Pages\AccountMasterInfolist;
 use App\Filament\Resources\AccountMasters\Pages\CreateAccountMaster;
 use App\Filament\Resources\AccountMasters\Pages\EditAccountMaster;
 use App\Filament\Resources\AccountMasters\RelationManagers\AssignmentHistoryRelationManager;
@@ -27,6 +29,11 @@ it('renders the reporting screens and relation managers under account permission
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $this->seed(AccountReportingMasterSeeder::class);
     $account = reportingDoctor($user, 'UI Account');
+    foreach (AccountMasterResource::getRelations() as $manager) {
+        expect(class_exists($manager))->toBeTrue();
+        expect((new ReflectionClass($manager))->getName())->toBe($manager);
+    }
+    Livewire::test(AccountMasterInfolist::class, ['record' => $account->getRouteKey()])->assertSuccessful();
     Livewire::test(CreateAccountMaster::class)->assertSuccessful()->assertFormFieldExists('specialty_id')->assertFormFieldExists('supplier_account_id');
     Livewire::test(ListAccountReportingMasters::class)->assertSuccessful();
     foreach ([DivisionProfilesRelationManager::class, CallTargetsRelationManager::class, AssignmentHistoryRelationManager::class] as $manager) {

@@ -6,7 +6,7 @@ use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
 use App\Filament\Resources\AccountMasterCreditDetailResource\RelationManagers\CreditDetailRelationManager;
-use App\Filament\Resources\AccountMasterGSTDetailResource\RelationManagers\GSTDetailRelationManager;
+use App\Filament\Resources\AccountMasterGSTDetailResource\RelationManagers\GstDetailRelationManager;
 use App\Filament\Resources\AccountMasters\Pages\AccountMasterInfolist;
 use App\Filament\Resources\AccountMasters\Pages\CreateAccountMaster;
 use App\Filament\Resources\AccountMasters\Pages\EditAccountMaster;
@@ -130,7 +130,7 @@ class AccountMasterResource extends BaseResource
             ContactDetailsRelationManager::class,
             BankDetailRelationManager::class,
             CreditDetailRelationManager::class,
-            GSTDetailRelationManager::class,
+            GstDetailRelationManager::class,
             StatutoryDetailRelationManager::class,
         ];
     }
