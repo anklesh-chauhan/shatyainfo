@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -68,7 +69,12 @@ it('imports all employee setup from excel and reuses records on repeat upload', 
             ->and(Hash::check('Temporary-Secret-42', $login->password))->toBeTrue()
             ->and($login->hasRole('sales_representative'))->toBeTrue()
             ->and($login->canAccessPanel(Filament::getPanel('admin')))->toBeTrue();
-        expect(Role::findByName('sales_representative')->permissions()->count())->toBe(0);
+        $role = Role::findByName('sales_representative');
+        expect($role->permissions->pluck('name'))->toContain('Create:Visit')
+            ->not->toContain('Delete:Visit');
+        $role->givePermissionTo(Permission::findOrCreate('Delete:Visit', 'web'));
+        expect(app(ResourceCsvImporter::class)->import($module, $path)->failed)->toBe([]);
+        expect($role->fresh()->permissions->pluck('name'))->toContain('Delete:Visit');
         Notification::assertNothingSent();
     } finally {
         unlink($path);

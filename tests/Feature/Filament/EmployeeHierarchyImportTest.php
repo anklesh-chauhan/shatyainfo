@@ -105,6 +105,29 @@ it('requires a temporary password for new employee logins and preserves password
     expect(User::where('email', $row['email'])->count())->toBe(1);
 });
 
+it('assigns narrow permissions to recognized job roles and leaves unknown roles empty', function () {
+    $cases = [
+        ['HR Manager', 'Create:Employee', 'Delete:Employee', true],
+        ['Accountant', 'Create:SalesInvoice', 'Delete:SalesInvoice', true],
+        ['Field Analyst', 'Create:Visit', 'Delete:Visit', false],
+    ];
+    foreach ($cases as $index => [$name, $create, $delete, $mapped]) {
+        $row = app(EmployeeImportTemplate::class)->examples()[1];
+        $row['employee_id'] = 'PERM'.($index + 1);
+        $row['mobile_number'] = '910000000'.($index + 1);
+        $row['email'] = 'permission'.$index.'@example.test';
+        $row['temporary_password'] = 'Temporary-Password-42';
+        $row['job_role'] = $name;
+        $row['position'] = $name;
+        $row['position_code'] = 'PERM-'.($index + 1);
+        expect(hierarchyUpload([$row])->failed)->toBe([]);
+        $role = Role::findByName(str($name)->slug('_')->toString(), 'web');
+        $permissions = $role->permissions->pluck('name');
+        expect($permissions->contains($create))->toBe($mapped)
+            ->and($permissions->contains($delete))->toBeFalse();
+    }
+});
+
 it('rejects login email collisions without linking another users account', function () {
     $row = app(EmployeeImportTemplate::class)->examples()[1];
     $row['email'] = auth()->user()->email;

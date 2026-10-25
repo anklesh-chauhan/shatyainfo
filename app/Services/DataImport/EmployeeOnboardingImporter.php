@@ -13,11 +13,13 @@ use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
 use App\Services\OrganizationalUnitService;
+use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 class EmployeeOnboardingImporter
@@ -177,7 +179,9 @@ class EmployeeOnboardingImporter
                 throw new ImportRowException('Only Super Admin can assign an administrator role through employee import.');
             }
             $this->authorize('create', \App\Models\Role::class);
-            $roles[] = Role::findOrCreate($name, (new User)->getGuardName());
+            $loginRole = Role::findOrCreate($name, (new User)->getGuardName());
+            $this->assignConfiguredPermissions($loginRole);
+            $roles[] = $loginRole;
         }
         $user = $employee->login_id ? User::find($employee->login_id) : null;
         $email = $employee->email;
@@ -205,6 +209,41 @@ class EmployeeOnboardingImporter
         foreach ($roles as $role) {
             $user->assignRole($role);
         }
+    }
+
+    private function assignConfiguredPermissions(Role $role): void
+    {
+        $profile = config('permission-map.job_role_profiles.'.$role->name);
+        if ($profile === null || $role->permissions()->exists()) {
+            return;
+        }
+
+        $rules = config('permission-map.roles.'.$profile);
+        if (! is_array($rules) || isset($rules['*'])) {
+            throw new ImportRowException('Permission profile for '.$role->name.' is invalid. Contact your administrator.');
+        }
+
+        $resources = collect(Filament::getPanels())
+            ->flatMap(fn ($panel) => $panel->getResources())
+            ->unique()
+            ->mapWithKeys(fn ($resource): array => [class_basename($resource) => class_basename($resource::getModel())]);
+        $permissions = [];
+        foreach ($rules as $resourceClass => $level) {
+            $model = $resources->get($resourceClass);
+            if (! $model) {
+                throw new ImportRowException('Permission resource '.$resourceClass.' is unavailable. Contact your administrator.');
+            }
+            $actions = match ($level) {
+                'R' => ['ViewAny', 'View', 'ViewOwnTerritory', 'ViewOwnOU', 'ViewOwn'],
+                'C' => ['ViewAny', 'View', 'Create', 'Update', 'ViewOwnTerritory', 'ViewOwnOU', 'ViewOwn'],
+                'F' => ['ViewAny', 'View', 'Create', 'Update', 'Delete', 'Restore', 'RestoreAny', 'ForceDelete', 'ForceDeleteAny', 'Replicate', 'Reorder', 'ViewOwnTerritory', 'ViewOwnOU', 'ViewOwn'],
+                default => throw new ImportRowException('Permission level for '.$resourceClass.' is invalid. Contact your administrator.'),
+            };
+            foreach ($actions as $action) {
+                $permissions[] = Permission::findOrCreate($action.':'.$model, $role->guard_name);
+            }
+        }
+        $role->syncPermissions($permissions);
     }
 
     /** @param class-string<Model> $class */

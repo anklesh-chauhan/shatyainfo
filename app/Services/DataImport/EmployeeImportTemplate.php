@@ -69,7 +69,7 @@ class EmployeeImportTemplate
             ['Hierarchy validation', 'Self-reporting, circular position/employee chains, missing codes, conflicting shared position details and ambiguous manager occupants are rejected. No first matching manager is chosen.'],
             ['Shared setup', 'Departments, grades and job titles are reused by name; job roles and org units by name; positions by code. Existing conflicting details must be corrected separately or given a different name/code.'],
             ['Data format', 'Format codes and phone numbers as Text to preserve leading zeros. Use YYYY-MM-DD for dates and Yes/No for primary flags. Enter values, not formulas. Examples are fictitious and must be replaced.'],
-            ['Permissions and accounts', 'Employee job roles create or reuse login roles (Area Sales Manager becomes area_sales_manager). New roles have no permissions; configure them in Roles. Email creates a login named after the employee and links it to the employee. Supply temporary_password for each new login. Existing linked login passwords are preserved. No invitation is sent. Employee, user and role permissions and approval locks apply.'],
+            ['Permissions and accounts', 'Employee job roles create or reuse login roles (Area Sales Manager becomes area_sales_manager). Recognized sales, HR and accounts roles receive narrow permissions when the login role has none; other roles need setup in Roles. Existing role permissions stay unchanged. Email creates and links the login. Supply temporary_password for a new login. Existing passwords are preserved. No invitation is sent.'],
         ];
     }
 

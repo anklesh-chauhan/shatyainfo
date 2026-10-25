@@ -2,6 +2,23 @@
 
 return [
 
+    'job_role_profiles' => [
+        'sales_head' => 'sales_user',
+        'head_of_sales' => 'sales_user',
+        'regional_sales_manager' => 'sales_user',
+        'area_sales_manager' => 'sales_user',
+        'sales_manager' => 'sales_user',
+        'sales_representative' => 'sales_user',
+        'medical_representative' => 'sales_user',
+        'senior_sales_executive' => 'sales_user',
+        'sales_executive' => 'sales_user',
+        'crm_support_lead' => 'sales_user',
+        'crm_support_executive' => 'sales_user',
+        'hr_manager' => 'hr_user',
+        'finance_manager' => 'accounts_user',
+        'accountant' => 'accounts_user',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Permission Levels
@@ -91,7 +108,7 @@ return [
             'PaymentMethodResource' => 'F',
             'PaymentTermResource' => 'F',
             'SalesInvoiceResource' => 'F',
-            'SalesDailyExpenseResource' => 'F',
+            'SalesDcrExpenseResource' => 'F',
             'ExpenseTypeResource' => 'F',
             'ExpenseConfigurationResource' => 'F',
             'TaxResource' => 'F',
@@ -110,7 +127,7 @@ return [
 
         'accounts_user' => [
             'SalesInvoiceResource' => 'C',
-            'SalesDailyExpenseResource' => 'C',
+            'SalesDcrExpenseResource' => 'C',
         ],
 
         /* ================= AUDITOR ================= */
