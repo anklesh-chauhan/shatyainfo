@@ -4,12 +4,14 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Models\Employee;
+use App\Models\Tenant;
+use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\ImportableModule;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
@@ -55,15 +57,40 @@ class DataImport extends Page implements HasForms
 
     public bool $hasResult = false;
 
+    public string $importType = 'employees';
+
+    public function importOptions(): array
+    {
+        return [
+            'territories' => 'Territories & Divisions',
+            'employees' => 'Employees & Reporting Hierarchy',
+            'accounts' => 'Accounts / Customers / Distributors',
+            'field_routes' => 'Field Routes & Historical Travel',
+            'products' => 'Products, Samples & Opening Inventory',
+            'hr' => 'Shift Assignments, Holidays & Opening Leave Balances',
+        ];
+    }
+
+    public function updatedImportType(): void
+    {
+        abort_unless(isset($this->importOptions()[$this->importType]), 422);
+        $this->hasResult = false;
+        $this->resetErrorBag();
+        $this->form->fill(['resource' => EmployeeResource::class, 'file' => null]);
+    }
+
     public static function canAccess(): bool
     {
-        return auth()->check();
+        return Onboarding::canAccess();
     }
 
     public function mount(): void
     {
+        abort_unless(static::canAccess(), 403);
+        $module = request()->query('module', 'employees');
+        $this->importType = is_string($module) && isset($this->importOptions()[$module]) ? $module : 'employees';
         $this->form->fill([
-            'resource' => request()->query('module') === 'employees' ? EmployeeResource::class : null,
+            'resource' => EmployeeResource::class,
             'file' => null,
         ]);
     }
@@ -72,14 +99,7 @@ class DataImport extends Page implements HasForms
     {
         return $schema
             ->components([
-                Select::make('resource')
-                    ->label('Module')
-                    ->options(fn (): array => app(ResourceImportCatalog::class)->groupedOptions())
-                    ->searchable()
-                    ->required()
-                    ->live()
-                    ->native(false)
-                    ->helperText('Choose the module whose records are in the file.'),
+                Hidden::make('resource')->default(EmployeeResource::class),
                 FileUpload::make('file')
                     ->label('Excel or CSV file')
                     ->disk('local')
@@ -107,7 +127,7 @@ class DataImport extends Page implements HasForms
     {
         $resource = $this->data['resource'] ?? null;
 
-        if (! is_string($resource) || $resource === '') {
+        if ($resource !== EmployeeResource::class) {
             return null;
         }
 
@@ -116,6 +136,7 @@ class DataImport extends Page implements HasForms
 
     public function downloadExample(ResourceCsvImporter $importer): ?StreamedResponse
     {
+        abort_unless(static::canAccess() && $this->importType === 'employees', 403);
         $module = $this->selectedModule();
 
         if ($module === null) {
@@ -150,10 +171,14 @@ class DataImport extends Page implements HasForms
 
     public function import(ResourceCsvImporter $importer, ResourceImportCatalog $catalog): void
     {
+        abort_unless(static::canAccess() && $this->importType === 'employees', 403);
+        abort_unless(($this->data['resource'] ?? null) === EmployeeResource::class, 403);
+        abort_unless(Tenant::current()?->accountIsConfigured(), 409);
+        abort_unless(app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['organization_saved'] ?? false, 422, 'Save company information first.');
         $state = $this->form->getState();
         $module = $catalog->find((string) ($state['resource'] ?? ''));
 
-        if ($module === null || ! $catalog->allows($module)) {
+        if ($module === null || $module->modelClass !== Employee::class || ! $catalog->allows($module)) {
             Notification::make()
                 ->title('You cannot import this module.')
                 ->danger()

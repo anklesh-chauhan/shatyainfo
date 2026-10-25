@@ -102,6 +102,11 @@ class TerritoryOnboardingService
         ])->validate()['rows'];
         $divisionPlans = $this->divisionPlans($rows);
         $existing = Territory::withTrashed()->with(['divisions', 'cityPinCodes'])->get();
+        $duplicateCodes = $existing->groupBy(fn (Territory $territory): string => strtoupper((string) $territory->code))
+            ->filter(fn ($matches): bool => $matches->count() > 1)->keys();
+        if ($duplicateCodes->intersect(collect($rows)->flatMap(fn (array $row): array => [$row['code'], $row['parent_code']]))->isNotEmpty()) {
+            throw ValidationException::withMessages(['territoryFile' => 'Multiple territories match a supplied code. Resolve existing duplicate codes before importing.']);
+        }
         $byId = $existing->keyBy('id');
         $existing = $existing->keyBy(fn (Territory $territory): string => strtoupper((string) $territory->code));
         $pending = collect($rows)->keyBy('code');

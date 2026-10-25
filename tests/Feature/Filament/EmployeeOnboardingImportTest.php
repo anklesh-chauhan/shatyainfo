@@ -9,8 +9,10 @@ use App\Models\Employee;
 use App\Models\JobRole;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DataImport\EmployeeOnboardingImporter;
+use App\Services\DataImport\ImportRowException;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use Database\Seeders\TypeMasterSeeder;
@@ -88,10 +90,31 @@ it('does not let an unauthorized user import employees', function () {
 });
 
 it('downloads an Excel template for employee onboarding', function () {
-    Livewire::test(DataImport::class)
-        ->set('data.resource', EmployeeResource::class)
-        ->call('downloadExample')
-        ->assertFileDownloaded('employees-import.xlsx');
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    try {
+        auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        Livewire::test(DataImport::class)
+            ->set('data.resource', EmployeeResource::class)
+            ->call('downloadExample')
+            ->assertFileDownloaded('employees-import.xlsx');
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
+
+it('does not recreate a deleted employee when its code is imported again', function () {
+    $employee = Employee::withoutEvents(fn () => Employee::create([
+        'employee_id' => 'DELETED-001', 'first_name' => 'Asha', 'last_name' => 'Shah', 'mobile_number' => '9000000001',
+    ]));
+    $employee->delete();
+    expect(fn () => app(EmployeeOnboardingImporter::class)->importRow([
+        'employee_id' => 'DELETED-001', 'first_name' => 'Asha', 'last_name' => 'Shah', 'mobile_number' => '9000000002',
+    ]))->toThrow(ImportRowException::class, 'deleted employee');
+    expect(Employee::withTrashed()->where('employee_id', 'DELETED-001')->count())->toBe(1);
 });
 
 it('rejects conflicting shared setup without changing the existing employee', function () {

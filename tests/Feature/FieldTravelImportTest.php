@@ -14,6 +14,7 @@ use App\Models\Patch;
 use App\Models\SalesDcr;
 use App\Models\StandardFareChart;
 use App\Models\State;
+use App\Models\Tenant;
 use App\Models\Territory;
 use App\Models\TravelSegment;
 use App\Models\TypeMaster;
@@ -34,6 +35,20 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
+
+afterEach(function () {
+    Tenant::forgetCurrent();
+});
+
+function useFieldTravelImportTenant(): void
+{
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+}
 
 beforeEach(function () {
     $this->actingAs(reportingUser('Travel Import Owner'));
@@ -165,7 +180,8 @@ it('validates visit and DCR relationships', function () {
 });
 
 it('renders the import page and limits all travel relationship dropdowns', function () {
-    Livewire::test(ImportPage::class)->assertSee('Download Excel template')->assertSee('Instructions and examples');
+    useFieldTravelImportTenant();
+    Livewire::test(ImportPage::class, ['embedded' => true])->assertSee('Download Excel template')->assertSee('Instructions and examples');
     $component = Livewire::test(CreateTravelSegment::class)->assertSuccessful();
     foreach (['sales_dcr_id', 'visit_id', 'sales_tour_plan_detail_id', 'patch_id', 'from_account_id', 'to_account_id', 'from_area_town_id', 'to_area_town_id', 'transport_mode_id'] as $field) {
         $component->assertFormFieldExists($field, fn ($select) => $select->isSearchable() && ! $select->isPreloaded() && $select->getOptionsLimit() === 50);
@@ -232,6 +248,7 @@ it('refuses a background job in the wrong tenant context', function () {
 });
 
 it('uploads previews and imports through the livewire page', function () {
+    useFieldTravelImportTenant();
     Storage::fake('local');
     $path = tempnam(sys_get_temp_dir(), 'travel-ui-');
     $writer = new Writer;
@@ -242,9 +259,9 @@ it('uploads previews and imports through the livewire page', function () {
     $writer->close();
     try {
         $upload = UploadedFile::fake()->createWithContent('patches.xlsx', file_get_contents($path));
-        $page = Livewire::test(ImportPage::class)->set('file', $upload)->call('previewFile')->assertHasNoErrors()->assertSet('status', 'preview')->assertSee('PATCH-01');
+        $page = Livewire::test(ImportPage::class, ['embedded' => true])->set('file', $upload)->call('previewFile')->assertHasNoErrors()->assertSet('status', 'preview')->assertSee('PATCH-01');
         expect(Patch::count())->toBe(0);
-        $page->call('importReviewed')->assertHasNoErrors()->assertSet('status', 'complete')->assertSee('Import complete');
+        $page->call('importReviewed')->assertHasNoErrors()->assertSet('status', 'complete')->assertSee('1 created');
         expect(Patch::count())->toBe(1);
     } finally {
         unlink($path);

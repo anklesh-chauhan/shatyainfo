@@ -17,6 +17,7 @@ use App\Services\TerritoryOnboardingService;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -141,6 +142,47 @@ it('offers combined territory and division preview and persists the no-divisions
             ->call('saveOrganization')->assertHasNoErrors()->assertSet('step', 2)
             ->assertSee('Your company does not use divisions')->assertDontSee('Import divisions first');
         Livewire::test(Onboarding::class)->assertSet('organization.uses_divisions', 0)->call('back')->assertSee('Your company does not use divisions');
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
+
+it('validates saves previews and preserves the company logo during onboarding', function () {
+    Storage::fake('public');
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+
+    try {
+        auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::test(Onboarding::class)->call('back')
+            ->assertSee('Company logo (optional)')
+            ->set('organization.email', 'company@example.test')
+            ->set('organization.phone', '9999999999')
+            ->set('companyLogo', UploadedFile::fake()->create('document.pdf', 10, 'application/pdf'))
+            ->call('saveOrganization')->assertHasErrors(['companyLogo'])->assertSet('step', 1)
+            ->set('companyLogo', UploadedFile::fake()->image('large.png')->size(2049))
+            ->call('saveOrganization')->assertHasErrors(['companyLogo' => 'max'])
+            ->set('companyLogo', UploadedFile::fake()->image('logo.png'))
+            ->assertHasNoErrors()->assertSee('Company logo preview')
+            ->call('saveOrganization')->assertHasNoErrors()->assertSet('step', 2)->assertSet('companyLogo', null);
+
+        $path = $this->organization->fresh()->logo;
+        expect($path)->toStartWith('organization-logos/');
+        Storage::disk('public')->assertExists($path);
+        $page->call('back')->assertSee(Storage::disk('public')->url($path))
+            ->call('saveOrganization')->assertHasNoErrors();
+        expect($this->organization->fresh()->logo)->toBe($path);
+
+        Livewire::test(Onboarding::class)->call('back')
+            ->assertSee(Storage::disk('public')->url($path))
+            ->set('companyLogo', UploadedFile::fake()->image('replacement.png'))
+            ->call('saveOrganization')->assertHasNoErrors();
+        expect($this->organization->fresh()->logo)->not->toBe($path);
+        Storage::disk('public')->assertExists($this->organization->fresh()->logo);
     } finally {
         Tenant::forgetCurrent();
     }

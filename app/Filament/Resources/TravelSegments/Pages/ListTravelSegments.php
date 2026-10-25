@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TravelSegments\Pages;
 
+use App\Filament\Pages\DataImport;
 use App\Filament\Pages\FieldTravelImport;
 use App\Filament\Resources\TravelSegments\TravelSegmentResource;
 use Filament\Actions\Action;
@@ -18,8 +19,8 @@ class ListTravelSegments extends ListRecords
             CreateAction::make(),
             Action::make('importWorkbook')
                 ->label('Import workbook')
-                ->visible(fn (): bool => FieldTravelImport::canAccess())
-                ->url(fn (): string => FieldTravelImport::getUrl()),
+                ->visible(fn (): bool => DataImport::canAccess() && FieldTravelImport::canAccess())
+                ->url(fn (): string => DataImport::getUrl(['module' => 'field_routes'], panel: 'admin')),
         ];
     }
 }

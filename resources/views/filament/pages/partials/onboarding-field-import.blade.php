@@ -1,8 +1,19 @@
 <section class="setup-import-card" aria-label="Field route setup">
-    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Set up field routes</h3><p>Import patches, account assignments and standard fares for your team's visits.</p></div></div>
+    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Field routes & historical travel</h3><p>Import patches, account assignments and standard fares, or optionally migrate historical travel segments.</p></div></div>
+    <div class="setup-field">
+        <label for="field-travel-mode">Import type</label>
+        <x-filament::input.wrapper><x-filament::input.select id="field-travel-mode" wire:model.live="historical">
+            <option value="0">Patches, account assignments & standard fares</option>
+            <option value="1">Historical travel segments (optional)</option>
+        </x-filament::input.select></x-filament::input.wrapper>
+    </div>
     <div class="setup-card-stats"><span>Excel workbook · Maximum 10 MB</span></div>
     <x-filament::button color="gray" wire:click="downloadTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
-    <p class="setup-card-help">Set up territories first. Leave account assignments blank until accounts and addresses exist.</p>
+    @if ($historical)
+        <p class="setup-card-help">Create employees and their editable daily call reports (DCRs) first. Each employee and date must match one existing DCR. Keep external_reference unchanged when importing again: matching segments are updated rather than duplicated. Locked reports cannot be changed. You can complete this migration later.</p>
+    @else
+        <p class="setup-card-help">Set up territories first. Leave account assignments blank until accounts and addresses exist.</p>
+    @endif
     <details class="setup-optional"><summary>Instructions and examples</summary>
         @foreach (app(\App\Services\DataImport\FieldTravelTemplate::class)->instructions() as [$heading, $instruction])<p><strong>{{ $heading }}:</strong> {{ $instruction }}</p>@endforeach
         <p>Fill the data sheets with your own records. Examples are never imported. Preview does not save records.</p>

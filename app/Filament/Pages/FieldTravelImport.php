@@ -23,6 +23,8 @@ class FieldTravelImport extends Page
 {
     use WithFileUploads;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationLabel = 'Patches & Travel Import';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
@@ -34,9 +36,6 @@ class FieldTravelImport extends Page
     public $file;
 
     public bool $historical = false;
-
-    #[Locked]
-    public bool $fromOnboarding = false;
 
     #[Locked]
     public bool $embedded = false;
@@ -67,8 +66,12 @@ class FieldTravelImport extends Page
     {
         abort_unless(static::canAccess(), 403);
         $this->embedded = $embedded;
-        $this->fromOnboarding = ($embedded || request()->boolean('onboarding')) && Onboarding::canAccess();
-        abort_if($embedded && ! $this->fromOnboarding, 403);
+        if (! $embedded) {
+            $this->redirect(DataImport::getUrl(['module' => 'field_routes'], panel: 'admin'));
+
+            return;
+        }
+        abort_unless(Onboarding::canAccess(), 403);
         $token = session($this->sessionKey());
         if (is_string($token) && preg_match('/^[a-f0-9-]{36}$/', $token)) {
             $this->token = $token;
@@ -106,6 +109,7 @@ class FieldTravelImport extends Page
 
     private function resetPreview(): void
     {
+        $this->resetErrorBag();
         $this->previewPage = 1;
         $this->preview = [];
         $this->token = null;
@@ -117,7 +121,7 @@ class FieldTravelImport extends Page
     public function downloadTemplate(): StreamedResponse
     {
         abort_unless(static::canAccess(), 403);
-        $historical = ! $this->fromOnboarding && $this->historical;
+        $historical = $this->historical;
 
         return ImportDownloadResponse::from(response()->streamDownload(function () use ($historical): void {
             $path = tempnam(sys_get_temp_dir(), 'field-travel-');
@@ -137,7 +141,7 @@ class FieldTravelImport extends Page
         $this->validate(['file' => 'required|file|mimes:xlsx|max:10240']);
         $importer = app(Importer::class);
         try {
-            $rows = $importer->read($this->file->getRealPath(), ! $this->fromOnboarding && $this->historical);
+            $rows = $importer->read($this->file->getRealPath(), $this->historical);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {

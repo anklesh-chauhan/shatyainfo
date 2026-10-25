@@ -1,7 +1,10 @@
 <?php
 
 use App\Filament\Pages\DataImport;
+use App\Filament\Pages\FieldTravelImport;
+use App\Filament\Pages\Onboarding;
 use App\Filament\Resources\Departments\DepartmentResource;
+use App\Filament\Resources\Employees\EmployeeResource;
 use App\Models\Country;
 use App\Models\Department;
 use App\Models\Organization;
@@ -13,6 +16,7 @@ use App\Services\DataImport\ResourceImportCatalog;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 
 use function Pest\Livewire\livewire;
 
@@ -112,10 +116,78 @@ it('builds an example csv for the selected module', function () {
 });
 
 it('shows the data import page', function () {
-    livewire(DataImport::class)
-        ->assertSee('Data Import')
-        ->assertSee('Module');
+    withDataImportTenant(function (): void {
+        livewire(DataImport::class)
+            ->assertSee('Onboarding data imports')
+            ->assertSee('Module')
+            ->assertSee('Territories & Divisions')
+            ->assertSee('Opening Leave Balances')
+            ->assertSee('Field Routes & Historical Travel')
+            ->assertSet('data.resource', EmployeeResource::class);
+    });
 });
+
+it('rejects generic modules even when the request state is manipulated', function () {
+    withDataImportTenant(function (): void {
+        livewire(DataImport::class)
+            ->set('data.resource', DepartmentResource::class)
+            ->call('import')->assertForbidden();
+        expect(Department::query()->count())->toBe(0);
+    });
+});
+
+it('offers historical travel in the shared embedded importer and resets mode state', function () {
+    withDataImportTenant(function (): void {
+        livewire(FieldTravelImport::class, ['embedded' => true])
+            ->assertSee('Historical travel segments (optional)')
+            ->set('historical', true)
+            ->assertSee('editable daily call reports')
+            ->call('downloadTemplate')->assertFileDownloaded('historical-travel.xlsx')
+            ->set('historical', false)
+            ->assertSet('file', null)->assertSet('preview', [])->assertSet('status', '')
+            ->call('downloadTemplate')->assertFileDownloaded('patches-and-fares.xlsx');
+    });
+});
+
+it('redirects the retired field travel page to data import', function () {
+    withDataImportTenant(function (): void {
+        expect(FieldTravelImport::shouldRegisterNavigation())->toBeFalse();
+        livewire(FieldTravelImport::class)
+            ->assertRedirect(DataImport::getUrl(['module' => 'field_routes'], panel: 'admin'));
+    });
+});
+
+it('renders account counts when opening and refreshing the embedded account import', function () {
+    withDataImportTenant(function (): void {
+        livewire(Onboarding::class, ['importSection' => 'accounts'])
+            ->assertSee('0 accounts saved')
+            ->call('$refresh')
+            ->assertSee('0 accounts saved');
+    });
+});
+
+it('offers only onboarding import groups and rejects unknown groups', function () {
+    withDataImportTenant(function (): void {
+        expect(array_keys((new DataImport)->importOptions()))->toBe(['territories', 'employees', 'accounts', 'field_routes', 'products', 'hr']);
+        livewire(DataImport::class)->set('importType', 'departments')->assertStatus(422);
+    });
+});
+
+function withDataImportTenant(Closure $callback): void
+{
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    try {
+        auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        Organization::create(['name' => 'Import Company', 'metadata' => ['company_setup' => ['organization_saved' => true]]]);
+        $callback();
+    } finally {
+        Tenant::forgetCurrent();
+    }
+}
 
 function dataImportCsv(string $contents): string
 {

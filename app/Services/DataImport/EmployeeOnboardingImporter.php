@@ -45,7 +45,14 @@ class EmployeeOnboardingImporter
     public function importRow(array $row, bool $deferAssignments = false): string
     {
         $row = array_filter($row, fn (mixed $value): bool => filled($value));
-        $employee = Employee::query()->firstOrNew(['employee_id' => $row['employee_id'] ?? '']);
+        $matches = Employee::withTrashed()->where('employee_id', $row['employee_id'] ?? '')->limit(2)->get();
+        if ($matches->count() > 1) {
+            throw new ImportRowException('Multiple employees match this employee code. Resolve duplicates before importing.');
+        }
+        if ($matches->first()?->trashed()) {
+            throw new ImportRowException('This employee code belongs to a deleted employee. Restore or review that employee before importing.');
+        }
+        $employee = $matches->first() ?? new Employee(['employee_id' => $row['employee_id'] ?? '']);
         $existing = $employee->exists;
         $this->authorize($existing ? 'update' : 'create', $existing ? $employee : Employee::class);
         $rules = [

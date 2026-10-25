@@ -18,6 +18,7 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -25,6 +26,34 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class Onboarding extends Page
 {
     use WithFileUploads;
+
+    public mixed $companyLogo = null;
+
+    #[Locked]
+    public ?string $importSection = null;
+
+    public function getView(): string
+    {
+        return $this->importSection === null ? parent::getView() : 'filament.pages.partials.onboarding-core-import';
+    }
+
+    public function updatedCompanyLogo(): void
+    {
+        $this->validateOnly('companyLogo', [
+            'companyLogo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
+        ]);
+    }
+
+    public function companyLogoUrl(): ?string
+    {
+        if ($this->companyLogo && ! $this->getErrorBag()->has('companyLogo')) {
+            return $this->companyLogo->temporaryUrl();
+        }
+
+        $logo = app(CompanyOnboardingService::class)->organization()?->logo;
+
+        return $logo ? Storage::disk('public')->url($logo) : null;
+    }
 
     public mixed $accountFile = null;
 
@@ -210,8 +239,16 @@ class Onboarding extends Page
         return Tenant::checkCurrent() && (auth()->user()?->hasAnyRole(['super_admin', 'administration_admin']) ?? false);
     }
 
-    public function mount(): void
+    public function mount(?string $importSection = null): void
     {
+        abort_unless($importSection === null || in_array($importSection, ['territories', 'accounts'], true), 422);
+        $this->importSection = $importSection;
+        if ($importSection !== null) {
+            app(CompanyOnboardingService::class)->authorize();
+            abort_unless(Tenant::current()->accountIsConfigured(), 409);
+
+            return;
+        }
         $tenant = Tenant::current();
         $this->ensureMasterSetupQueued($tenant);
         if ($tenant->accountIsConfigured()) {
@@ -340,7 +377,11 @@ class Onboarding extends Page
 
     public function saveOrganization(): void
     {
+        $service = app(CompanyOnboardingService::class);
+        $service->authorize();
+        abort_unless(Tenant::current()->accountIsConfigured(), 409);
         $this->validate([
+            'companyLogo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
             'organization.name' => ['required', 'string', 'max:255'],
             'organization.uses_divisions' => ['required', 'boolean'],
             'organization.email' => ['required', 'email', 'max:255'],
@@ -353,8 +394,17 @@ class Onboarding extends Page
             'organization.contact_person_email' => ['nullable', 'email', 'max:255'],
             'organization.contact_person_phone' => ['nullable', 'string', 'max:255'],
         ]);
-        $service = app(CompanyOnboardingService::class);
-        $service->saveOrganization($this->organization);
+        $organization = $service->saveOrganization($this->organization);
+        if ($this->companyLogo) {
+            $path = $this->companyLogo->storePublicly('organization-logos', 'public');
+            if (! $path) {
+                $this->addError('companyLogo', 'The logo could not be saved. Please try again.');
+
+                return;
+            }
+            $organization->update(['logo' => $path]);
+            $this->reset('companyLogo');
+        }
         $this->step = 2;
         Notification::make()->title('Company information saved')->success()->send();
     }

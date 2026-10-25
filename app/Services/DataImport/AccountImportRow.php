@@ -69,7 +69,11 @@ class AccountImportRow
             $rules[$field] = ['nullable', 'required_with:street,address_type,city,area,pin_code', 'string', 'max:255'];
         }
         Validator::make($row, $rules)->validate();
-        $account = AccountMaster::withTrashed()->where('external_reference', $row['external_reference'])->first();
+        $matches = AccountMaster::withTrashed()->where('external_reference', $row['external_reference'])->limit(2)->get();
+        if ($matches->count() > 1) {
+            throw new ImportRowException('Multiple accounts match this external reference. Resolve duplicates before importing.');
+        }
+        $account = $matches->first();
         if ($account?->trashed()) {
             throw new ImportRowException('This external reference belongs to a deleted account. Restore it in Accounts first.');
         }
