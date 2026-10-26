@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+    Route::post('login/otp/request', [AuthController::class, 'requestOtp'])->middleware('throttle:5,1');
+    Route::post('login/otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1');
 
     Route::middleware(['auth:sanctum', FieldIdempotency::class])->group(function (): void {
         Route::get('accounts/reporting-options', [AccountController::class, 'reportingOptions']);

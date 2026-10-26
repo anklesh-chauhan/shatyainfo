@@ -50,6 +50,7 @@ return [
     'sms' => [
         'api_key' => env('SMS_API_KEY'),
         'sender_id' => env('SMS_SENDER_ID'),
+        'otp_template_id' => env('SMS_OTP_TEMPLATE_ID'),
     ],
 
     'turnstile' => [

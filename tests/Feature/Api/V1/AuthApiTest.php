@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\IntegrationSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
@@ -64,4 +66,45 @@ it('logs out and revokes the current token', function () {
 
 it('requires authentication for me', function () {
     $this->getJson('/api/v1/me')->assertUnauthorized();
+});
+
+it('sends and verifies a mobile OTP for an active employee', function () {
+    $user = reportingUser('OtpApi');
+    IntegrationSetting::query()->create([
+        'provider' => 'sms',
+        'is_enabled' => true,
+        'credentials' => [
+            'provider' => 'msg91',
+            'api_key' => 'test-key',
+            'otp_template_id' => 'test-template',
+        ],
+    ]);
+    Http::fake(['control.msg91.com/*' => Http::response(['type' => 'success'], 200)]);
+
+    $mobile = $user->employee->mobile_number;
+    $this->postJson('/api/v1/login/otp/request', ['mobile_number' => $mobile])
+        ->assertSuccessful();
+    $this->postJson('/api/v1/login/otp/verify', [
+        'mobile_number' => $mobile,
+        'otp' => '123456',
+        'device_name' => 'android-test',
+    ])->assertSuccessful()->assertJsonPath('user.id', $user->id);
+
+    $this->postJson('/api/v1/login/otp/verify', [
+        'mobile_number' => $mobile,
+        'otp' => '123456',
+    ])->assertUnprocessable();
+    Http::assertSentCount(2);
+});
+
+it('does not send an OTP to an inactive employee', function () {
+    $user = reportingUser('InactiveOtp');
+    $user->employee->update(['is_active' => false]);
+    Http::fake();
+
+    $this->postJson('/api/v1/login/otp/request', [
+        'mobile_number' => $user->employee->mobile_number,
+    ])->assertSuccessful();
+
+    Http::assertNothingSent();
 });

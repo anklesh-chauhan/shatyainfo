@@ -65,6 +65,7 @@ return [
             'env_fallbacks' => [
                 'api_key' => 'services.sms.api_key',
                 'sender_id' => 'services.sms.sender_id',
+                'otp_template_id' => 'services.sms.otp_template_id',
             ],
             'fields' => [
                 'provider' => [
@@ -85,6 +86,10 @@ return [
                     'label' => 'Sender ID',
                     'type' => 'text',
                     'placeholder' => 'COMPNY',
+                ],
+                'otp_template_id' => [
+                    'label' => 'MSG91 OTP Template ID',
+                    'type' => 'text',
                 ],
             ],
         ],
