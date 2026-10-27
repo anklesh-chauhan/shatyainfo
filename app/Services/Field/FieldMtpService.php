@@ -5,6 +5,7 @@ namespace App\Services\Field;
 use App\Models\ApprovalStep;
 use App\Models\Patch;
 use App\Models\SalesTourPlan;
+use App\Models\SalesTourPlanDetail;
 use App\Models\Territory;
 use App\Models\User;
 use App\Models\VisitPreference;
@@ -22,7 +23,7 @@ class FieldMtpService
 {
     public function relations(): array
     {
-        return ['user', 'details' => fn ($q) => $q->orderBy('date')->orderBy('id'), 'details.territory', 'details.patches', 'details.visitType', 'approval.steps.approver'];
+        return ['user', 'details' => fn ($q) => $q->withCount('visits')->orderBy('date')->orderBy('id'), 'details.territory', 'details.patches', 'details.visitType', 'approval.steps.approver'];
     }
 
     public function query(User $user, bool $inbox = false): Builder
@@ -137,6 +138,9 @@ class FieldMtpService
                 unset($row['patch_ids']);
                 $detail = $plan->details()->whereDate('date', $row['date'])->first();
                 if ($detail) {
+                    if ($this->detailMatches($detail, $row, $patchIds)) {
+                        continue;
+                    }
                     abort_if($detail->visits()->exists(), 422, 'A day with recorded visits cannot be edited.');
                     $detail->update($row);
                 } else {
@@ -148,6 +152,26 @@ class FieldMtpService
 
             return $plan->fresh($this->relations());
         });
+    }
+
+    private function detailMatches(SalesTourPlanDetail $detail, array $row, array $patchIds): bool
+    {
+        $sameIds = static function (array $left, array $right): bool {
+            $left = array_values(array_unique(array_map('intval', $left)));
+            $right = array_values(array_unique(array_map('intval', $right)));
+            sort($left);
+            sort($right);
+
+            return $left === $right;
+        };
+
+        return $detail->date->toDateString() === $row['date']
+            && $detail->territory_id === $row['territory_id']
+            && $detail->visit_type_id === $row['visit_type_id']
+            && (string) ($detail->remarks ?? '') === (string) ($row['remarks'] ?? '')
+            && $sameIds($detail->patches->pluck('id')->all(), $patchIds)
+            && $sameIds($detail->visit_purpose_ids ?? [], $row['visit_purpose_ids'])
+            && $sameIds($detail->joint_with ?? [], $row['joint_with']);
     }
 
     public function submit(User $user, int $id, string $revision): SalesTourPlan

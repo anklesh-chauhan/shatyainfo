@@ -25,6 +25,7 @@ class MonthlyTourPlanResource extends JsonResource
             'can_decide' => $service->canDecide($request->user(), $this->resource),
             'details' => $this->details->map(fn ($d) => [
                 'date' => $d->date->toDateString(), 'territory_id' => $d->territory_id,
+                'has_visits' => $d->visits_count > 0,
                 'territory_name' => $d->territory?->name,
                 'patch_ids' => $d->patches->pluck('id'), 'patch_names' => $d->patches->pluck('name'),
                 'visit_type_id' => $d->visit_type_id, 'visit_type_name' => $d->visitType?->name,

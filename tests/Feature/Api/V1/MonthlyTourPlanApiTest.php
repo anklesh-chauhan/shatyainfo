@@ -7,6 +7,7 @@ use App\Models\ApprovalSetting;
 use App\Models\JobRole;
 use App\Models\Position;
 use App\Models\SalesTourPlan;
+use App\Models\Visit;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,6 +65,33 @@ it('creates and edits an owned plan and rejects duplicate months and stale draft
     $this->putJson('/api/v1/monthly-tour-plans/'.$plan['id'], $body)->assertConflict();
     $this->getJson('/api/v1/monthly-tour-plans?month=2026-10')->assertSuccessful()->assertJsonCount(1, 'data');
     $this->getJson('/api/v1/monthly-tour-plans?month=2026-11')->assertJsonCount(0, 'data');
+});
+
+it('allows changes to another day while keeping a day with visits unchanged', function () {
+    $f = fieldMtpFixture();
+    $body = $f['body'];
+    $body['details'][] = [...$body['details'][0], 'date' => '2026-10-02', 'remarks' => 'Second route'];
+    $plan = $this->postJson('/api/v1/monthly-tour-plans', $body)->assertSuccessful()->json('data');
+    $firstDay = SalesTourPlan::findOrFail($plan['id'])->details()->whereDate('date', '2026-10-01')->firstOrFail();
+    Visit::withoutEvents(fn () => Visit::create([
+        'document_number' => 'MTP-VISIT-1',
+        'employee_id' => $f['rep']->id,
+        'territory_id' => $f['territory']->id,
+        'patch_id' => $body['details'][0]['patch_ids'][0],
+        'sales_tour_plan_id' => $plan['id'],
+        'sales_tour_plan_detail_id' => $firstDay->id,
+        'visit_date' => '2026-10-01',
+        'visit_status' => 'started',
+    ]));
+
+    $body['revision'] = $this->getJson('/api/v1/monthly-tour-plans/'.$plan['id'])->assertJsonPath('data.details.0.has_visits', true)->json('data.revision');
+    $body['details'][1]['remarks'] = 'Updated second route';
+    $updated = $this->putJson('/api/v1/monthly-tour-plans/'.$plan['id'], $body)
+        ->assertSuccessful()->assertJsonPath('data.details.1.remarks', 'Updated second route')->json('data');
+
+    $body['revision'] = $updated['revision'];
+    $body['details'][0]['remarks'] = 'Changed visited route';
+    $this->putJson('/api/v1/monthly-tour-plans/'.$plan['id'], $body)->assertUnprocessable();
 });
 
 it('hides other users plans and enforces create permission', function () {
