@@ -47,6 +47,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('leave-applications/{application}/cancel', [LeaveController::class, 'cancel'])->whereNumber('application');
 
         Route::get('todays-tour', TodaysTourController::class);
+        Route::post('tour-plan-details/{detail}/visits', [VisitController::class, 'openPlanned'])->whereNumber('detail');
+        Route::post('tour-plan-details/{detail}/visits/action', [VisitController::class, 'actPlanned'])->whereNumber('detail');
         Route::get('monthly-tour-plans/options', [MonthlyTourPlanController::class, 'options']);
         Route::get('monthly-tour-plans/inbox', [MonthlyTourPlanController::class, 'inbox']);
         Route::get('monthly-tour-plans', [MonthlyTourPlanController::class, 'index']);
@@ -85,7 +87,10 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'update']);
         Route::delete('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'destroy']);
 
+        Route::get('visits/options', [VisitController::class, 'options']);
         Route::get('visits/{visit}', [VisitController::class, 'show']);
+        Route::patch('visits/{visit}', [VisitController::class, 'update']);
+        Route::post('visits/{visit}/documents', [VisitController::class, 'createDocument']);
         Route::post('visits/{visit}/check-in', [VisitController::class, 'checkIn']);
         Route::post('visits/{visit}/check-out', [VisitController::class, 'checkOut']);
         Route::post('visits/{visit}/photos', [VisitController::class, 'storePhoto']);

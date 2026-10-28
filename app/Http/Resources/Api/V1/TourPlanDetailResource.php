@@ -35,6 +35,11 @@ class TourPlanDetailResource extends JsonResource
                             ? $patch->companies->map(fn ($company): array => [
                                 'id' => $company->id,
                                 'name' => $company->name,
+                                'phone_number' => $company->phone_number,
+                                'email' => $company->email,
+                                'type_name' => $company->typeMaster?->name,
+                                'contact_name' => $company->contactDetails->first()?->full_name,
+                                'contact_mobile' => $company->contactDetails->first()?->mobile_number,
                             ])->values()
                             : [],
                     ];

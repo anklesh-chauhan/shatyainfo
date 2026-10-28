@@ -2,6 +2,8 @@
 
 use App\Models\Media;
 use App\Models\Visit;
+use App\Models\VisitFeedbackQuestion;
+use App\Models\VisitOutcome;
 use App\Models\VisitPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -10,6 +12,38 @@ use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
+
+it('loads and saves the mobile visit workspace', function () {
+    $user = reportingUser('VisitWorkspaceApi');
+    $territory = reportingTerritory('Workspace Territory');
+    $patch = reportingPatch($territory, 'Workspace Patch');
+    $outcome = VisitOutcome::create(['label' => 'Interested', 'code' => 'INTERESTED']);
+    $question = VisitFeedbackQuestion::create(['question' => 'How was the call?', 'code' => 'CALL', 'is_active' => true]);
+    $this->actingAs($user);
+    VisitPreference::current()->update(['enable_check_in' => true, 'require_general_visit_image' => false]);
+    $visit = Visit::withoutEvents(fn (): Visit => Visit::query()->create([
+        'document_number' => 'VIS-WORKSPACE', 'employee_id' => $user->id,
+        'territory_id' => $territory->id, 'patch_id' => $patch->id,
+        'visit_date' => today(), 'visit_type' => 'planned',
+        'visit_status' => 'started', 'start_time' => now(),
+        'approval_status' => 'draft',
+    ]));
+    Sanctum::actingAs($user);
+
+    $this->getJson('/api/v1/visits/options')->assertSuccessful()
+        ->assertJsonPath('data.outcomes.0.label', 'Interested')
+        ->assertJsonPath('data.feedback_questions.0.question', 'How was the call?');
+    $this->patchJson('/api/v1/visits/'.$visit->id, [
+        'visit_outcome_id' => $outcome->id,
+        'remarks' => 'Discussed next order',
+        'feedback' => [['question_id' => $question->id, 'answer' => 4]],
+        'next_follow_up_date' => today()->addDays(3)->toDateString(),
+    ])->assertSuccessful()
+        ->assertJsonPath('data.workspace.outcome_label', 'Interested')
+        ->assertJsonPath('data.workspace.feedback.0.answer', 4);
+    $this->getJson('/api/v1/visits/'.$visit->id)->assertSuccessful()
+        ->assertJsonPath('data.workspace.remarks', 'Discussed next order');
+});
 
 it('checks in a visit with gps', function () {
     $user = reportingUser('VisitCheckInApi');

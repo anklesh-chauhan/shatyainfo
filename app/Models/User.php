@@ -123,6 +123,8 @@ class User extends Authenticatable implements FilamentUser
             return true;
         }
 
-        return $this->employeeViaId && $this->employeeViaId->is_active && ! $this->employeeViaId->is_deleted;
+        $employee = $this->employeeViaId ?? $this->employee;
+
+        return $employee && $employee->is_active && ! $employee->is_deleted;
     }
 }
