@@ -2,9 +2,9 @@
 
 namespace App\Services\Field;
 
+use App\Models\AccountMaster;
 use App\Models\ImageTag;
 use App\Models\Media;
-use App\Models\AccountMaster;
 use App\Models\NumberSeries;
 use App\Models\SalesTourPlanDetail;
 use App\Models\User;
@@ -205,8 +205,8 @@ class FieldVisitService
         $tag = $data['tag'];
         $this->ensureImageTag($tag);
 
-        $latitude = (float) $data['latitude'];
-        $longitude = (float) $data['longitude'];
+        $latitude = isset($data['latitude']) ? (float) $data['latitude'] : null;
+        $longitude = isset($data['longitude']) ? (float) $data['longitude'] : null;
 
         return DB::transaction(function () use ($visit, $photo, $tag, $latitude, $longitude, $data): Media {
             $path = $photo->store('visits/photos', 'public');
@@ -224,7 +224,10 @@ class FieldVisitService
 
             $media->attachTagBySlug($tag);
 
-            if ($tag === 'check-out' && $visit->visit_status === 'checked_out_pending') {
+            if ($visit->visit_status === 'checked_out_pending'
+                && ! $this->enforcement->needsCheckInImage($visit)
+                && ! $this->enforcement->needsCheckOutImage($visit)
+                && ! $this->enforcement->needsGeneralVisitImage($visit)) {
                 $visit->update(['visit_status' => 'completed']);
             }
 

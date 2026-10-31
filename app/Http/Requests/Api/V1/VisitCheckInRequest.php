@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\VisitPreference;
 use Illuminate\Foundation\Http\FormRequest;
 
 class VisitCheckInRequest extends FormRequest
@@ -18,8 +19,8 @@ class VisitCheckInRequest extends FormRequest
     {
         return [
             'recorded_at' => ['nullable', 'date_format:Y-m-d\TH:i:sP'],
-            'latitude' => ['required', 'numeric', 'between:-90,90'],
-            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'latitude' => [VisitPreference::current()->require_gps ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => [VisitPreference::current()->require_gps ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
         ];
     }
 }

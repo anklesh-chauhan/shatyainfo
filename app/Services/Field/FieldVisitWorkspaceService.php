@@ -56,6 +56,7 @@ class FieldVisitWorkspaceService
             ];
             foreach ($fields as $key => $rule) {
                 abort_if(array_key_exists($key, $data) && ! $prefs->isFieldVisible($rule), 422, 'This field is not available.');
+                abort_if(array_key_exists($key, $data) && ! $prefs->isFieldEditable($rule), 422, 'This field is read-only.');
             }
             if (array_key_exists('visit_outcome_id', $data) && $data['visit_outcome_id'] !== null) {
                 abort_unless(VisitOutcome::query()->whereKey($data['visit_outcome_id'])->exists(), 422, 'Select a valid outcome.');
@@ -80,7 +81,7 @@ class FieldVisitWorkspaceService
                 }
             }
             foreach ($fields as $key => $rule) {
-                if (! $prefs->isFieldRequired($rule)) {
+                if (! $prefs->isFieldVisible($rule) || ! $prefs->isFieldRequired($rule)) {
                     continue;
                 }
                 $value = match ($key) {

@@ -11,11 +11,6 @@ class VisitEnforcementService
 {
     protected VisitPreference $prefs;
 
-    public function __construct()
-    {
-        $this->prefs = VisitPreference::current();
-    }
-
     /*
     |--------------------------------------------------------------------------
     | CHECK IN
@@ -24,13 +19,15 @@ class VisitEnforcementService
 
     public function validateCheckIn(?float $latitude, ?float $longitude): void
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->enable_check_in) {
             throw ValidationException::withMessages([
                 'check_in' => 'Check-in is disabled by management.',
             ]);
         }
 
-        if ($this->prefs->require_gps && (! $latitude || ! $longitude)) {
+        if ($this->prefs->require_gps && ($latitude === null || $longitude === null)) {
             throw ValidationException::withMessages([
                 'gps' => 'GPS location is required for check-in.',
             ]);
@@ -39,6 +36,8 @@ class VisitEnforcementService
 
     public function validateAfterCheckIn(Visit $visit): void
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->require_check_in_image) {
             return;
         }
@@ -58,6 +57,8 @@ class VisitEnforcementService
 
     public function validateCheckOut(Visit $visit, ?float $latitude, ?float $longitude, ?CarbonInterface $recordedAt = null): void
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->enable_check_out) {
             throw ValidationException::withMessages([
                 'check_out' => 'Check-out is disabled by management.',
@@ -70,7 +71,7 @@ class VisitEnforcementService
             ]);
         }
 
-        if ($this->prefs->require_gps && (! $latitude || ! $longitude)) {
+        if ($this->prefs->require_gps && ($latitude === null || $longitude === null)) {
             throw ValidationException::withMessages([
                 'gps' => 'GPS location is required for check-out.',
             ]);
@@ -87,6 +88,8 @@ class VisitEnforcementService
         }
 
         $this->validateRequiredFields($visit, 'checkout');
+        $this->validateCheckInImage($visit);
+        $this->validateGeneralVisitImage($visit);
 
     }
 
@@ -96,10 +99,18 @@ class VisitEnforcementService
         $missing = [];
 
         foreach ($rules as $field => $config) {
-            if (
-                data_get($config, 'required') === true &&
-                blank($visit->{$field})
-            ) {
+            if (! $this->prefs->isFieldVisible($field) || ! $this->prefs->isFieldRequired($field)) {
+                continue;
+            }
+
+            $value = match ($field) {
+                'purpose' => $visit->visitPurposes()->pluck('visit_purposes.id')->all(),
+                'outcome' => $visit->visit_outcome_id,
+                'next_follow_up_date' => $visit->followUps()->latest('id')->value('next_follow_up_date'),
+                default => $visit->{$field},
+            };
+
+            if (blank($value)) {
                 $missing[] = ucfirst(str_replace('_', ' ', $field));
             }
         }
@@ -113,6 +124,8 @@ class VisitEnforcementService
 
     public function validateAfterCheckOut(Visit $visit): void
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->require_check_out_image) {
             return;
         }
@@ -132,6 +145,8 @@ class VisitEnforcementService
 
     public function validateBeforeSave(Visit $visit): void
     {
+        $this->prefs = VisitPreference::current();
+
         // Only enforce check-in if check-in enabled
         if ($this->prefs->enable_check_in && ! $visit->start_time) {
             throw ValidationException::withMessages([
@@ -210,6 +225,8 @@ class VisitEnforcementService
 
     public function needsCheckInImage(Visit $visit): bool
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->require_check_in_image) {
             return false;
         }
@@ -219,6 +236,8 @@ class VisitEnforcementService
 
     public function needsCheckOutImage(Visit $visit): bool
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->require_check_out_image) {
             return false;
         }
@@ -228,6 +247,8 @@ class VisitEnforcementService
 
     public function needsGeneralVisitImage(Visit $visit): bool
     {
+        $this->prefs = VisitPreference::current();
+
         if (! $this->prefs->require_general_visit_image) {
             return false;
         }

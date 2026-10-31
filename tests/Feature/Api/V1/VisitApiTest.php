@@ -5,6 +5,8 @@ use App\Models\Visit;
 use App\Models\VisitFeedbackQuestion;
 use App\Models\VisitOutcome;
 use App\Models\VisitPreference;
+use App\Models\VisitPurpose;
+use App\Models\VisitType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -207,4 +209,63 @@ it('forbids visiting another users visit', function () {
 
     $this->getJson("/api/v1/visits/{$visit->id}")
         ->assertNotFound();
+});
+
+it('checks out with saved required purposes outcome and follow up using preferences', function () {
+    $user = reportingUser('RequiredVisitFields');
+    $territory = reportingTerritory('Required Visit Territory');
+    $patch = reportingPatch($territory, 'Required Visit Patch');
+    $this->actingAs($user);
+    $prefs = VisitPreference::current();
+    $prefs->update([
+        'enable_check_in' => true, 'enable_check_out' => true,
+        'enforce_check_in_before_check_out' => true,
+        'require_gps' => false, 'require_check_in_image' => false,
+        'require_check_out_image' => false, 'require_general_visit_image' => false,
+        'enforce_minimum_duration' => false,
+        'field_rules' => [
+            'purpose' => ['visible' => true, 'required' => true, 'editable' => true],
+            'outcome' => ['visible' => true, 'required' => true, 'editable' => true],
+            'next_follow_up_date' => ['visible' => true, 'required' => true, 'editable' => true],
+            'remarks' => ['visible' => false, 'required' => true, 'editable' => false],
+        ],
+    ]);
+    $visit = Visit::withoutEvents(fn (): Visit => Visit::query()->create([
+        'document_number' => 'VIS-REQUIRED', 'employee_id' => $user->id,
+        'territory_id' => $territory->id, 'patch_id' => $patch->id,
+        'visit_date' => today(), 'visit_type' => 'planned',
+        'visit_status' => 'draft', 'approval_status' => 'draft',
+    ]));
+    Sanctum::actingAs($user);
+    $this->postJson("/api/v1/visits/{$visit->id}/check-in", [])->assertSuccessful();
+    $this->postJson("/api/v1/visits/{$visit->id}/check-out", [])
+        ->assertUnprocessable()->assertJsonValidationErrors('checkout');
+    $type = VisitType::create(['name' => 'Field Work', 'code' => 'REQUIRED', 'is_active' => true]);
+    $purpose = VisitPurpose::create(['name' => 'Product discussion', 'is_active' => true, 'visit_type_id' => $type->id]);
+    $outcome = VisitOutcome::create(['label' => 'Interested', 'code' => 'REQUIRED']);
+    $this->patchJson("/api/v1/visits/{$visit->id}", [
+        'visit_purpose_ids' => [$purpose->id], 'visit_outcome_id' => $outcome->id,
+        'next_follow_up_date' => today()->addDay()->toDateString(),
+    ])->assertSuccessful();
+    $this->getJson("/api/v1/visits/{$visit->id}")->assertSuccessful()
+        ->assertJsonPath('data.workspace.preferences.require_gps', false);
+    $prefs->update(['field_rules' => [
+        'purpose' => ['visible' => true, 'required' => true, 'editable' => false],
+        'outcome' => ['visible' => true, 'required' => true, 'editable' => true],
+        'next_follow_up_date' => ['visible' => true, 'required' => true, 'editable' => true],
+        'remarks' => ['visible' => false, 'required' => true, 'editable' => false],
+    ]]);
+    $this->patchJson("/api/v1/visits/{$visit->id}", ['visit_purpose_ids' => []])->assertUnprocessable();
+    $prefs->update(['require_gps' => true]);
+    $this->postJson("/api/v1/visits/{$visit->id}/check-out", [])
+        ->assertUnprocessable()->assertJsonValidationErrors(['latitude', 'longitude']);
+    $prefs->update(['require_gps' => false, 'require_check_in_image' => true]);
+    $this->postJson("/api/v1/visits/{$visit->id}/check-out", [])
+        ->assertUnprocessable()->assertJsonValidationErrors('checkin_image_required');
+    $prefs->update(['require_check_in_image' => false, 'require_general_visit_image' => true]);
+    $this->postJson("/api/v1/visits/{$visit->id}/check-out", [])
+        ->assertUnprocessable()->assertJsonValidationErrors('require_general_visit_image');
+    $prefs->update(['require_general_visit_image' => false]);
+    $this->postJson("/api/v1/visits/{$visit->id}/check-out", [])
+        ->assertSuccessful()->assertJsonPath('data.visit_status', 'completed');
 });

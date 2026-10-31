@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Visit;
+use App\Models\VisitPreference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -37,6 +38,12 @@ class VisitResource extends JsonResource
                 $lastFollowUp = $this->followUps->sortByDesc('id')->first();
 
                 return [
+                    'preferences' => VisitPreference::current()->only([
+                        'enable_check_in', 'enable_check_out', 'enforce_check_in_before_check_out',
+                        'require_gps', 'field_rules', 'require_general_visit_image',
+                        'require_check_in_image', 'require_check_out_image',
+                        'enforce_minimum_duration', 'minimum_duration_minutes',
+                    ]),
                     'remarks' => $this->remarks,
                     'visit_outcome_id' => $this->visit_outcome_id,
                     'outcome_label' => $this->outcome?->label,
