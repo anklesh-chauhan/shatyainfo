@@ -126,7 +126,7 @@ class RegistrationAccessController extends Controller
 
     public function redirectUrl(Request $request, Tenant $tenant): ?string
     {
-        if ($tenant->provisioning_status !== 'ready' || (string) $request->session()->get('verified_registration') !== (string) $tenant->id) {
+        if ($tenant->provisioning_status !== 'ready' || ! $tenant->accountIsConfigured() || (string) $request->session()->get('verified_registration') !== (string) $tenant->id) {
             return null;
         }
 
@@ -147,7 +147,7 @@ class RegistrationAccessController extends Controller
     public function complete(Request $request, string $token): RedirectResponse
     {
         $tenant = Tenant::current() ?? Tenant::query()->where('domain', LandlordDomains::normalize($request->getHost()))->first();
-        abort_unless($tenant && $tenant->provisioning_status === 'ready', 403);
+        abort_unless($tenant && $tenant->provisioning_status === 'ready' && $tenant->accountIsConfigured(), 503, 'Company setup is still running. Please try again shortly.');
         if (! $tenant->isCurrent()) {
             $tenant->makeCurrent();
         }

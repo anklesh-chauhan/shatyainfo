@@ -16,12 +16,13 @@
                 awaiting_verification: 'Enter the six-digit code from your email to continue.',
                 pending: 'Email verified. Registration is queued…',
                 provisioning: 'Creating your database and sign-in account…',
+                configuring: 'Preparing the rest of your workspace…',
                 failed: 'Registration could not finish. Refresh this page to retry.',
                 ready: 'Your company is ready. Opening your workspace…',
             };
             const destination = data.redirect_url || (data.status === 'ready' ? data.login_url : null);
             const link = document.getElementById('company-login');
-            document.getElementById('setup-progress').textContent = (data.status === 'provisioning' && data.step) || messages[data.status] || 'Preparing your workspace…';
+            document.getElementById('setup-progress').textContent = (['provisioning', 'configuring'].includes(data.status) && data.step) || messages[data.status] || 'Preparing your workspace…';
             const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
             document.getElementById('registration-progress-bar').hidden = data.status === 'awaiting_verification';
             document.getElementById('registration-progress').value = progress;

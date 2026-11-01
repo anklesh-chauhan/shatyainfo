@@ -24,7 +24,11 @@
         <p class="kicker">{{ $tenant->name }}</p>
         <h1 style="font-size: 2.4rem;">Registration progress</h1>
         <p class="lede">{{ $tenant->domain }}</p>
-        @php($status = $tenant->provisioning_status)
+        @php
+            $status = $tenant->provisioning_status === 'ready'
+                ? ($tenant->accountIsConfigured() ? 'ready' : ($tenant->master_setup_status === 'failed' ? 'failed' : 'configuring'))
+                : $tenant->provisioning_status;
+        @endphp
         <p id="setup-progress" role="status">
             @if($status === 'awaiting_verification')
                 Enter the six-digit code sent to {{ $tenant->provisioning_owner['email'] }}. It expires in 10 minutes.
@@ -32,13 +36,15 @@
                 Your company is ready. Opening your workspace…
             @elseif($status === 'failed')
                 Registration could not finish. Please retry.
+            @elseif($status === 'configuring')
+                Your sign-in account is ready. Preparing the rest of your workspace…
             @else
                 Email verified. Creating your database and sign-in account…
             @endif
         </p>
         <div @if($status === 'awaiting_verification') hidden @endif id="registration-progress-bar">
-            <progress style="width: 100%;" id="registration-progress" max="100" value="{{ $tenant->provisioningProgress() }}" aria-label="Registration progress"></progress>
-            <p id="registration-percentage">{{ $tenant->provisioningProgress() }}% complete</p>
+            <progress style="width: 100%;" id="registration-progress" max="100" value="{{ $tenant->onboardingProgress() }}" aria-label="Registration progress"></progress>
+            <p id="registration-percentage">{{ $tenant->onboardingProgress() }}% complete</p>
         </div>
         @if($status === 'awaiting_verification')
             <div class="verification-panel">

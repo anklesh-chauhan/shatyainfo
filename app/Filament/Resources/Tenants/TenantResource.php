@@ -56,6 +56,17 @@ class TenantResource extends Resource
                     ->required()
                     ->maxLength(255)
                     ->unique(ignoreRecord: true),
+                TextInput::make('registration_email')
+                    ->label('Email ID')
+                    ->email()
+                    ->maxLength(255)
+                    ->visibleOn('edit'),
+                TextInput::make('registration_mobile')
+                    ->label('Mobile number')
+                    ->tel()
+                    ->maxLength(16)
+                    ->unique(ignoreRecord: true)
+                    ->required(),
                 TextInput::make('database')
                     ->disabled()
                     ->dehydrated(false)
@@ -92,6 +103,14 @@ class TenantResource extends Resource
                     ->searchable(),
                 TextColumn::make('domain')
                     ->searchable(),
+                TextColumn::make('registration_email')
+                    ->label('Email ID')
+                    ->searchable()
+                    ->copyable(),
+                TextColumn::make('registration_mobile')
+                    ->label('Mobile number')
+                    ->searchable()
+                    ->copyable(),
                 TextColumn::make('database')
                     ->searchable(),
                 TextColumn::make('provisioning_status')

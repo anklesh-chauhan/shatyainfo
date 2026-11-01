@@ -23,7 +23,7 @@ class Tenant extends BaseTenant
      */
     public static ?array $pendingOwner = null;
 
-    protected $fillable = ['name', 'domain', 'cloudflare_record_id'];
+    protected $fillable = ['name', 'domain', 'cloudflare_record_id', 'registration_email', 'registration_mobile'];
 
     protected $hidden = [
         'registration_mobile',
@@ -46,6 +46,17 @@ class Tenant extends BaseTenant
     public function masterSetupProgress(): int
     {
         return $this->accountIsConfigured() ? 100 : max(0, min(99, (int) ($this->master_setup_progress ?? 0)));
+    }
+
+    public function onboardingProgress(): int
+    {
+        if ($this->provisioning_status !== 'ready') {
+            return (int) floor($this->provisioningProgress() * 0.35);
+        }
+
+        return $this->accountIsConfigured()
+            ? 100
+            : min(99, 35 + (int) floor($this->masterSetupProgress() * 0.65));
     }
 
     public function accountIsConfigured(): bool
@@ -93,6 +104,7 @@ class Tenant extends BaseTenant
             if (is_array($owner) && ($owner['email'] ?? '') !== '' && ($owner['password'] ?? '') !== '') {
                 $tenant->forceFill([
                     'provisioning_owner' => $owner,
+                    'registration_email' => $tenant->registration_email ?: $owner['email'],
                 ])->saveQuietly();
             }
 

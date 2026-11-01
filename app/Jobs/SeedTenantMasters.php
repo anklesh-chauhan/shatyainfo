@@ -38,7 +38,7 @@ class SeedTenantMasters implements NotTenantAware, ShouldQueue
         $tenant = Tenant::query()->findOrFail($this->tenantId);
         try {
             $provisioner->configureAccount($tenant);
-            $tenant->forceFill(['master_setup_status' => 'ready', 'master_setup_progress' => 100, 'master_setup_step' => null, 'master_setup_error' => null])->saveQuietly();
+            $tenant->forceFill(['master_setup_status' => 'ready', 'master_setup_progress' => 100, 'master_setup_step' => null, 'master_setup_error' => null, 'billing_started_at' => now()])->saveQuietly();
         } catch (Throwable $exception) {
             $this->failed($exception);
             throw $exception;

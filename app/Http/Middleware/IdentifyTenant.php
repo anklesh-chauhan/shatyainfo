@@ -31,7 +31,7 @@ class IdentifyTenant
             }
         }
 
-        if ($tenant->getAttribute('provisioning_status') !== 'ready') {
+        if ($tenant->getAttribute('provisioning_status') !== 'ready' || ! $tenant->accountIsConfigured()) {
             $tenantModel::forgetCurrent();
 
             abort(Response::HTTP_SERVICE_UNAVAILABLE, 'Company setup is not complete. Please try again later.');

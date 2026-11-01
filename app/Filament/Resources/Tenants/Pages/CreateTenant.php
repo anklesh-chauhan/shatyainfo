@@ -30,6 +30,8 @@ class CreateTenant extends CreateRecord
             'password' => (string) ($raw['owner_password'] ?? ''),
         ];
 
+        $data['registration_email'] = $this->owner['email'];
+
         unset($data['owner_name'], $data['owner_email'], $data['owner_password'], $data['database']);
 
         return $data;

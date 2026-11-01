@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CompanyRegistrationRequest;
 use App\Jobs\ProvisionTenant;
+use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
 use App\Support\Tenancy\CompanyDomain;
 use App\Support\Tenancy\RegistrationCaptcha;
@@ -56,6 +57,7 @@ class MarketingController extends Controller
             $tenant = new Tenant;
             $tenant->forceFill([
                 'name' => $data['company'],
+                'registration_email' => $data['email'],
                 'registration_mobile' => $data['mobile_number'],
                 'domain' => CompanyDomain::fromSlug($data['slug']),
                 'provisioning_status' => 'awaiting_verification',
@@ -84,18 +86,21 @@ class MarketingController extends Controller
     {
         $loginUrl = CompanyDomain::loginUrl((string) $tenant->domain);
         $redirectUrl = app(RegistrationAccessController::class)->redirectUrl($request, $tenant);
+        $signInReady = $tenant->provisioning_status === 'ready';
+        $workspaceReady = $signInReady && $tenant->accountIsConfigured();
+        $setupFailed = $tenant->provisioning_status === 'failed' || ($signInReady && $tenant->master_setup_status === 'failed');
 
         if ($request->expectsJson()) {
             return response()->json([
-                'status' => $tenant->provisioning_status,
-                'progress' => $tenant->provisioningProgress(),
-                'step' => $tenant->provisioning_step,
+                'status' => $setupFailed ? 'failed' : ($workspaceReady ? 'ready' : ($signInReady ? 'configuring' : $tenant->provisioning_status)),
+                'progress' => $tenant->onboardingProgress(),
+                'step' => $signInReady ? $tenant->master_setup_step : $tenant->provisioning_step,
                 'redirect_url' => $redirectUrl,
-                'login_url' => $tenant->provisioning_status === 'ready' ? $loginUrl : null,
+                'login_url' => $workspaceReady ? $loginUrl : null,
             ]);
         }
 
-        if ($tenant->provisioning_status === 'ready') {
+        if ($workspaceReady) {
             return redirect()->away($redirectUrl ?: $loginUrl);
         }
 
@@ -114,7 +119,14 @@ class MarketingController extends Controller
 
     public function retry(Tenant $tenant): RedirectResponse
     {
-        if ($tenant->provisioning_status === 'failed') {
+        if ($tenant->provisioning_status === 'ready' && $tenant->master_setup_status === 'failed') {
+            $tenant->forceFill([
+                'master_setup_status' => 'pending',
+                'master_setup_error' => null,
+            ])->saveQuietly();
+
+            SeedTenantMasters::dispatch($tenant->id);
+        } elseif ($tenant->provisioning_status === 'failed') {
             $tenant->forceFill([
                 'provisioning_status' => 'pending',
                 'provisioning_error' => null,
@@ -148,7 +160,7 @@ class MarketingController extends Controller
             ]);
         }
 
-        if ($tenant->provisioning_status !== 'ready') {
+        if ($tenant->provisioning_status !== 'ready' || ! $tenant->accountIsConfigured()) {
             throw ValidationException::withMessages([
                 'company' => 'That company is still being set up. Open the setup page from your registration if you have it.',
             ]);
