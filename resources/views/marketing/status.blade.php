@@ -66,7 +66,7 @@
                 <button class="btn btn-primary" type="submit">Try again</button>
             </form>
         @endif
-        <p>Onboarding continues inside your workspace once registration is complete.</p>
+        <p>Onboarding continues inside your workspace once registration is complete. Your first bill comes after one month of use, with a 10-license minimum of ₹590. You can cancel any time from Billing; your current month is your final bill. <a href="{{ route('help.index') }}">Read the setup guide</a> or <a href="{{ route('support.create') }}">get help</a>.</p>
         <p><a id="company-login" class="btn btn-primary" href="{{ $loginUrl }}" @if($status !== 'ready') hidden @endif>Sign in to your company</a></p>
     </div>
 @endsection

@@ -128,7 +128,7 @@ html:has(.home-page)::-webkit-scrollbar { display:none; }
 .start-story ol { list-style:none; padding:0; margin:0; align-self:center; }
 .start-story li { display:flex; gap:30px; border-bottom:1px solid #6687b466; padding:20px 0; font-weight:600; }
 .start-story li span { color:#8cb5f5; font-size:.75rem; }
-@media(min-width:801px) and (max-height:760px){
+@media(min-width:801px) and (max-height:850px){
     .hero-slide{min-height:0;height:clamp(440px,calc(100svh - 155px),550px)}
     .hero-copy{padding:30px 7% 30px 0}
     .hero-copy .eyebrow{margin-bottom:14px}
@@ -153,3 +153,31 @@ html:has(.home-page)::-webkit-scrollbar { display:none; }
 @media(max-width:800px){.toolkit{padding-top:55px}.toolkit-intro,.toolkit-group{grid-template-columns:1fr;gap:24px}.toolkit-intro{margin-bottom:40px}.toolkit-group{padding:30px 0 42px}}
 @media(max-width:600px){.hero-copy h1{font-size:clamp(2.6rem,12vw,4.2rem)}.hero-copy>p:not(.eyebrow){font-size:1rem}.hero-actions{gap:18px}.hero-art{padding:35px 16px;min-height:420px}.window-content{padding:22px}.product-window{transform:none}.art-caption,.art-disclaimer{font-size:.62rem}.home-index{grid-template-columns:1fr 1fr;gap:13px}.home-index>span{grid-column:1/-1}.home-index a{font-size:.76rem}.home-index a:last-child{grid-column:1/-1}.operations-grid{grid-template-columns:1fr}.operations-grid article,.operations-grid article+article{border-left:0;border-top:1px solid #b8cdea;padding:25px 0}.toolkit-item ul{grid-template-columns:1fr}.start-story{padding:30px}.slide-dot i{width:24px}.slide-picker{gap:4px}}
 @media(prefers-reduced-motion:no-preference){.hero-slide.is-active .hero-copy,.hero-slide.is-active .hero-art{animation:slide-enter .45s ease both}.hero-slide.is-active .hero-art{animation-delay:.07s}@keyframes slide-enter{from{opacity:.3;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
+.easy-start,.price-story{display:grid;grid-template-columns:1fr 1fr;gap:9%;align-items:start;border-top:1px solid #cbd9ea}
+.easy-start>div>p:not(.eyebrow),.price-story>div>p:not(.eyebrow),.demo-story p{max-width:540px;color:#526581;line-height:1.7}
+.easy-start .btn{border-radius:8px;margin-top:12px}
+.easy-start ol{list-style:none;padding:0;margin:0;border-top:1px solid #bfd0e7}
+.easy-start li{display:grid;grid-template-columns:42px 1fr;column-gap:10px;padding:18px 0;border-bottom:1px solid #bfd0e7}
+.easy-start li>span{grid-row:span 2;color:var(--home-blue);font-size:.72rem;font-weight:700}
+.easy-start li strong{font-size:1rem}
+.easy-start li small{color:#60718b;font-size:.83rem;line-height:1.6}
+.price-story{background:#eaf2ff;padding:64px;border:1px solid #d4e4fc}
+.price-card{background:white;border:1px solid #c8daef;padding:36px;box-shadow:0 18px 50px #102e600c}
+.price-card>div{display:flex;align-items:baseline;gap:12px}
+.price-card>div strong{font-size:clamp(3.5rem,6vw,5rem);letter-spacing:-.08em;line-height:1;color:var(--home-navy)}
+.price-card>div span{color:#60718b;font-size:.84rem}
+.price-card>p{margin:18px 0;padding-bottom:18px;border-bottom:1px solid #dce6f5}
+.price-card ul{list-style:none;padding:0;margin:0 0 24px;display:grid;gap:10px;color:#405675;font-size:.87rem}
+.price-card li::before{content:'✓';color:var(--home-blue);margin-right:10px;font-weight:700}
+.price-card .btn{border-radius:8px}
+.demo-story{display:flex;align-items:center;justify-content:space-between;gap:24px;border-bottom:1px solid #cbd9ea}
+.demo-story>div{max-width:620px}
+.demo-story .btn{white-space:nowrap}
+.demo-note{display:inline-block;border:1px solid #bfd0e7;padding:12px 18px;color:#526581;font-size:.86rem}
+.home-faq{max-width:850px;margin:0 auto}
+.home-faq h2{margin-bottom:32px}
+.home-faq details{padding:20px 0}
+.home-faq summary{font-size:1rem}
+.home-faq details p{max-width:650px;line-height:1.65;margin:12px 0 0}
+@media(max-width:800px){.easy-start,.price-story{grid-template-columns:1fr;gap:32px}.price-story{padding:38px 26px}.demo-story{align-items:flex-start;flex-direction:column}.home-faq{padding-top:70px}}
+@media(max-width:600px){.price-card{padding:25px}.price-card>div{display:block}.price-card>div span{display:block;margin-top:5px}}

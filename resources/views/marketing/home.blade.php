@@ -14,8 +14,8 @@
                 <article class="hero-slide is-active" data-slide aria-roledescription="slide" aria-label="1 of 3">
                     <div class="hero-copy">
                         <p class="eyebrow">Pharma field operations</p>
-                        <h1>A clearer day for everyone in the field.</h1>
-                        <p>Plan doctor calls, capture what happened, and keep the next step in view. Shatya Info brings the work of your field team into one place.</p>
+                        <h1>Start your company. Get to work.</h1>
+                        <p>Create your workspace yourself, then bring field visits, sales, stock, and people into one place. With your data ready, you can often get set up in about 30 minutes.</p>
                         <div class="hero-actions"><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a><a class="text-link" href="#how-it-works">See how it works <span aria-hidden="true">→</span></a></div>
                     </div>
                     <div class="hero-art" aria-label="Illustration of a representative's daily tour">
@@ -125,7 +125,19 @@
         @endforeach
     </section>
 
-    <section class="home-section start-story" id="how-it-works" aria-labelledby="start-title"><div><p class="eyebrow">GET STARTED</p><h2 id="start-title">Start with your company.</h2><p>Create a workspace, verify your email, then complete your team and business setup. Your company address will look like acme.{{ $baseDomain }}.</p><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a></div><ol><li><span>01</span>Create your company</li><li><span>02</span>Verify your email</li><li><span>03</span>Complete your setup</li></ol></section>
+    <section class="home-section easy-start" id="how-it-works" aria-labelledby="start-title">
+        <div><p class="eyebrow">START ON YOUR OWN</p><h2 id="start-title">From signup to first field day.</h2><p>No sales call is required to open your company workspace. You choose the address, verify your email, and follow the setup prompts. Have your team and company data ready? Initial setup can often be finished in about 30 minutes.</p><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a></div>
+        <ol><li><span>01</span><strong>Create your workspace</strong><small>Choose a company address like acme.{{ $baseDomain }}.</small></li><li><span>02</span><strong>Verify and sign in</strong><small>We prepare your private workspace after email verification.</small></li><li><span>03</span><strong>Add your people and data</strong><small>Use in-app setup and imports to prepare the first field day.</small></li><li><span>04</span><strong>Get help when needed</strong><small>Use the <a href="{{ route('help.index') }}">short guides</a> first, or <a href="{{ route('support.create') }}">contact support</a>.</small></li></ol>
+    </section>
+
+    <section class="home-section price-story" id="pricing" aria-labelledby="pricing-title">
+        <div><p class="eyebrow">STRAIGHTFORWARD PRICING</p><h2 id="pricing-title">One price. The whole application.</h2><p>All modules are included for every company. Start with the 10-license minimum and add users as your team grows.</p></div>
+        <div class="price-card"><div><strong>₹59</strong><span>per user license / month</span></div><p>Minimum 10 licenses · <b>₹590/month</b></p><ul><li>All features and modules included</li><li>First bill after one month of workspace use</li><li>Pay each monthly bill with Razorpay</li><li>Cancel any time; your current month is your final bill</li><li>Prices include applicable tax</li></ul><a class="btn btn-primary" href="{{ route('signup.create') }}">Start your company</a></div>
+    </section>
+
+    <section class="home-section demo-story" id="demo" aria-labelledby="demo-title"><div><p class="eyebrow">PRODUCT WALKTHROUGH</p><h2 id="demo-title">See how a field day fits together.</h2><p>A short walkthrough video is being prepared. You can explore the <a href="#features">complete toolkit</a> now or create your workspace and try the setup yourself.</p></div>@if($demoVideoUrl)<a class="btn btn-line" href="{{ $demoVideoUrl }}" target="_blank" rel="noopener noreferrer">Watch the short demo ↗</a>@else<span class="demo-note">Short demo video coming soon</span>@endif</section>
+
+    <section class="home-section home-faq" aria-labelledby="faq-title"><p class="eyebrow">COMMON QUESTIONS</p><h2 id="faq-title">Before you begin.</h2><details><summary>Do I need to book a sales call?</summary><p>No. Create your company, verify your email and follow the setup prompts yourself.</p></details><details><summary>When is the first payment due?</summary><p>One month after your workspace becomes ready. The owner pays each monthly bill through Razorpay; there is no automatic recurring charge.</p></details><details><summary>Can I cancel any time?</summary><p>Yes. The company owner can cancel from Billing at any time. The current month remains payable, and no later monthly bills are created.</p></details><details><summary>Are any features restricted by plan?</summary><p>No. The full application is included. The price changes only with the number of user licenses, with a 10-license minimum.</p></details><details><summary>Can I get help?</summary><p>Yes. Start with our <a href="{{ route('help.index') }}">setup guides</a>, then <a href="{{ route('support.create') }}">contact support</a> whenever you need a person.</p></details></section>
 </div>
 @endsection
 

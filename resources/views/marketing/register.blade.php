@@ -12,7 +12,8 @@
     <div class="narrow">
         <p class="kicker">Registration</p>
         <h1 style="font-size: 2.4rem;">Create your company</h1>
-        <p class="lede">This creates a new workspace and makes you the owner. Verify your email, then we will prepare your workspace.</p>
+        <p class="lede">Create your workspace yourself. Verify your email, then follow the guided setup. With your data ready, this can often take about 30 minutes.</p>
+        <p class="panel" style="margin:0 0 18px"><strong>Full application · ₹59/user/month</strong><br>Minimum 10 licenses (₹590/month), including applicable tax. Your first bill arrives after one month of workspace use. Pay each bill through Razorpay; no automatic recurring charge. Cancel any time; your current month is your final bill. <a href="{{ route('help.index') }}">How setup and billing work</a>.</p>
 
         <form class="panel" method="post" action="{{ route('signup.store') }}">
             @csrf

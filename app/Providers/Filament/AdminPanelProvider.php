@@ -59,6 +59,8 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Blue,
             ])
             ->userMenuItems([
+                'help' => Action::make('help')->label('Help and guides')->icon('heroicon-o-question-mark-circle')->url(fn (): string => route('help.index')),
+                'billing' => Action::make('billing')->label('Billing')->icon('heroicon-o-credit-card')->url(fn (): string => route('billing.index'))->visible(fn (): bool => (bool) auth()->user()?->hasRole('super_admin')),
                 'quick-links' => Action::make('quick-links')->label('My quick links')->icon('heroicon-o-squares-2x2')->url(fn (): string => MyQuickLinks::getUrl()),
                 'profile' => Action::make('profile')
                     ->label(fn () => auth()->user()->employee?->full_name ?? auth()->user()->name)

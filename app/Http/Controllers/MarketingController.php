@@ -25,6 +25,7 @@ class MarketingController extends Controller
 
         return view('marketing.home', [
             'baseDomain' => CompanyDomain::base(),
+            'demoVideoUrl' => config('marketing.demo_video_url'),
         ]);
     }
 

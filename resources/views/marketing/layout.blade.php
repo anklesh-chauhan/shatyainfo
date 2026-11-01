@@ -200,8 +200,9 @@
             <a class="brand" href="{{ route('home') }}"><span class="mark">S</span> Shatya Info</a>
             <nav aria-label="Main navigation">
                 <a class="nav-link" href="{{ route('home') }}#features">Features</a>
-                <a class="nav-link" href="{{ route('home') }}#field-work">Field work</a>
+                <a class="nav-link" href="{{ route('home') }}#pricing">Pricing</a>
                 <a class="nav-link" href="{{ route('home') }}#platform">Workspace</a>
+                <a class="nav-link" href="{{ route('help.index') }}">Help</a>
                 <a class="btn btn-ghost" href="{{ route('company.login') }}">Sign in</a>
                 <a class="btn btn-primary" href="{{ route('signup.create') }}">Start a company</a>
             </nav>
@@ -209,7 +210,7 @@
         <main id="main-content">
             @yield('content')
         </main>
-        <footer class="site-footer"><span>Shatya Info · Connected teams. Better field operations.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
+        <footer class="site-footer"><span>Shatya Info · Connected teams. Better field operations.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
     </div>
     @stack('scripts')
 </body>

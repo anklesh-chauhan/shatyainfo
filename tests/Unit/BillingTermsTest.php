@@ -1,0 +1,46 @@
+<?php
+
+use App\Models\BillingInvoice;
+use App\Services\Billing\MonthlyBilling;
+use App\Services\Billing\RazorpayCheckout;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+uses(TestCase::class);
+
+test('monthly pricing applies the ten license minimum', function (): void {
+    $billing = new MonthlyBilling;
+
+    expect($billing->amountPaise(1))->toBe(59000)
+        ->and($billing->amountPaise(10))->toBe(59000)
+        ->and($billing->amountPaise(11))->toBe(64900);
+});
+
+test('cancellation keeps the current month bill and stops later months', function (): void {
+    $billing = new MonthlyBilling;
+    $cancelledAt = CarbonImmutable::parse('2026-11-15 10:00:00');
+
+    expect($billing->shouldBillPeriod(CarbonImmutable::parse('2026-11-02'), $cancelledAt))->toBeTrue()
+        ->and($billing->shouldBillPeriod(CarbonImmutable::parse('2026-12-02'), $cancelledAt))->toBeFalse()
+        ->and($billing->shouldBillPeriod(CarbonImmutable::parse('2026-11-02'), null))->toBeTrue();
+});
+
+test('checkout confirmation requires a valid signature and captured matching payment', function (): void {
+    config()->set('services.razorpay.key_id', 'rzp_test_example');
+    config()->set('services.razorpay.key_secret', 'test-secret');
+
+    $invoice = new BillingInvoice;
+    $invoice->forceFill(['razorpay_order_id' => 'order_123', 'amount_paise' => 59000]);
+    $signature = hash_hmac('sha256', 'order_123|pay_123', 'test-secret');
+    $checkout = new RazorpayCheckout;
+
+    Http::fake(['api.razorpay.com/v1/payments/pay_123' => Http::sequence()
+        ->push(['status' => 'captured', 'order_id' => 'order_123', 'amount' => 59000, 'currency' => 'INR'])
+        ->push(['status' => 'authorized', 'order_id' => 'order_123', 'amount' => 59000, 'currency' => 'INR'])]);
+
+    expect($checkout->verifyCapturedPayment($invoice, 'order_123', 'pay_123', $signature))->toBeTrue()
+        ->and($checkout->verifyCapturedPayment($invoice, 'order_123', 'pay_123', str_repeat('0', 64)))->toBeFalse();
+
+    expect($checkout->verifyCapturedPayment($invoice, 'order_123', 'pay_123', $signature))->toBeFalse();
+});

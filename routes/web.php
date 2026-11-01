@@ -1,13 +1,27 @@
 <?php
 
 use App\Http\Controllers\Api\V1\EDetailingController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\RegistrationAccessController;
 use App\Http\Controllers\SalesDocumentPdfController;
+use App\Http\Controllers\SupportController;
 use App\Services\Attendance\LeaveWorkflowService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
+Route::view('/help', 'marketing.help')->name('help.index');
+Route::get('/support', [SupportController::class, 'create'])->name('support.create');
+Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:3,1')->name('support.store');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::post('/billing/cancel', [BillingController::class, 'cancel'])->name('billing.cancel');
+    Route::post('/billing/{invoice}/order', [BillingController::class, 'order'])->name('billing.order');
+    Route::post('/billing/{invoice}/confirm', [BillingController::class, 'confirm'])->name('billing.confirm');
+});
+
+Route::post('/webhooks/razorpay', [BillingController::class, 'webhook'])->middleware('landlord')->name('razorpay.webhook');
 
 Route::get('/e-detailing/{material}/preview', [EDetailingController::class, 'preview'])
     ->middleware('auth')->name('e-detailing.preview');

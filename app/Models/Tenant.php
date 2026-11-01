@@ -59,6 +59,8 @@ class Tenant extends BaseTenant
             'db_password' => 'encrypted',
             'provisioning_owner' => 'encrypted:array',
             'onboarding_data' => 'encrypted:array',
+            'billing_started_at' => 'datetime',
+            'billing_cancelled_at' => 'datetime',
         ];
     }
 

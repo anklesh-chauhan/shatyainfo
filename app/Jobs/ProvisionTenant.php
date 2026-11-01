@@ -73,6 +73,7 @@ class ProvisionTenant implements NotTenantAware, ShouldQueue
             'master_setup_error' => null,
             'provisioning_error' => null,
             'provisioning_owner' => null,
+            'billing_started_at' => $tenant->billing_started_at ?? now(),
         ])->saveQuietly();
 
         Log::info('Tenant sign-in provisioning completed.', ['tenant_id' => $tenant->id, 'duration_seconds' => round(microtime(true) - $startedAt, 3)]);

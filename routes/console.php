@@ -7,6 +7,8 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('billing:generate-invoices')->dailyAt('01:00')->withoutOverlapping();
+
 Schedule::call(function () {
     app(RunsAcrossTenants::class)->each(function () {
         Artisan::call('visits:auto-checkout');
