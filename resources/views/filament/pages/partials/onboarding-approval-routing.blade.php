@@ -19,7 +19,7 @@
     @php($approverOptions = $this->approvalSetup()->approverOptions(data_get($this, $prefix, []), $level))
     <div class="setup-field">
         <label for="{{ $prefix }}-person-{{ $level }}">L{{ $level }} approver</label>
-        <x-filament::input.wrapper><x-filament::input.select id="{{ $prefix }}-person-{{ $level }}" wire:model="{{ $prefix }}.l{{ $level }}_user_id" @if (count($approverOptions) > 1) required @endif><option value="">{{ count($approverOptions) === 1 ? 'Use the matching employee' : 'Choose an employee' }}</option>@foreach ($approverOptions as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper>
+        <x-filament::input.wrapper><x-filament::input.select id="{{ $prefix }}-person-{{ $level }}" wire:model="{{ $prefix }}.l{{ $level }}_user_id" :required="count($approverOptions) > 1"><option value="">{{ count($approverOptions) === 1 ? 'Use the matching employee' : 'Choose an employee' }}</option>@foreach ($approverOptions as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper>
         @if (count($approverOptions) > 1)<p class="setup-hint">Choose one of the {{ count($approverOptions) }} matching employees.</p>@elseif ($approverOptions === [] && data_get($this, $prefix.'.l'.$level.'_role_id'))<p class="setup-hint">No active employee with a login matches this role and territory.</p>@endif
     </div>
 @endfor
