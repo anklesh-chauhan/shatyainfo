@@ -1,88 +1,134 @@
 @extends('marketing.layout')
 
-@section('title', 'Shatya Info · Pharma field force & business management')
+@section('title', 'Shatya Info · Pharma field operations, thoughtfully connected')
+
+@push('head')
+    <link rel="stylesheet" href="{{ asset('css/marketing-home.css') }}">
+@endpush
 
 @section('content')
-    <section class="hero" aria-labelledby="hero-title">
-        <div>
-            <p class="kicker">Built for pharma teams</p>
-            <h1 id="hero-title">Your field force.<br>Your business.<br><span>One connected workspace.</span></h1>
-            <p class="lede">Bring doctor visits, samples, sales, and your people together. Give your field team a clear plan for the day and your managers the visibility to move business forward.</p>
-            <div class="actions">
-                <a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company &rarr;</a>
-                <a class="btn btn-line" href="#features">Explore all features</a>
+<div class="home-page">
+    <section class="home-hero" aria-label="Introducing Shatya Info">
+        <div class="hero-slider" data-hero-slider aria-roledescription="carousel" aria-label="What Shatya Info helps you do">
+            <div class="hero-slides" aria-live="off">
+                <article class="hero-slide is-active" data-slide aria-roledescription="slide" aria-label="1 of 3">
+                    <div class="hero-copy">
+                        <p class="eyebrow">Pharma field operations</p>
+                        <h1>A clearer day for everyone in the field.</h1>
+                        <p>Plan doctor calls, capture what happened, and keep the next step in view. Shatya Info brings the work of your field team into one place.</p>
+                        <div class="hero-actions"><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a><a class="text-link" href="#how-it-works">See how it works <span aria-hidden="true">→</span></a></div>
+                    </div>
+                    <div class="hero-art" aria-label="Illustration of a representative's daily tour">
+                        <div class="art-caption">01 / THE FIELD DAY</div>
+                        <div class="product-window">
+                            <div class="window-top"><span class="window-brand">S <b>Shatya Info</b></span><span>Today’s tour ⌄</span></div>
+                            <div class="window-content"><span class="ui-label">MONDAY · FIELD PLAN</span><h2>Good morning, Priya.</h2><p>Here’s what your day looks like.</p>
+                                <div class="day-progress"><span>Today’s calls</span><strong>04 planned</strong><i></i></div>
+                                <div class="visit-line"><span class="visit-time">09:30</span><span><b>Dr. A. Mehta</b><small>Clinic visit · Discussion & samples</small></span><span class="visit-status">Next</span></div>
+                                <div class="visit-line"><span class="visit-time">11:45</span><span><b>Dr. N. Shah</b><small>Follow-up · Product update</small></span><span class="visit-arrow">↗</span></div>
+                                <div class="visit-line"><span class="visit-time">15:00</span><span><b>City Medical</b><small>Customer visit · Order follow-up</small></span><span class="visit-arrow">↗</span></div>
+                            </div>
+                        </div>
+                        <p class="art-disclaimer">Illustrative interface · No live company data</p>
+                    </div>
+                </article>
+                <article class="hero-slide" data-slide aria-roledescription="slide" aria-label="2 of 3" aria-hidden="true" inert>
+                    <div class="hero-copy">
+                        <p class="eyebrow">Doctor relationships</p>
+                        <h1>Keep the conversation moving.</h1>
+                        <p>Give each visit its context. Record discussion notes, samples, and follow-ups so the next call starts where the last one ended.</p>
+                        <div class="hero-actions"><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a><a class="text-link" href="#field-work">Explore field work <span aria-hidden="true">→</span></a></div>
+                    </div>
+                    <div class="hero-art" aria-label="Illustration of a doctor visit record">
+                        <div class="art-caption">02 / THE RELATIONSHIP</div>
+                        <div class="product-window">
+                            <div class="window-top"><span class="window-brand">S <b>Shatya Info</b></span><span>Visit record ⌄</span></div>
+                            <div class="window-content"><span class="ui-label">ACCOUNT / DOCTOR</span><h2>Dr. A. Mehta</h2><p>Clinic visit · Today at 09:30</p>
+                                <div class="record-grid"><div><small>VISIT PURPOSE</small><b>Product discussion</b></div><div><small>STATUS</small><b>Completed</b></div></div>
+                                <div class="record-note"><small>CONVERSATION</small><p>Discussed the current range and noted a request for a follow-up visit.</p></div>
+                                <div class="record-next"><span>↗</span><div><small>NEXT STEP</small><b>Schedule a follow-up</b></div></div>
+                            </div>
+                        </div>
+                        <p class="art-disclaimer">Illustrative interface · No live company data</p>
+                    </div>
+                </article>
+                <article class="hero-slide" data-slide aria-roledescription="slide" aria-label="3 of 3" aria-hidden="true" inert>
+                    <div class="hero-copy">
+                        <p class="eyebrow">Management visibility</p>
+                        <h1>See the work behind the numbers.</h1>
+                        <p>Bring field activity, daily reports, approvals, and sales into the same workspace. Your team can act on the details while they are still useful.</p>
+                        <div class="hero-actions"><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a><a class="text-link" href="#operations">Explore operations <span aria-hidden="true">→</span></a></div>
+                    </div>
+                    <div class="hero-art" aria-label="Illustration of a management review">
+                        <div class="art-caption">03 / THE BIGGER PICTURE</div>
+                        <div class="product-window">
+                            <div class="window-top"><span class="window-brand">S <b>Shatya Info</b></span><span>Team overview ⌄</span></div>
+                            <div class="window-content"><span class="ui-label">FIELD OPERATIONS</span><h2>Review the day.</h2><p>Follow the activity that needs your attention.</p>
+                                <div class="report-list"><div><span class="report-icon">✓</span><span><b>Daily call reports</b><small>Visit activity, in one place</small></span><span>View ↗</span></div><div><span class="report-icon">↗</span><span><b>Approvals</b><small>Keep decisions moving</small></span><span>View ↗</span></div><div><span class="report-icon">▤</span><span><b>Sales documents</b><small>From quotation to invoice</small></span><span>View ↗</span></div></div>
+                            </div>
+                        </div>
+                        <p class="art-disclaimer">Illustrative interface · No live company data</p>
+                    </div>
+                </article>
             </div>
-            <p class="hero-note">Your company address · Dedicated workspace · Web and field app</p>
+            <div class="slider-controls"><div class="slide-picker" aria-label="Choose a slide"><button type="button" class="slide-dot is-active" data-slide-to="0" aria-label="Show field day slide" aria-current="true"><span>01</span><i></i></button><button type="button" class="slide-dot" data-slide-to="1" aria-label="Show doctor relationships slide"><span>02</span><i></i></button><button type="button" class="slide-dot" data-slide-to="2" aria-label="Show management visibility slide"><span>03</span><i></i></button></div><div class="slide-arrows"><button type="button" data-slide-prev aria-label="Previous slide">←</button><button type="button" data-slide-next aria-label="Next slide">→</button></div></div>
         </div>
-        <aside class="preview" aria-label="Illustrative field workflow, not live company data">
-            <div class="preview-head"><strong>Shatya Info / Field overview</strong><small>Illustration</small></div>
-            <div class="preview-body">
-                <div class="preview-title"><div><p class="kicker">A day, connected</p><h2>Ready for the field.</h2></div><span class="pill">Today's tour</span></div>
-                <div class="preview-stats"><div><strong>01</strong><span>Plan your calls</span></div><div><strong>02</strong><span>Record visits</span></div><div><strong>03</strong><span>Submit your day</span></div></div>
-                <div class="tour-row"><time>09:00</time><div><strong>Start the day</strong><small>Punch in and review your tour</small></div><span class="pill">Attendance</span></div>
-                <div class="tour-row"><time>10:30</time><div><strong>Connect with a doctor</strong><small>Call notes, samples, and follow-up</small></div><span class="pill">Doctor visit</span></div>
-                <div class="tour-row"><time>14:00</time><div><strong>Move a sale forward</strong><small>Customer, quotation, and order</small></div><span class="pill">Sales CRM</span></div>
-                <div class="tour-row"><time>18:00</time><div><strong>Close the loop</strong><small>Daily call report and expenses</small></div><span class="pill">DCR</span></div>
-                <div class="preview-foot">From the first punch-in to the final approval.</div>
-            </div>
-        </aside>
     </section>
 
-    <div class="module-strip" aria-label="Product areas"><span>Field operations</span><span>Sales & CRM</span><span>Samples & inventory</span><span>People & attendance</span><span>Reports & approvals</span></div>
+    <div class="home-index" aria-label="Product areas"><span>Made for the way pharma teams work</span><a href="#field-work">Field work <sup>01</sup></a><a href="#operations">Business operations <sup>02</sup></a><a href="#platform">Your workspace <sup>03</sup></a></div>
 
-    <section class="section" id="features" aria-labelledby="features-title">
-        <div class="section-heading"><p class="kicker">The complete toolkit</p><h2 id="features-title">Every part of your operation.<br>Working together.</h2><p>From the doctor relationship to the stock movement, keep the details in the same workspace. Explore the project's core modules and supporting tools below.</p></div>
-        <div class="feature-grid">
-            @foreach ([
-                ['Tour planning & field visits', 'Give every field day a clear direction, with the context your team needs before each call.', ['Monthly tour plans and today’s tour', 'Doctor calls, visit purposes, and pre-call briefings', 'Visit check-in, check-out, photos, and location', 'Territories, regions, patches, and visit preferences']],
-                ['Doctors & customer relationships', 'Keep the people you visit and the conversations you have connected.', ['Doctor and customer account records', 'Contacts and multiple addresses', 'Follow-up priorities, statuses, and outcomes', 'Visit history and doctor sample ledger']],
-                ['Daily call reports & travel', 'Turn daily field activity into a structured record that managers can review.', ['Daily call reports (DCRs) and visit records', 'Travel segments and transport modes', 'Expense entries, types, and configurations', 'Standard fare charts and expense summaries']],
+    <section class="home-section field-story" id="field-work" aria-labelledby="field-work-title">
+        <div class="section-intro"><p class="eyebrow">01 / FIELD WORK</p><h2 id="field-work-title">From the first call to the daily report.</h2><p>Field work is full of small decisions. Give your representatives a useful plan, a place to record each visit, and a clear way to finish the day.</p></div>
+        <div class="story-list"><article><span>01</span><div><h3>Plan the route</h3><p>Monthly tour plans, daily priorities, territories, and pre-call context.</p></div></article><article><span>02</span><div><h3>Make the visit count</h3><p>Doctor and customer records, check-in, visit notes, photos, and samples.</p></div></article><article><span>03</span><div><h3>Close the day properly</h3><p>Daily call reports, travel, expenses, and follow-up actions.</p></div></article></div>
+    </section>
+
+    <section class="home-section operations-story" id="operations" aria-labelledby="operations-title"><div class="operations-lead"><p class="eyebrow">02 / BUSINESS OPERATIONS</p><h2 id="operations-title">Field activity is only part of the picture.</h2><p>Keep the commercial and people side of the business close to the work happening outside the office.</p></div><div class="operations-grid"><article><span class="operation-glyph" aria-hidden="true">↗</span><h3>Sales & CRM</h3><p>Follow leads and deals through quotations, orders, and invoices.</p></article><article><span class="operation-glyph" aria-hidden="true">▤</span><h3>Samples & stock</h3><p>Track requests, issues, inventory movements, and purchasing.</p></article><article><span class="operation-glyph" aria-hidden="true">◎</span><h3>People & approvals</h3><p>Manage attendance, leave, team access, and decisions that need review.</p></article></div></section>
+
+    <section class="home-section platform-story" id="platform" aria-labelledby="platform-title"><div class="platform-copy"><p class="eyebrow">03 / YOUR WORKSPACE</p><h2 id="platform-title">One company address. A shared view of the work.</h2><p>Set up a dedicated company workspace and bring your team into it. Managers use the web workspace; representatives can use the field app with the same company address.</p><a class="text-link" href="{{ route('company.login') }}">Open an existing company <span aria-hidden="true">→</span></a></div><div class="platform-detail"><div><span>01</span><p>Company workspace with its own address and separate database</p></div><div><span>02</span><p>Roles and permissions for the people in your team</p></div><div><span>03</span><p>Reports and exports across field, sales, samples, and attendance</p></div></div></section>
+
+    <section class="home-section toolkit" id="features" aria-labelledby="toolkit-title">
+        <div class="toolkit-intro">
+            <div><p class="eyebrow">THE COMPLETE TOOLKIT</p><h2 id="toolkit-title">The details, when you need them.</h2></div>
+            <p>Explore the tools behind the field day, the commercial process, and the people who keep everything moving. Select a module to see what it includes.</p>
+        </div>
+        @foreach ([
+            ['Field & relationships', 'Plan calls, build context, and keep daily field records in order.', [
+                ['Tour planning & field visits', 'Give every field day a clear direction, with context before each call.', ['Monthly tour plans and today’s tour', 'Doctor calls, visit purposes, and pre-call briefings', 'Visit check-in, check-out, photos, and location', 'Territories, regions, patches, and visit preferences']],
+                ['Doctors & customer relationships', 'Keep the people you visit and their conversations connected.', ['Doctor and customer account records', 'Contacts and multiple addresses', 'Follow-up priorities, statuses, and outcomes', 'Visit history and doctor sample ledger']],
+                ['Daily call reports & travel', 'Turn field activity into a record managers can review.', ['Daily call reports (DCRs) and visit records', 'Travel segments and transport modes', 'Expense entries, types, and configurations', 'Standard fare charts and expense summaries']],
                 ['Samples & SGIP', 'Track sample requests, distribution, and the limits that guide your team.', ['Sample requests and sample issues', 'SGIP distributions and configured limits', 'Doctor-wise sample tracking', 'SGIP compliance reporting']],
-                ['Sales CRM & campaigns', 'Follow an opportunity from the first conversation through the sales pipeline.', ['Leads, activities, sources, and custom fields', 'Deals and pipeline visibility', 'Follow-up tracking and overdue reports', 'Marketing campaigns and promotional schemes']],
-                ['Sales documents', 'Keep commercial documents and customer terms together as a sale progresses.', ['Quotations, sales orders, and invoices', 'Delivery challans and document PDF downloads', 'Customer prices, taxes, and payment terms', 'Shipping methods and document preferences']],
+            ]],
+            ['Sales & stock', 'Follow opportunities, commercial documents, and product movement.', [
+                ['Sales CRM & campaigns', 'Follow an opportunity through the sales pipeline.', ['Leads, activities, sources, and custom fields', 'Deals and pipeline visibility', 'Follow-up tracking and overdue reports', 'Marketing campaigns and promotional schemes']],
+                ['Sales documents', 'Keep commercial documents and customer terms together.', ['Quotations, sales orders, and invoices', 'Delivery challans and document PDF downloads', 'Customer prices, taxes, and payment terms', 'Shipping methods and document preferences']],
                 ['Purchasing & inventory', 'Connect incoming goods, stock changes, and sample movements.', ['Purchase orders and goods receipt notes', 'Stock balances and inventory movements', 'Inventory adjustments and stock transfers', 'Items, brands, categories, packaging, and units']],
-                ['Attendance & employee management', 'Bring your team structure and day-to-day attendance into one place.', ['Punch-in and daily attendance records', 'Employees, departments, positions, and grades', 'Shifts, holidays, and weekly offs', 'Attendance registers and punch-versus-tour reports']],
-                ['Leave management', 'Manage time away with balances, rules, and a clear approval process.', ['Leave applications, types, and rules', 'Leave balances, adjustments, and ledger', 'Encashments and lapse records', 'Payroll leave snapshots']],
+            ]],
+            ['People & oversight', 'Support the team and keep decisions and reporting in view.', [
+                ['Attendance & employee management', 'Bring team structure and daily attendance into one place.', ['Punch-in and daily attendance records', 'Employees, departments, positions, and grades', 'Shifts, holidays, and weekly offs', 'Attendance registers and punch-versus-tour reports']],
+                ['Leave management', 'Manage time away with balances, rules, and approvals.', ['Leave applications, types, and rules', 'Leave balances, adjustments, and ledger', 'Encashments and lapse records', 'Payroll leave snapshots']],
                 ['Approvals & access control', 'Give each team member the right access and keep decisions moving.', ['Approval flows and approval settings', 'My Approvals and bulk approval actions', 'Approval delegation', 'Users, roles, and permissions']],
                 ['Reports & exports', 'Review field execution, commercial progress, and workforce activity.', ['Visit coverage, DCR, and expense reports', 'Lead, deal, and overdue follow-up reports', 'Sales document and stock movement registers', 'Sample, SGIP, attendance, and leave exports']],
-                ['Sales Assistant & administration', 'Support daily planning and configure the workspace around your company.', ['Daily priorities and suggested route order', 'Monthly tour plan drafts and pre-call briefings', 'Voice notes, sample suggestions, and follow-up scripts', 'Suggested next actions for leads and deals', 'Company onboarding, branding, and data imports', 'Organization setup, number series, and integration settings']],
-            ] as [$title, $description, $features])
-                <article class="feature-card"><span class="feature-number" aria-hidden="true">{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }}</span><h3>{{ $title }}</h3><p>{{ $description }}</p><ul>@foreach ($features as $feature)<li>{{ $feature }}</li>@endforeach</ul></article>
-            @endforeach
-        </div>
+                ['Sales Assistant & administration', 'Support planning and configure the workspace around your company.', ['Daily priorities and suggested route order', 'Monthly tour plan drafts and pre-call briefings', 'Voice notes, sample suggestions, and follow-up scripts', 'Suggested next actions for leads and deals', 'Company onboarding, branding, and data imports', 'Organization setup, number series, and integration settings']],
+            ]],
+        ] as [$groupTitle, $groupDescription, $modules])
+            <div class="toolkit-group">
+                <div class="toolkit-group-heading"><span>{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / PRODUCT AREA</span><h3>{{ $groupTitle }}</h3><p>{{ $groupDescription }}</p></div>
+                <div class="toolkit-items">
+                    @foreach ($modules as [$moduleTitle, $moduleDescription, $tools])
+                        <details class="toolkit-item" @if ($loop->first) open @endif>
+                            <summary><span class="toolkit-item-title"><strong>{{ $moduleTitle }}</strong><span>{{ $moduleDescription }}</span></span><span class="toolkit-toggle" aria-hidden="true"></span></summary>
+                            <ul>@foreach ($tools as $tool)<li>{{ $tool }}</li>@endforeach</ul>
+                        </details>
+                    @endforeach
+                </div>
+            </div>
+        @endforeach
     </section>
 
-    <section class="section" id="workflow" aria-labelledby="workflow-title">
-        <div class="section-heading"><p class="kicker">A connected working day</p><h2 id="workflow-title">Plan. Visit. Record. Review.</h2><p>A practical workflow for your representatives, managers, and operations team.</p></div>
-        <div class="workflow">
-            <article><span class="num">1</span><h3>Plan with purpose</h3><p>Build the monthly tour, review daily priorities, and prepare for the next doctor call.</p></article>
-            <article><span class="num">2</span><h3>Make every visit count</h3><p>Check in, capture the conversation, record samples, and schedule the next follow-up.</p></article>
-            <article><span class="num">3</span><h3>Bring the day together</h3><p>Complete the DCR, add travel and expenses, and submit the records for review.</p></article>
-            <article><span class="num">4</span><h3>Act on the details</h3><p>Review approvals, monitor coverage, and follow sales and inventory activity through reports.</p></article>
-        </div>
-    </section>
-
-    <section class="field-section" id="field-app" aria-labelledby="field-title">
-        <div><p class="kicker">At the desk. On the move.</p><h2 id="field-title">The office and field team, on the same page.</h2><p>Managers work in the web workspace. Representatives use the Shatya Info field app with the same company address, keeping their daily workflow close at hand.</p><a class="btn btn-primary" href="{{ route('company.login') }}">Open your company &rarr;</a></div>
-        <ul class="checklist"><li>Attendance, punch-in, and leave</li><li>Doctors, accounts, and address management</li><li>Today's tour and monthly tour planning</li><li>Visit location, photos, and sample recording</li><li>Daily call reports and expense submission</li><li>Sales Assistant priorities and planning</li></ul>
-    </section>
-
-    <section class="steps" id="get-started" aria-labelledby="setup-title">
-        <div><p class="kicker">Your company, your workspace</p><h2 id="setup-title">A clear start for<br>your whole team.</h2><p class="lede">Create a company workspace with its own address and separate database, then bring your people and business setup together.</p></div>
-        <ol class="clean">
-            <li><span class="num">1</span><div><strong>Create your company</strong><div class="hint">Enter your company and owner details. Choose an address like acme.{{ $baseDomain }}.</div></div></li>
-            <li><span class="num">2</span><div><strong>Verify your email</strong><div class="hint">Confirm your email to begin preparing your company workspace.</div></div></li>
-            <li><span class="num">3</span><div><strong>Complete your setup</strong><div class="hint">Sign in as the owner, complete onboarding, and configure your team and master data.</div></div></li>
-        </ol>
-    </section>
-
-    <section class="section faq" aria-labelledby="faq-title">
-        <div class="section-heading"><p class="kicker">A few useful details</p><h2 id="faq-title">Before you get started.</h2></div>
-        <details><summary>Who is Shatya Info designed for?</summary><p>Pharma field representatives, sales managers, HR teams, and operations teams who need to manage doctor visits, samples, sales, attendance, and approvals together.</p></details>
-        <details><summary>Does each company have its own workspace?</summary><p>Yes. Each company has its own address and separate database. Team members sign in to their company, and access within the workspace follows their assigned roles and permissions.</p></details>
-        <details><summary>Can the field app use the same company?</summary><p>Yes. Enter the same company address in the field app and sign in with your company account to use the field workflows available to your role.</p></details>
-        <details><summary>How do I join a company that already exists?</summary><p>Use <a href="{{ route('company.login') }}">company sign in</a> to open your existing workspace. Your company administrator manages your account and access.</p></details>
-    </section>
-
-    <section class="final-cta"><div><h2>Bring your field and business together.</h2><p>Start with your company. Build a more connected working day.</p></div><a class="btn" href="{{ route('signup.create') }}">Create your company &rarr;</a></section>
+    <section class="home-section start-story" id="how-it-works" aria-labelledby="start-title"><div><p class="eyebrow">GET STARTED</p><h2 id="start-title">Start with your company.</h2><p>Create a workspace, verify your email, then complete your team and business setup. Your company address will look like acme.{{ $baseDomain }}.</p><a class="btn btn-primary" href="{{ route('signup.create') }}">Create your company <span aria-hidden="true">↗</span></a></div><ol><li><span>01</span>Create your company</li><li><span>02</span>Verify your email</li><li><span>03</span>Complete your setup</li></ol></section>
+</div>
 @endsection
+
+@push('scripts')
+    <script src="{{ asset('js/marketing-home.js') }}" defer></script>
+@endpush

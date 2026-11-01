@@ -200,8 +200,8 @@
             <a class="brand" href="{{ route('home') }}"><span class="mark">S</span> Shatya Info</a>
             <nav aria-label="Main navigation">
                 <a class="nav-link" href="{{ route('home') }}#features">Features</a>
-                <a class="nav-link" href="{{ route('home') }}#workflow">How it works</a>
-                <a class="nav-link" href="{{ route('home') }}#field-app">Field app</a>
+                <a class="nav-link" href="{{ route('home') }}#field-work">Field work</a>
+                <a class="nav-link" href="{{ route('home') }}#platform">Workspace</a>
                 <a class="btn btn-ghost" href="{{ route('company.login') }}">Sign in</a>
                 <a class="btn btn-primary" href="{{ route('signup.create') }}">Start a company</a>
             </nav>
