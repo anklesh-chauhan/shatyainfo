@@ -19,10 +19,21 @@ class BillingController extends Controller
     {
         $tenant = $this->authorizedTenant($request);
         $billing->generateDueInvoices($tenant);
+        $invoices = BillingInvoice::query()->where('tenant_id', $tenant->id)->latest('period_start')->get();
+        $checkoutOrders = $invoices
+            ->filter(fn (BillingInvoice $invoice): bool => $invoice->status !== 'paid' && filled($invoice->razorpay_order_id))
+            ->mapWithKeys(fn (BillingInvoice $invoice): array => [
+                $invoice->id => [
+                    'orderId' => $invoice->razorpay_order_id,
+                    'amount' => $invoice->amount_paise,
+                    'confirmUrl' => route('billing.confirm', $invoice),
+                ],
+            ])->all();
 
         return view('marketing.billing', [
             'tenant' => $tenant,
-            'invoices' => BillingInvoice::query()->where('tenant_id', $tenant->id)->latest('period_start')->get(),
+            'invoices' => $invoices,
+            'checkoutOrders' => $checkoutOrders,
             'checkoutConfigured' => $checkout->configured(),
             'razorpayKey' => config('services.razorpay.key_id'),
         ]);

@@ -53,11 +53,11 @@
 </div>
 @endsection
 
-@if($checkoutConfigured && $invoices->contains(fn ($invoice) => $invoice->status !== 'paid' && $invoice->razorpay_order_id))
+@if($checkoutConfigured && $checkoutOrders !== [])
     @push('scripts')
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         <script>
-            const billingOrders = @json($invoices->filter(fn ($invoice) => $invoice->status !== 'paid' && $invoice->razorpay_order_id)->mapWithKeys(fn ($invoice) => [$invoice->id => ['orderId' => $invoice->razorpay_order_id, 'amount' => $invoice->amount_paise, 'confirmUrl' => route('billing.confirm', $invoice)]])->all());
+            const billingOrders = @json($checkoutOrders);
             const razorpayKey = @json($razorpayKey);
             const csrfToken = @json(csrf_token());
 

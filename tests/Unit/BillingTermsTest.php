@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\BillingInvoice;
+use App\Models\Tenant;
 use App\Services\Billing\MonthlyBilling;
 use App\Services\Billing\RazorpayCheckout;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -43,4 +45,32 @@ test('checkout confirmation requires a valid signature and captured matching pay
         ->and($checkout->verifyCapturedPayment($invoice, 'order_123', 'pay_123', str_repeat('0', 64)))->toBeFalse();
 
     expect($checkout->verifyCapturedPayment($invoice, 'order_123', 'pay_123', $signature))->toBeFalse();
+});
+
+test('billing page renders when a Razorpay order is ready', function (): void {
+    $tenant = new Tenant;
+    $tenant->forceFill(['name' => 'Example Company', 'billing_started_at' => '2026-11-02 10:00:00']);
+
+    $invoice = new BillingInvoice;
+    $invoice->forceFill([
+        'id' => 7,
+        'period_start' => '2026-11-02',
+        'licensed_users' => 10,
+        'amount_paise' => 59000,
+        'status' => 'pending',
+        'razorpay_order_id' => 'order_test_123',
+    ]);
+
+    $html = view('marketing.billing', [
+        'tenant' => $tenant,
+        'invoices' => collect([$invoice]),
+        'checkoutOrders' => [7 => ['orderId' => 'order_test_123', 'amount' => 59000, 'confirmUrl' => 'https://example.test/billing/7/confirm']],
+        'checkoutConfigured' => true,
+        'razorpayKey' => 'rzp_test_example',
+        'errors' => new ViewErrorBag,
+    ])->render();
+
+    expect($html)->toContain('const billingOrders = ')
+        ->and($html)->toContain('order_test_123')
+        ->and($html)->toContain('Cancel future billing');
 });
