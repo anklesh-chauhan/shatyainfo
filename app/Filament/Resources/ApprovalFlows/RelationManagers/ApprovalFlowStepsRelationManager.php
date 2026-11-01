@@ -37,11 +37,18 @@ class ApprovalFlowStepsRelationManager extends RelationManager
                     ->required(),
 
                 Select::make('job_role_id')
-                    ->helperText('Exactly one active employee must match this role and territory on the same position. The requester cannot approve their own request.')
+                    ->helperText('Choose a named approver below when several employees share this role.')
                     ->relationship('jobRole', 'name')
                     ->searchable()
                     ->preload()
                     ->required(),
+
+                Select::make('approver_user_id')
+                    ->label('Named approver (optional)')
+                    ->helperText('If blank, exactly one active employee must match the role and territory. A named approver must still match both when a request is submitted.')
+                    ->relationship('approver', 'name', modifyQueryUsing: fn (Builder $query): Builder => $query->whereHas('employee', fn (Builder $employeeQuery): Builder => $employeeQuery->where('is_active', true)))
+                    ->searchable()
+                    ->preload(),
 
                 Select::make('territory_scope')
                     ->options([
@@ -74,6 +81,7 @@ class ApprovalFlowStepsRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('step_order'),
                 TextColumn::make('jobRole.name')->label('Job Role'),
+                TextColumn::make('approver.name')->label('Named Approver')->placeholder('Automatic'),
                 TextColumn::make('territory_scope')->badge(),
                 TextColumn::make('sla_hours')->label('SLA Hours'),
                 IconColumn::make('can_skip')->boolean(),

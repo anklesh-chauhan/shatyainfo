@@ -15,6 +15,8 @@ use App\Models\ApprovalStep;
 use App\Models\LeaveApplication;
 use App\Models\Territory;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -99,7 +101,8 @@ class ApprovalService
                 $user = $this->resolveApprover(
                     $flowStep->job_role_id,
                     $territoryId,
-                    $flowStep->territory_scope
+                    $flowStep->territory_scope,
+                    $flowStep->approver_user_id
                 );
 
                 if (! $user && $flowStep->can_skip) {
@@ -317,11 +320,13 @@ class ApprovalService
         return $flow;
     }
 
-    public function previewApprover(int $roleId, ?int $territoryId, string $scope, string $module): User
+    public function previewApprover(int $roleId, ?int $territoryId, string $scope, string $module, ?int $approverUserId = null): User
     {
-        $user = $this->resolveApprover($roleId, $territoryId, $scope);
+        $user = $this->resolveApprover($roleId, $territoryId, $scope, $approverUserId);
         if (! $user) {
-            throw new LogicException('No active approver with a login matches this role and scope, excluding the requester.');
+            throw new LogicException($approverUserId === null
+                ? 'No active approver with a login matches this role and scope, excluding the requester.'
+                : 'The selected approver must be active, have a login, match this role and territory scope, and be different from the requester.');
         }
         $user = $this->resolveDelegatedApprover($user, $module);
         if ($user->id === Auth::id()) {
@@ -331,10 +336,30 @@ class ApprovalService
         return $user;
     }
 
-    protected function resolveApprover(int $jobRoleId, ?int $territoryId, string $territoryScope = 'self'): ?User
+    public function approverCandidates(int $jobRoleId, ?int $territoryId, string $territoryScope): Collection
+    {
+        return $this->matchingApprovers($jobRoleId, $territoryId, $territoryScope)->with('employee')->orderBy('name')->get();
+    }
+
+    protected function resolveApprover(int $jobRoleId, ?int $territoryId, string $territoryScope = 'self', ?int $approverUserId = null): ?User
+    {
+        $query = $this->matchingApprovers($jobRoleId, $territoryId, $territoryScope);
+        if ($approverUserId !== null) {
+            return $query->whereKey($approverUserId)->first();
+        }
+        $candidates = $query->limit(2)->get();
+
+        if ($candidates->count() > 1) {
+            throw new LogicException('Several people match this role and territory. Choose a named approver for this step.');
+        }
+
+        return $candidates->first();
+    }
+
+    private function matchingApprovers(int $jobRoleId, ?int $territoryId, string $territoryScope): Builder
     {
         $territoryIds = $this->resolveTerritoryIds($territoryId, $territoryScope);
-        $candidates = User::query()
+        return User::query()
             ->whereKeyNot(Auth::id())
             ->whereHas('employee', fn ($employeeQuery) => $employeeQuery
                 ->where('is_active', true)
@@ -344,15 +369,7 @@ class ApprovalService
                         ->whereHas('territories', fn ($territoryQuery) => $territoryQuery->whereIn('territories.id', $territoryIds))
                     )
                 )
-            )
-            ->limit(2)
-            ->get();
-
-        if ($candidates->count() > 1) {
-            throw new LogicException("Multiple approvers match job role [{$jobRoleId}]. Narrow the role or territory assignments to one approver.");
-        }
-
-        return $candidates->first();
+            );
     }
 
     protected function resolveDelegatedApprover(User $user, string $module): User

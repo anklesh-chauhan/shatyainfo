@@ -40,7 +40,24 @@ class OnboardingApprovalService
 
     public function defaults(): array
     {
-        return ['required' => '', 'modules' => [], 'common' => ['levels' => 1, 'territory_id' => '', 'l1_role_id' => '', 'l1_scope' => 'all', 'l2_role_id' => '', 'l2_scope' => 'all'], 'overrides' => []];
+        return ['required' => '', 'modules' => [], 'common' => ['levels' => 1, 'territory_id' => '', 'l1_role_id' => '', 'l1_scope' => 'all', 'l1_user_id' => '', 'l2_role_id' => '', 'l2_scope' => 'all', 'l2_user_id' => ''], 'overrides' => []];
+    }
+
+    public function approverOptions(array $config, int $level): array
+    {
+        $roleId = (int) ($config['l'.$level.'_role_id'] ?? 0);
+        if ($roleId === 0) {
+            return [];
+        }
+        $scope = $config['l'.$level.'_scope'] ?? 'all';
+        $territoryId = empty($config['territory_id']) ? null : (int) $config['territory_id'];
+        if ($territoryId === null && $scope !== 'all') {
+            return [];
+        }
+
+        return app(ApprovalService::class)->approverCandidates($roleId, $territoryId, $scope)
+            ->mapWithKeys(fn ($user): array => [$user->id => $user->name.' ('.$user->employee?->employee_id.')'])
+            ->all();
     }
 
     public function hasExistingConfiguration(): bool
@@ -77,7 +94,7 @@ class OnboardingApprovalService
         foreach ($data['modules'] as $module) {
             $override = $data['overrides'][$module] ?? [];
             $config = ! empty($override['custom']) ? $override : $data['common'];
-            foreach (['territory_id', 'l1_role_id', 'l2_role_id'] as $key) {
+            foreach (['territory_id', 'l1_role_id', 'l2_role_id', 'l1_user_id', 'l2_user_id'] as $key) {
                 if (($config[$key] ?? '') === '') {
                     $config[$key] = null;
                 }
@@ -87,8 +104,10 @@ class OnboardingApprovalService
                 'territory_id' => ['nullable', 'integer', Rule::exists(Territory::class, 'id')->whereNull('deleted_at')],
                 'l1_role_id' => ['required', 'integer', Rule::exists(JobRole::class, 'id')->whereNull('deleted_at')],
                 'l1_scope' => ['required', Rule::in(['all', 'self', 'children'])],
+                'l1_user_id' => ['nullable', 'integer'],
                 'l2_role_id' => ['required_if:levels,2', 'nullable', 'integer', Rule::exists(JobRole::class, 'id')->whereNull('deleted_at')],
                 'l2_scope' => ['required_if:levels,2', 'nullable', Rule::in(['all', 'self', 'children'])],
+                'l2_user_id' => ['nullable', 'integer'],
             ])->validate();
             $territoryId = empty($config['territory_id']) ? null : (int) $config['territory_id'];
             $steps = [];
@@ -96,8 +115,9 @@ class OnboardingApprovalService
             for ($level = 1; $level <= (int) $config['levels']; $level++) {
                 $roleId = (int) $config['l'.$level.'_role_id'];
                 $scope = $config['l'.$level.'_scope'];
+                $approverUserId = empty($config['l'.$level.'_user_id']) ? null : (int) $config['l'.$level.'_user_id'];
                 try {
-                    $user = app(ApprovalService::class)->previewApprover($roleId, $territoryId, $scope, $module);
+                    $user = app(ApprovalService::class)->previewApprover($roleId, $territoryId, $scope, $module, $approverUserId);
                 } catch (LogicException $exception) {
                     throw ValidationException::withMessages(['approval' => $this->moduleOptions()[$module].' L'.$level.': '.$exception->getMessage()]);
                 }
@@ -105,7 +125,7 @@ class OnboardingApprovalService
                     throw ValidationException::withMessages(['approval' => 'L1 and L2 must resolve to different approvers for '.$this->moduleOptions()[$module].'.']);
                 }
                 $users[] = $user->id;
-                $steps[] = ['job_role_id' => $roleId, 'territory_scope' => $scope, 'role' => JobRole::findOrFail($roleId)->name, 'approver' => $user->name];
+                $steps[] = ['job_role_id' => $roleId, 'approver_user_id' => $approverUserId, 'territory_scope' => $scope, 'role' => JobRole::findOrFail($roleId)->name, 'approver' => $user->name];
             }
             $flows[] = ['module' => $module, 'label' => $this->moduleOptions()[$module], 'territory_id' => $territoryId, 'territory' => $territoryId ? Territory::findOrFail($territoryId)->name : 'All territories', 'steps' => $steps];
         }
@@ -151,7 +171,7 @@ class OnboardingApprovalService
                 foreach ($review['flows'] as $row) {
                     $flow = ApprovalFlow::create(['module' => $row['module'], 'active' => false, 'condition_type' => 'amount', 'version' => 1, 'priority' => 0, 'territory_id' => $row['territory_id']]);
                     foreach ($row['steps'] as $index => $step) {
-                        $flow->steps()->create(['step_order' => $index + 1, 'job_role_id' => $step['job_role_id'], 'territory_scope' => $step['territory_scope'], 'can_skip' => false, 'sla_hours' => 24]);
+                        $flow->steps()->create(['step_order' => $index + 1, 'job_role_id' => $step['job_role_id'], 'approver_user_id' => $step['approver_user_id'], 'territory_scope' => $step['territory_scope'], 'can_skip' => false, 'sla_hours' => 24]);
                     }
                     $flow->update(['active' => true]);
                     cache()->forget('approval:module:'.$row['module']);

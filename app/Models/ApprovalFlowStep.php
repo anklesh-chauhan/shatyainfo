@@ -8,6 +8,7 @@ class ApprovalFlowStep extends BaseModel
         'approval_flow_id',
         'step_order',
         'job_role_id',
+        'approver_user_id',
         'territory_scope',
         'can_skip',
         'sla_hours',
@@ -29,5 +30,10 @@ class ApprovalFlowStep extends BaseModel
     public function jobRole()
     {
         return $this->belongsTo(JobRole::class);
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approver_user_id');
     }
 }

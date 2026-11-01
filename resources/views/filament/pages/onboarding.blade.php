@@ -116,7 +116,7 @@
                                 <p class="setup-hint">HR Change Requests shares one flow for salary, employment, attendance, overtime, and comp-off changes.</p>
                                 <h3>Common approval setup</h3>
                                 @include('filament.pages.partials.onboarding-approval-routing', ['prefix' => 'approval.common'])
-                                <p class="setup-hint">Territory-scoped approvers require a flow territory. The role must resolve to one active employee with a login, excluding you. L1 and L2 must resolve to different people. Request-time checks also prevent self-approval.</p>
+                                <p class="setup-hint">Choose a named approver when several employees share a role. Territory-scoped approvers require a flow territory. L1 and L2 must be different people. Requesters cannot approve their own requests.</p>
                                 @foreach (($approval['modules'] ?? []) as $module)
                                     @if (isset($this->approvalSetup()->moduleOptions()[$module]))
                                         <div class="setup-note" wire:key="approval-override-{{ $module }}">

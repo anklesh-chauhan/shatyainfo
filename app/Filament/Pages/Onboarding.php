@@ -297,6 +297,12 @@ class Onboarding extends Page
 
     public function updatedApproval(mixed $value, ?string $key): void
     {
+        if ($key !== null && preg_match('/^(common|overrides\.[^.]+)\.(territory_id|l[12]_(role_id|scope))$/', $key, $matches)) {
+            $section = $matches[1];
+            foreach (($matches[2] === 'territory_id' ? [1, 2] : [(int) $matches[2][1]]) as $level) {
+                data_set($this->approval, $section.'.l'.$level.'_user_id', '');
+            }
+        }
         if ($key !== null && str_starts_with($key, 'overrides.') && str_ends_with($key, '.custom') && $value) {
             $module = explode('.', $key)[1];
             if (array_key_exists($module, $this->approvalSetup()->moduleOptions())) {

@@ -67,6 +67,31 @@ it('creates two ordered levels and honors per-module overrides', function () {
     expect(ApprovalFlow::where('module', 'LeaveApplication')->first()->steps()->count())->toBe(1);
 });
 
+it('lets onboarding choose a named approver when a job role matches several employees', function () {
+    $role = onboardingRole('SHARED');
+    $second = reportingUser('Second Approver');
+    $second->employee->positions()->attach(Position::where('job_role_id', $role->id)->sole()->id);
+    $input = onboardingInput($role);
+
+    expect(fn () => $this->setup->review($input))->toThrow(ValidationException::class);
+    expect($this->setup->approverOptions($input['common'], 1))->toHaveCount(2);
+
+    $input['common']['l1_user_id'] = $second->id;
+    $review = $this->setup->saveDraft($input);
+    expect($review['flows'][0]['steps'][0]['approver'])->toBe($second->name);
+
+    $this->setup->apply($this->organization);
+    expect(ApprovalFlow::first()->steps()->first()->approver_user_id)->toBe($second->id);
+});
+
+it('rejects a named approver who does not hold the selected role', function () {
+    $role = onboardingRole('SELECTED');
+    $input = onboardingInput($role);
+    $input['common']['l1_user_id'] = reportingUser('Unrelated Approver')->id;
+
+    expect(fn () => $this->setup->review($input))->toThrow(ValidationException::class);
+});
+
 it('records an explicit no-approval choice without creating flows', function () {
     $this->setup->saveDraft(['required' => 'no']);
     app(CompanyOnboardingService::class)->finish();
