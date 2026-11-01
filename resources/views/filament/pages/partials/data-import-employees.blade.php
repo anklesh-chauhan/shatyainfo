@@ -4,7 +4,7 @@
         $employeeGuide = $isEmployeeImport ? app(\App\Services\DataImport\EmployeeImportTemplate::class) : null;
     @endphp
 
-    @if ($employeeGuide)
+    @if ($employeeGuide && ! $embedded)
         @if (! $embedded && \App\Filament\Pages\Onboarding::canAccess())
             <div>
                 <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\Onboarding::getUrl(panel: 'admin')">Back to setup checklist</x-filament::button>
@@ -91,7 +91,7 @@
         </section>
     @endif
 
-    @if ($module)
+    @if ($module && ! $embedded)
         <section class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <h2 class="text-base font-semibold text-gray-950 dark:text-white">{{ $module->label }} columns</h2>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">

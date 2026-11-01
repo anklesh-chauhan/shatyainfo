@@ -71,7 +71,7 @@ class ResourceCsvImporter
                 continue;
             }
             $count++;
-            if (count($rows) < 50) {
+            if (count($rows) < 5) {
                 $code = (string) ($row['employee_id'] ?? '');
                 $rows[] = [
                     'line' => is_int($offset) ? $offset + 1 : $count + 1,

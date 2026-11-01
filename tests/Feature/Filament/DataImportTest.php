@@ -131,12 +131,17 @@ it('shows the data import page', function () {
 it('previews employee rows without saving them', function () {
     withDataImportTenant(function (): void {
         $module = app(ResourceImportCatalog::class)->find(EmployeeResource::class);
-        $path = dataImportCsv("employee_id,first_name,last_name,mobile_number,position_code,is_primary_position\nEMP101,Asha,Shah,9000000101,SALES-WEST,Yes\n");
+        $lines = ['employee_id,first_name,last_name,mobile_number,position_code,is_primary_position'];
+        foreach (range(101, 106) as $code) {
+            $lines[] = "EMP{$code},Asha,Shah,9000000{$code},SALES-WEST,Yes";
+        }
+        $path = dataImportCsv(implode("\n", $lines)."\n");
 
         $preview = app(ResourceCsvImporter::class)->previewEmployees($module, $path);
 
-        expect($preview['count'])->toBe(1)
+        expect($preview['count'])->toBe(6)
             ->and($preview['errors'])->toBe([])
+            ->and($preview['rows'])->toHaveCount(5)
             ->and($preview['rows'][0]['employee'])->toBe('EMP101')
             ->and($preview['rows'][0]['action'])->toBe('Create')
             ->and(Employee::query()->where('employee_id', 'EMP101')->exists())->toBeFalse();
@@ -144,6 +149,8 @@ it('previews employee rows without saving them', function () {
         livewire(DataImport::class, ['embedded' => true])
             ->assertSee('Import employees from Excel')
             ->assertSee('Preview file')
+            ->assertDontSee('How to import employees')
+            ->assertDontSee('Employees & Reporting Hierarchy columns')
             ->assertDontSee('Back to setup checklist');
     });
 });
