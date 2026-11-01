@@ -18,6 +18,79 @@ use UnitEnum;
 
 class ResourceCsvImporter
 {
+    /** @return array{count: int, rows: list<array{line: int, employee: string, name: string, position: string, manager: string, action: string}>, errors: list<array{row: int, message: string}>} */
+    public function previewEmployees(ImportableModule $module, string $path): array
+    {
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'xlsx') {
+            try {
+                $csv = app(SpreadsheetFile::class)->toCsv($path, 'Employees');
+            } catch (Throwable) {
+                return ['count' => 0, 'rows' => [], 'errors' => [['row' => 1, 'message' => 'Unable to read the Employees sheet. Upload a valid employee workbook.']]];
+            }
+
+            try {
+                return $this->previewEmployees($module, $csv);
+            } finally {
+                unlink($csv);
+            }
+        }
+
+        try {
+            $reader = Reader::createFromPath($path);
+            $reader->setHeaderOffset(0);
+            $headers = array_map(fn (string $header): string => $this->normalizeHeader($header), $reader->getHeader());
+        } catch (Throwable) {
+            return ['count' => 0, 'rows' => [], 'errors' => [['row' => 1, 'message' => 'The file needs a header row.']]];
+        }
+
+        $allowed = array_map(fn (ImportColumnDefinition $column): string => $column->header, $module->columns);
+        $missing = $this->missingRequiredHeaders($module, $headers);
+        $unknown = array_diff($headers, $allowed);
+        $errors = [];
+        if (count($headers) !== count(array_unique($headers))) {
+            $errors[] = ['row' => 1, 'message' => 'The header row has duplicate columns.'];
+        }
+        if ($missing !== []) {
+            $errors[] = ['row' => 1, 'message' => 'Add these columns: '.implode(', ', $missing).'.'];
+        }
+        if ($unknown !== []) {
+            $errors[] = ['row' => 1, 'message' => 'Unknown columns: '.implode(', ', $unknown).'. Use the employee template headers.'];
+        }
+        if ($errors !== []) {
+            return ['count' => 0, 'rows' => [], 'errors' => $errors];
+        }
+
+        $count = 0;
+        $rows = [];
+        foreach ($reader->getRecords() as $offset => $record) {
+            $row = [];
+            foreach ($record as $header => $value) {
+                $row[$this->normalizeHeader((string) $header)] = is_string($value) ? trim($value) : $value;
+            }
+            if (collect($row)->every(fn (mixed $value): bool => blank($value))) {
+                continue;
+            }
+            $count++;
+            if (count($rows) < 50) {
+                $code = (string) ($row['employee_id'] ?? '');
+                $rows[] = [
+                    'line' => is_int($offset) ? $offset + 1 : $count + 1,
+                    'employee' => $code,
+                    'name' => trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? '')),
+                    'position' => (string) ($row['position_code'] ?? ''),
+                    'manager' => (string) ($row['reports_to_position_code'] ?? ''),
+                    'action' => Employee::query()->where('employee_id', $code)->exists() ? 'Update' : 'Create',
+                ];
+            }
+        }
+
+        if ($count === 0) {
+            $errors[] = ['row' => 1, 'message' => 'The file has no employee rows.'];
+        }
+
+        return ['count' => $count, 'rows' => $rows, 'errors' => $errors];
+    }
+
     public function import(ImportableModule $module, string $path): ImportResult
     {
         if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'xlsx') {

@@ -7,6 +7,7 @@ use App\Filament\Resources\Departments\DepartmentResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Models\Country;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\State;
 use App\Models\Tenant;
@@ -124,6 +125,26 @@ it('shows the data import page', function () {
             ->assertSee('Opening Leave Balances')
             ->assertSee('Field Routes & Historical Travel')
             ->assertSet('data.resource', EmployeeResource::class);
+    });
+});
+
+it('previews employee rows without saving them', function () {
+    withDataImportTenant(function (): void {
+        $module = app(ResourceImportCatalog::class)->find(EmployeeResource::class);
+        $path = dataImportCsv("employee_id,first_name,last_name,mobile_number,position_code,is_primary_position\nEMP101,Asha,Shah,9000000101,SALES-WEST,Yes\n");
+
+        $preview = app(ResourceCsvImporter::class)->previewEmployees($module, $path);
+
+        expect($preview['count'])->toBe(1)
+            ->and($preview['errors'])->toBe([])
+            ->and($preview['rows'][0]['employee'])->toBe('EMP101')
+            ->and($preview['rows'][0]['action'])->toBe('Create')
+            ->and(Employee::query()->where('employee_id', 'EMP101')->exists())->toBeFalse();
+
+        livewire(DataImport::class, ['embedded' => true])
+            ->assertSee('Import employees from Excel')
+            ->assertSee('Preview file')
+            ->assertDontSee('Back to setup checklist');
     });
 });
 

@@ -20,6 +20,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use OpenSpout\Common\Entity\Row;
 use RuntimeException;
@@ -57,6 +59,15 @@ class DataImport extends Page implements HasForms
 
     public bool $hasResult = false;
 
+    #[Locked]
+    public ?array $employeePreview = null;
+
+    #[Locked]
+    public ?string $employeePreviewHash = null;
+
+    #[Locked]
+    public bool $embedded = false;
+
     public string $importType = 'employees';
 
     public function importOptions(): array
@@ -75,6 +86,7 @@ class DataImport extends Page implements HasForms
     {
         abort_unless(isset($this->importOptions()[$this->importType]), 422);
         $this->hasResult = false;
+        $this->clearEmployeePreview();
         $this->resetErrorBag();
         $this->form->fill(['resource' => EmployeeResource::class, 'file' => null]);
     }
@@ -84,15 +96,52 @@ class DataImport extends Page implements HasForms
         return Onboarding::canAccess();
     }
 
-    public function mount(): void
+    public function mount(bool $embedded = false): void
     {
         abort_unless(static::canAccess(), 403);
+        $this->embedded = $embedded;
         $module = request()->query('module', 'employees');
         $this->importType = is_string($module) && isset($this->importOptions()[$module]) ? $module : 'employees';
         $this->form->fill([
             'resource' => EmployeeResource::class,
             'file' => null,
         ]);
+    }
+
+    public function getView(): string
+    {
+        return $this->embedded ? 'filament.pages.partials.onboarding-employee-import' : parent::getView();
+    }
+
+    public function updatedData(): void
+    {
+        $this->clearEmployeePreview();
+    }
+
+    private function clearEmployeePreview(): void
+    {
+        $this->employeePreview = null;
+        $this->employeePreviewHash = null;
+    }
+
+    public function previewEmployees(ResourceCsvImporter $importer, ResourceImportCatalog $catalog): void
+    {
+        $this->authorizeEmployeeImport();
+        $this->clearEmployeePreview();
+        $state = $this->form->getState();
+        $module = $catalog->find((string) ($state['resource'] ?? ''));
+        abort_unless($module?->modelClass === Employee::class && $catalog->allows($module), 403);
+        [$path] = $this->resolveFile($state['file'] ?? null);
+        $this->employeePreview = $importer->previewEmployees($module, $path);
+        $this->employeePreviewHash = hash_file('sha256', $path);
+    }
+
+    private function authorizeEmployeeImport(): void
+    {
+        abort_unless(static::canAccess() && $this->importType === 'employees', 403);
+        abort_unless(($this->data['resource'] ?? null) === EmployeeResource::class, 403);
+        abort_unless(Tenant::current()?->accountIsConfigured(), 409);
+        abort_unless(app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['organization_saved'] ?? false, 422, 'Save company information first.');
     }
 
     public function form(Schema $schema): Schema
@@ -171,10 +220,7 @@ class DataImport extends Page implements HasForms
 
     public function import(ResourceCsvImporter $importer, ResourceImportCatalog $catalog): void
     {
-        abort_unless(static::canAccess() && $this->importType === 'employees', 403);
-        abort_unless(($this->data['resource'] ?? null) === EmployeeResource::class, 403);
-        abort_unless(Tenant::current()?->accountIsConfigured(), 409);
-        abort_unless(app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['organization_saved'] ?? false, 422, 'Save company information first.');
+        $this->authorizeEmployeeImport();
         $state = $this->form->getState();
         $module = $catalog->find((string) ($state['resource'] ?? ''));
 
@@ -189,6 +235,10 @@ class DataImport extends Page implements HasForms
 
         [$absolutePath, $relativePath] = $this->resolveFile($state['file'] ?? null);
 
+        if ($this->employeePreview === null || $this->employeePreview['errors'] !== [] || $this->employeePreview['count'] === 0 || ! hash_equals($this->employeePreviewHash ?? '', hash_file('sha256', $absolutePath))) {
+            throw ValidationException::withMessages(['data.file' => 'Preview the current file before confirming the import.']);
+        }
+
         try {
             $result = $importer->import($module, $absolutePath);
         } finally {
@@ -199,6 +249,7 @@ class DataImport extends Page implements HasForms
 
         $this->result = $result->toArray();
         $this->hasResult = true;
+        $this->clearEmployeePreview();
 
         if ($result->importedCount() === 0 && $result->failed === []) {
             Notification::make()

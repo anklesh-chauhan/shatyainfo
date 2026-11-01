@@ -5,7 +5,7 @@
     @endphp
 
     @if ($employeeGuide)
-        @if (\App\Filament\Pages\Onboarding::canAccess())
+        @if (! $embedded && \App\Filament\Pages\Onboarding::canAccess())
             <div>
                 <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\Onboarding::getUrl(panel: 'admin')">Back to setup checklist</x-filament::button>
             </div>
@@ -57,13 +57,13 @@
         </section>
     @endif
 
-    <form wire:submit="import" class="space-y-6">
+    <form wire:submit="previewEmployees" class="space-y-6">
         {{ $this->form }}
 
         <div class="flex flex-wrap gap-3">
-            <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="import">
-                <span wire:loading.remove wire:target="import">Import file</span>
-                <span wire:loading wire:target="import">Importing…</span>
+            <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="previewEmployees">
+                <span wire:loading.remove wire:target="previewEmployees">Preview file</span>
+                <span wire:loading wire:target="previewEmployees">Reading…</span>
             </x-filament::button>
 
             <x-filament::button type="button" color="gray" wire:click="downloadExample" wire:loading.attr="disabled">
@@ -71,6 +71,25 @@
             </x-filament::button>
         </div>
     </form>
+
+    @if ($employeePreview !== null)
+        <section class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+            <h2 class="text-base font-semibold text-gray-950 dark:text-white">Review before importing</h2>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $employeePreview['count'] }} employee rows · {{ count($employeePreview['errors']) }} file errors. Nothing has been saved.</p>
+            @if ($employeePreview['errors'] !== [])
+                <ul class="mt-3 text-sm text-red-600">@foreach ($employeePreview['errors'] as $error)<li>Row {{ $error['row'] }}: {{ $error['message'] }}</li>@endforeach</ul>
+            @else
+                <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr><th class="p-2">Row</th><th class="p-2">Employee code</th><th class="p-2">Name</th><th class="p-2">Position code</th><th class="p-2">Reports to position</th><th class="p-2">Action</th></tr></thead><tbody>
+                    @foreach ($employeePreview['rows'] as $row)
+                        <tr><td class="p-2">{{ $row['line'] }}</td><td class="p-2">{{ $row['employee'] }}</td><td class="p-2">{{ $row['name'] }}</td><td class="p-2">{{ $row['position'] }}</td><td class="p-2">{{ $row['manager'] ?: '—' }}</td><td class="p-2">{{ $row['action'] }}</td></tr>
+                    @endforeach
+                </tbody></table></div>
+                @if ($employeePreview['count'] > count($employeePreview['rows']))<p class="mt-2 text-sm">Showing the first {{ count($employeePreview['rows']) }} rows.</p>@endif
+                <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">Detailed employee and reporting validation runs when you confirm. If it fails, no rows are saved.</p>
+                <x-filament::button class="mt-4" wire:click="import" wire:loading.attr="disabled" wire:target="import">Confirm import</x-filament::button>
+            @endif
+        </section>
+    @endif
 
     @if ($module)
         <section class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
