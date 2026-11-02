@@ -3,9 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Shatya Info connects pharma field visits, doctor relationships, samples, sales, inventory, attendance, and approvals in one company workspace.">
+    <meta name="description" content="Plan pharma field visits, record doctor calls and samples, and review sales, stock, and attendance in one company workspace. Start with a 30-day free trial.">
     <meta name="theme-color" content="#175cdb">
     <title>@yield('title', 'Shatya Info')</title>
+    <link rel="icon" type="image/png" href="{{ asset('shatya-info-logo-transparent.png') }}">
     @stack('head')
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet">
@@ -45,11 +46,7 @@
             padding: 22px 0; border-bottom: 1px solid var(--line);
         }
         .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; letter-spacing: -.02em; }
-        .mark {
-            width: 34px; height: 34px; border-radius: 9px;
-            background: var(--green); color: white;
-            display: grid; place-items: center; font-weight: 700;
-        }
+        .mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
         nav { display: flex; align-items: center; gap: 10px; }
         .btn, button.btn {
             display: inline-flex; align-items: center; justify-content: center;
@@ -132,6 +129,28 @@
         :focus-visible { outline: 3px solid #4485ed; outline-offset: 4px; }
         .skip-link { position: absolute; left: 20px; top: -100px; background: white; padding: 12px; z-index: 10; }
         .skip-link:focus { top: 12px; }
+        .back-to-top {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 20;
+            display: grid;
+            place-items: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--blue);
+            color: white;
+            box-shadow: 0 8px 24px rgba(16, 38, 75, .22);
+            font-size: 1.5rem;
+            text-decoration: none;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity .2s ease, visibility .2s ease;
+        }
+        .back-to-top.is-visible { opacity: 1; visibility: visible; pointer-events: auto; }
+        .back-to-top:hover { background: var(--blue-dark); }
         .nav-link { font-size: .9rem; text-decoration: none; padding: 8px; }
         .nav-link:hover { color: var(--blue); }
         .hero { padding: 62px 0 56px; gap: 56px; }
@@ -189,29 +208,36 @@
         .site-footer a { margin-left: 18px; }
         @media (max-width: 1000px) { .hero { gap: 28px; } .nav-link { display: none; } .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 800px) { .hero { padding-top: 35px; } .preview { transform: none; } .workflow { grid-template-columns: repeat(2, 1fr); } .field-section { grid-template-columns: 1fr; gap: 20px; padding: 28px; } .final-cta { flex-direction: column; align-items: flex-start; } }
-        @media (max-width: 520px) { .wrap { width: calc(100% - 32px); } header.site { flex-wrap: wrap; } header.site nav { width: 100%; justify-content: space-between; } .feature-grid, .workflow { grid-template-columns: 1fr; } .section { padding-top: 56px; } .hero h1 { font-size: 2.7rem; } .preview-body { padding: 16px; } .tour-row { grid-template-columns: 36px 1fr; } .tour-row > .pill { grid-column: 2; justify-self: start; } .field-section, .final-cta { padding: 24px; } .suffix { max-width: 52%; overflow-wrap: anywhere; white-space: normal; } }
-        @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+        @media (max-width: 520px) { .wrap { width: calc(100% - 32px); } header.site { flex-wrap: wrap; } header.site nav { width: 100%; justify-content: space-between; } .back-to-top { right: 16px; bottom: 16px; } .feature-grid, .workflow { grid-template-columns: 1fr; } .section { padding-top: 56px; } .hero h1 { font-size: 2.7rem; } .preview-body { padding: 16px; } .tour-row { grid-template-columns: 36px 1fr; } .tour-row > .pill { grid-column: 2; justify-self: start; } .field-section, .final-cta { padding: 24px; } .suffix { max-width: 52%; overflow-wrap: anywhere; white-space: normal; } }
+        @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .back-to-top { transition: none; } }
     </style>
 </head>
-<body>
+<body id="top">
     <a class="skip-link" href="#main-content">Skip to content</a>
     <div class="wrap">
         <header class="site">
-            <a class="brand" href="{{ route('home') }}"><span class="mark">S</span> Shatya Info</a>
+            <a class="brand" href="{{ route('home') }}"><img class="mark" src="{{ asset('shatya-info-logo-transparent.png') }}" alt="" width="34" height="34"> Shatya Info</a>
             <nav aria-label="Main navigation">
                 <a class="nav-link" href="{{ route('home') }}#features">Features</a>
                 <a class="nav-link" href="{{ route('home') }}#pricing">Pricing</a>
                 <a class="nav-link" href="{{ route('home') }}#platform">Workspace</a>
                 <a class="nav-link" href="{{ route('help.index') }}">Help</a>
                 <a class="btn btn-ghost" href="{{ route('company.login') }}">Sign in</a>
-                <a class="btn btn-primary" href="{{ route('signup.create') }}">Start a company</a>
+                <a class="btn btn-primary" href="{{ route('signup.create') }}">Start free trial</a>
             </nav>
         </header>
         <main id="main-content">
             @yield('content')
         </main>
-        <footer class="site-footer"><span>Shatya Info · Connected teams. Better field operations.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('legal.show', 'service-agreement') }}">Service Agreement</a><a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a><a href="{{ route('legal.show', 'trial-terms') }}">Trial Terms</a><a href="{{ route('legal.show', 'data-processing-agreement') }}">DPA</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
+        <footer class="site-footer"><span>Shatya Info · Pharma field work in one place.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('legal.show', 'service-agreement') }}">Service Agreement</a><a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a><a href="{{ route('legal.show', 'trial-terms') }}">Trial Terms</a><a href="{{ route('legal.show', 'data-processing-agreement') }}">DPA</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
     </div>
+    <a class="back-to-top" href="#top" aria-label="Back to top" title="Back to top"><span aria-hidden="true">↑</span></a>
     @stack('scripts')
+    <script>
+        const backToTop = document.querySelector('.back-to-top');
+        const updateBackToTop = () => backToTop.classList.toggle('is-visible', window.scrollY > 300);
+        window.addEventListener('scroll', updateBackToTop, { passive: true });
+        updateBackToTop();
+    </script>
 </body>
 </html>

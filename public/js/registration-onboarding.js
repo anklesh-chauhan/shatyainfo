@@ -17,7 +17,7 @@
                 pending: 'Email verified. Registration is queued…',
                 provisioning: 'Creating your database and sign-in account…',
                 configuring: 'Preparing the rest of your workspace…',
-                failed: 'Registration could not finish. Refresh this page to retry.',
+                failed: 'We could not finish setting up your workspace. Refresh this page to retry.',
                 ready: 'Your company is ready. Opening your workspace…',
             };
             const destination = data.redirect_url || (data.status === 'ready' ? data.login_url : null);

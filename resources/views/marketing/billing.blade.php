@@ -5,12 +5,12 @@
 @section('content')
 <div style="max-width:880px;margin:20px auto 70px">
     <p class="kicker">COMPANY BILLING</p>
-    <h1 style="font-size:clamp(2.4rem,5vw,3.5rem)">Simple monthly billing.</h1>
-    <p class="lede">₹59 per user license each month, with 10 licenses included as the minimum. Your minimum is ₹590 per month. All features are available.</p>
+    <h1 style="font-size:clamp(2.4rem,5vw,3.5rem)">Your trial and monthly bills</h1>
+    <p class="lede">Each user license costs ₹59 per paid month. The minimum bill covers 10 licenses at ₹590 per month. All modules are included.</p>
     @if($tenant->billing_trial_ends_at)
-        <p>Your first 30 days are free, with every feature available. No card is required to start. If you continue after the trial, pay for each upcoming month yourself through Razorpay. Prices include applicable tax.</p>
+        <p>Your first 30 days are free, with all modules available. No card is required to start. If you continue after the trial, pay each upcoming month through Razorpay. The amounts shown are the total payable.</p>
     @else
-        <p>Your first bill is created after one month of workspace use. You pay each monthly bill yourself through Razorpay checkout. Prices include applicable tax.</p>
+        <p>Your first bill is created after one month of workspace use. You pay each monthly bill through Razorpay checkout. The amounts shown are the total payable.</p>
     @endif
     @if($tenant->billing_started_at)
         <p class="panel">Workspace ready: <strong>{{ $tenant->billing_started_at->format('d M Y') }}</strong> · {{ $tenant->billing_trial_ends_at ? 'Free trial ends and first paid month begins' : 'First monthly bill' }}: <strong>{{ ($tenant->billing_trial_ends_at ?? $tenant->billing_started_at->copy()->addMonthNoOverflow())->format('d M Y') }}</strong></p>

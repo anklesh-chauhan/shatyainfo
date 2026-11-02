@@ -32,6 +32,7 @@ class SalesPanelProvider extends PanelProvider
             ->brandName(fn (): string => TenantBranding::name())
             ->brandLogo(fn () => view('filament.components.tenant-brand'))
             ->brandLogoHeight('2rem')
+            ->favicon(asset('shatya-info-logo-transparent.png'))
             ->path('sales')
             ->globalSearch(true)
             ->topbar(false)

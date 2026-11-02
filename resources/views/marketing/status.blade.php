@@ -22,7 +22,7 @@
 @section('content')
     <div class="narrow" data-registration-status>
         <p class="kicker">{{ $tenant->name }}</p>
-        <h1 style="font-size: 2.4rem;">Registration progress</h1>
+        <h1 style="font-size: 2.4rem;">Your company registration</h1>
         <p class="lede">{{ $tenant->domain }}</p>
         @php
             $status = $tenant->provisioning_status === 'ready'
@@ -35,7 +35,7 @@
             @elseif($status === 'ready')
                 Your company is ready. Opening your workspace…
             @elseif($status === 'failed')
-                Registration could not finish. Please retry.
+                We could not finish setting up your workspace. Try again.
             @elseif($status === 'configuring')
                 Your sign-in account is ready. Preparing the rest of your workspace…
             @else
@@ -72,7 +72,7 @@
                 <button class="btn btn-primary" type="submit">Try again</button>
             </form>
         @endif
-        <p>Onboarding continues inside your workspace once registration is complete. Your free 30-day trial begins when the workspace is ready. After that, the 10-license minimum is ₹590 per paid month. Cancel during the trial and owe nothing. <a href="{{ route('help.index') }}">Read the setup guide</a> or <a href="{{ route('support.create') }}">get help</a>.</p>
+        <p>After registration, finish company setup inside your workspace. Your free 30-day trial begins when the workspace is ready. After the trial, the minimum bill is ₹590 per month for 10 user licenses. Cancel before the trial ends and owe nothing for the trial. <a href="{{ route('help.index') }}">Read the setup guide</a> or <a href="{{ route('support.create') }}">contact support</a>.</p>
         <p><a id="company-login" class="btn btn-primary" href="{{ $loginUrl }}" @if($status !== 'ready') hidden @endif>Sign in to your company</a></p>
     </div>
 @endsection

@@ -8,14 +8,39 @@
     @endpush
 @endif
 
-@section('content')
-    <div class="narrow">
-        <p class="kicker">Registration</p>
-        <h1 style="font-size: 2.4rem;">Create your company</h1>
-        <p class="lede">Create your workspace yourself. Verify your email, then follow the guided setup. With your data ready, this can often take about 30 minutes.</p>
-        <p class="panel" style="margin:0 0 18px"><strong>Try the full application free for 30 days</strong><br>Your trial starts when your workspace is ready. No card is required. After the trial, pay ₹59 per user license per month, with a 10-license minimum (₹590/month), including applicable tax. Pay each upcoming month through Razorpay; no automatic recurring charge. Cancel during the trial and owe nothing. <a href="{{ route('legal.show', 'trial-terms') }}">Read the trial terms</a> or <a href="{{ route('help.index') }}">see how setup and billing work</a>.</p>
+@push('head')
+    <style>
+        .registration-page {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: clamp(24px, 4vw, 56px);
+            align-items: start;
+            margin: 12px 0;
+        }
+        .registration-copy, .registration-form { min-width: 0; }
+        .registration-copy .lede { max-width: none; }
+        .registration-offer p:last-child { margin-bottom: 0; }
+        @media (max-width: 900px) {
+            .registration-page { grid-template-columns: 1fr; gap: 24px; }
+        }
+    </style>
+@endpush
 
-        <form class="panel" method="post" action="{{ route('signup.store') }}">
+@section('content')
+    <div class="registration-page">
+        <div class="registration-copy">
+            <p class="kicker">Start your free trial</p>
+            <h1 style="font-size: 2.4rem;">Set up your pharma field team</h1>
+            <p class="lede">Plan visits, record calls, and review the day in one company workspace. Choose your company address and create an owner account. After you verify your email, we will prepare your workspace and show you what to set up first.</p>
+            <div class="panel registration-offer">
+                <strong>30 days free. Every module included. No card needed.</strong>
+                <p>Your trial starts when the workspace is ready, not when you submit this form. After 30 days, the price is ₹59 per user license each month, with a 10-license minimum of ₹590 per month.</p>
+                <p>The company owner pays each bill through Razorpay. There is no automatic card charge. Cancel from Billing before the trial ends and owe nothing for the trial.</p>
+                <p><a href="{{ route('legal.show', 'trial-terms') }}">Read the trial terms</a> or <a href="{{ route('help.index') }}">see the setup steps</a>.</p>
+            </div>
+        </div>
+
+        <form class="panel registration-form" method="post" action="{{ route('signup.store') }}">
             @csrf
             <label>
                 Company name
@@ -28,7 +53,7 @@
                     <input id="slug" name="slug" value="{{ old('slug') }}" required minlength="3" maxlength="32" autocapitalize="none" spellcheck="false" placeholder="acme" aria-describedby="slug-preview slug-status">
                     <span class="suffix">.{{ $baseDomain }}</span>
                 </span>
-                <span class="hint" id="slug-preview">Your team will sign in at this address.</span>
+                <span class="hint" id="slug-preview">Your team will use this address to sign in.</span>
                 <span class="hint" id="slug-status" role="status"></span>
                 @error('slug') <span class="error">{{ $message }}</span> @enderror
             </label>
@@ -84,7 +109,7 @@
                 </label>
                 @error('legal_acceptance') <span class="error">{{ $message }}</span> @enderror
             </div>
-            <button class="btn btn-primary" type="submit">Create company</button>
+            <button class="btn btn-primary" type="submit">Create workspace</button>
         </form>
     </div>
 @endsection
