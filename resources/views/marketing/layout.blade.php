@@ -45,8 +45,8 @@
             justify-content: space-between;
             padding: 22px 0; border-bottom: 1px solid var(--line);
         }
-        .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; letter-spacing: -.02em; }
-        .mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+        .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 1.25rem; font-weight: 800; line-height: 1; letter-spacing: -.02em; white-space: nowrap; }
+        .mark { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
         nav { display: flex; align-items: center; gap: 10px; }
         .btn, button.btn {
             display: inline-flex; align-items: center; justify-content: center;
@@ -216,7 +216,7 @@
     <a class="skip-link" href="#main-content">Skip to content</a>
     <div class="wrap">
         <header class="site">
-            <a class="brand" href="{{ route('home') }}"><img class="mark" src="{{ asset('shatya-info-logo-transparent.png') }}" alt="" width="34" height="34"> Shatya Info</a>
+            <a class="brand" href="{{ route('home') }}"><img class="mark" src="{{ asset('shatya-info-logo-transparent.png') }}" alt="" width="52" height="52"> Shatya Info</a>
             <nav aria-label="Main navigation">
                 <a class="nav-link" href="{{ route('home') }}#features">Features</a>
                 <a class="nav-link" href="{{ route('home') }}#pricing">Pricing</a>
