@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('billing:generate-invoices')->dailyAt('01:00')->withoutOverlapping();
+Schedule::command('billing:send-trial-reminders')->dailyAt('09:00')->withoutOverlapping();
 
 Schedule::call(function () {
     app(RunsAcrossTenants::class)->each(function () {

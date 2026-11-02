@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\RegistrationAccessController;
 use App\Http\Controllers\SalesDocumentPdfController;
@@ -11,6 +12,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
 Route::view('/help', 'marketing.help')->name('help.index');
+Route::get('/legal/data-processing-agreement/download', [LegalController::class, 'downloadDpa'])->name('legal.dpa.download');
+Route::get('/legal/{document}', [LegalController::class, 'show'])
+    ->whereIn('document', ['service-agreement', 'data-processing-agreement', 'privacy', 'trial-terms'])
+    ->name('legal.show');
 Route::get('/support', [SupportController::class, 'create'])->name('support.create');
 Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:3,1')->name('support.store');
 

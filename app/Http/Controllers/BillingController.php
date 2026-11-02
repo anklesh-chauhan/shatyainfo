@@ -64,7 +64,14 @@ class BillingController extends Controller
             $tenant->forceFill(['billing_cancelled_at' => now()])->saveQuietly();
         }
 
-        return redirect()->route('billing.index')->with('billing_status', 'Cancellation recorded. Your current month remains payable; no new billing periods will begin.');
+        $duringTrial = $tenant->billing_trial_ends_at && now()->lessThan($tenant->billing_trial_ends_at);
+
+        return redirect()->route('billing.index')->with(
+            'billing_status',
+            $duringTrial
+                ? 'Trial cancelled. No payment is due for your free 30 days.'
+                : 'Cancellation recorded. Any paid month already started remains payable; no new billing periods will begin.',
+        );
     }
 
     public function confirm(Request $request, BillingInvoice $invoice, RazorpayCheckout $checkout): RedirectResponse

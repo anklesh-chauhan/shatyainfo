@@ -19,6 +19,29 @@ test('monthly pricing applies the ten license minimum', function (): void {
         ->and($billing->amountPaise(11))->toBe(64900);
 });
 
+test('a new company owes nothing for the first thirty days and pays for the next month', function (): void {
+    $billing = new MonthlyBilling;
+    $tenant = new Tenant;
+    $tenant->forceFill([
+        'billing_started_at' => '2026-11-02 10:00:00',
+        'billing_trial_ends_at' => '2026-12-02 10:00:00',
+    ]);
+
+    expect($billing->duePeriodStart($tenant, 1, CarbonImmutable::parse('2026-12-02 09:59:59')))->toBeNull()
+        ->and($billing->duePeriodStart($tenant, 1, CarbonImmutable::parse('2026-12-02 10:00:00'))?->toDateTimeString())->toBe('2026-12-02 10:00:00')
+        ->and($billing->duePeriodStart($tenant, 2, CarbonImmutable::parse('2026-12-02 10:00:00')))->toBeNull()
+        ->and($billing->shouldBillPeriod(CarbonImmutable::parse('2026-12-02 10:00:00'), CarbonImmutable::parse('2026-12-01 12:00:00')))->toBeFalse();
+});
+
+test('existing companies retain billing after their first month of use', function (): void {
+    $billing = new MonthlyBilling;
+    $tenant = new Tenant;
+    $tenant->forceFill(['billing_started_at' => '2026-11-02 10:00:00']);
+
+    expect($billing->duePeriodStart($tenant, 1, CarbonImmutable::parse('2026-12-02 09:59:59')))->toBeNull()
+        ->and($billing->duePeriodStart($tenant, 1, CarbonImmutable::parse('2026-12-02 10:00:00'))?->toDateTimeString())->toBe('2026-11-02 10:00:00');
+});
+
 test('cancellation keeps the current month bill and stops later months', function (): void {
     $billing = new MonthlyBilling;
     $cancelledAt = CarbonImmutable::parse('2026-11-15 10:00:00');

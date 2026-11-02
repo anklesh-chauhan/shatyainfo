@@ -71,7 +71,10 @@ class Tenant extends BaseTenant
             'provisioning_owner' => 'encrypted:array',
             'onboarding_data' => 'encrypted:array',
             'billing_started_at' => 'datetime',
+            'billing_trial_ends_at' => 'datetime',
+            'billing_trial_reminder_sent_at' => 'datetime',
             'billing_cancelled_at' => 'datetime',
+            'legal_accepted_at' => 'datetime',
         ];
     }
 

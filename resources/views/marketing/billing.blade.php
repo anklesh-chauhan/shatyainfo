@@ -7,9 +7,13 @@
     <p class="kicker">COMPANY BILLING</p>
     <h1 style="font-size:clamp(2.4rem,5vw,3.5rem)">Simple monthly billing.</h1>
     <p class="lede">₹59 per user license each month, with 10 licenses included as the minimum. Your minimum is ₹590 per month. All features are available.</p>
-    <p>The first bill is created after one month of workspace use. You pay each monthly bill yourself through Razorpay checkout. Prices shown include applicable tax. Cancel any time; your current month is your final bill.</p>
+    @if($tenant->billing_trial_ends_at)
+        <p>Your first 30 days are free, with every feature available. No card is required to start. If you continue after the trial, pay for each upcoming month yourself through Razorpay. Prices include applicable tax.</p>
+    @else
+        <p>Your first bill is created after one month of workspace use. You pay each monthly bill yourself through Razorpay checkout. Prices include applicable tax.</p>
+    @endif
     @if($tenant->billing_started_at)
-        <p class="panel">Workspace ready: <strong>{{ $tenant->billing_started_at->format('d M Y') }}</strong> · First monthly bill: <strong>{{ $tenant->billing_started_at->copy()->addMonthNoOverflow()->format('d M Y') }}</strong></p>
+        <p class="panel">Workspace ready: <strong>{{ $tenant->billing_started_at->format('d M Y') }}</strong> · {{ $tenant->billing_trial_ends_at ? 'Free trial ends and first paid month begins' : 'First monthly bill' }}: <strong>{{ ($tenant->billing_trial_ends_at ?? $tenant->billing_started_at->copy()->addMonthNoOverflow())->format('d M Y') }}</strong></p>
     @endif
 
     @if(session('billing_status')) <p class="panel" role="status">{{ session('billing_status') }}</p> @endif
@@ -35,17 +39,17 @@
             @endif
         </article>
     @empty
-        <div class="panel"><strong>No payment due yet.</strong><p>Your first bill appears after one month of use.</p></div>
+        <div class="panel"><strong>No payment due yet.</strong><p>{{ $tenant->billing_trial_ends_at ? 'Your first paid month begins after your free 30 days, unless you cancel during the trial.' : 'Your first bill appears after one month of use.' }}</p></div>
     @endforelse
 
     <section class="panel" style="margin:36px 0">
         <h2 style="font-size:1.35rem">Cancellation</h2>
         @if($tenant->billing_cancelled_at)
-            <p>Cancelled on {{ $tenant->billing_cancelled_at->format('d M Y') }}. Your current month is your final bill; earlier unpaid bills remain due. No later monthly bills will be created.</p>
+            <p>Cancelled on {{ $tenant->billing_cancelled_at->format('d M Y') }}. @if($tenant->billing_trial_ends_at && $tenant->billing_cancelled_at->lessThan($tenant->billing_trial_ends_at)) Your free trial has no charge. @else Any paid month already started remains payable, along with earlier unpaid bills. @endif No later monthly bills will be created.</p>
             <p class="hint">Need to resume? <a href="{{ route('support.create') }}">Contact support</a>.</p>
         @else
-            <p>You can cancel any time. The month in progress remains payable, and no later monthly bills will be created.</p>
-            <details><summary>Cancel future billing</summary><p>This stops future billing after your current month. Bills already due remain payable.</p><form method="post" action="{{ route('billing.cancel') }}">@csrf<button class="btn btn-line" type="submit">Confirm cancellation</button></form></details>
+            <p>You can cancel any time. @if($tenant->billing_trial_ends_at && now()->lessThan($tenant->billing_trial_ends_at)) Cancel during your free trial and pay nothing. @else Any paid month already started remains payable. @endif No later monthly bills will be created.</p>
+            <details><summary>{{ $tenant->billing_trial_ends_at && now()->lessThan($tenant->billing_trial_ends_at) ? 'Cancel free trial' : 'Cancel future billing' }}</summary><p>{{ $tenant->billing_trial_ends_at && now()->lessThan($tenant->billing_trial_ends_at) ? 'No payment is due if you cancel before your trial ends.' : 'This stops future billing. Bills already due remain payable.' }}</p><form method="post" action="{{ route('billing.cancel') }}">@csrf<button class="btn btn-line" type="submit">Confirm cancellation</button></form></details>
         @endif
     </section>
 

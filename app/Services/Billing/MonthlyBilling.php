@@ -15,17 +15,14 @@ class MonthlyBilling
             return;
         }
 
-        $startedAt = CarbonImmutable::instance($tenant->billing_started_at);
         $now = CarbonImmutable::now();
 
         for ($month = 1; ; $month++) {
-            $periodEnd = $startedAt->addMonthsNoOverflow($month);
+            $periodStart = $this->duePeriodStart($tenant, $month, $now);
 
-            if ($periodEnd->greaterThan($now)) {
+            if ($periodStart === null) {
                 break;
             }
-
-            $periodStart = $startedAt->addMonthsNoOverflow($month - 1);
 
             if (! $this->shouldBillPeriod($periodStart, $tenant->billing_cancelled_at ? CarbonImmutable::instance($tenant->billing_cancelled_at) : null)) {
                 break;
@@ -42,6 +39,25 @@ class MonthlyBilling
                 ['licensed_users' => $licensedUsers, 'amount_paise' => $this->amountPaise($licensedUsers), 'status' => 'pending'],
             );
         }
+    }
+
+    public function duePeriodStart(Tenant $tenant, int $month, CarbonImmutable $now): ?CarbonImmutable
+    {
+        if (! $tenant->billing_started_at || $month < 1) {
+            return null;
+        }
+
+        $startedAt = CarbonImmutable::instance($tenant->billing_started_at);
+
+        if ($tenant->billing_trial_ends_at) {
+            $periodStart = CarbonImmutable::instance($tenant->billing_trial_ends_at)->addMonthsNoOverflow($month - 1);
+
+            return $periodStart->lessThanOrEqualTo($now) ? $periodStart : null;
+        }
+
+        $periodStart = $startedAt->addMonthsNoOverflow($month - 1);
+
+        return $startedAt->addMonthsNoOverflow($month)->lessThanOrEqualTo($now) ? $periodStart : null;
     }
 
     public function amountPaise(int $licensedUsers): int

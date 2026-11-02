@@ -210,7 +210,7 @@
         <main id="main-content">
             @yield('content')
         </main>
-        <footer class="site-footer"><span>Shatya Info · Connected teams. Better field operations.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
+        <footer class="site-footer"><span>Shatya Info · Connected teams. Better field operations.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('legal.show', 'service-agreement') }}">Service Agreement</a><a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a><a href="{{ route('legal.show', 'trial-terms') }}">Trial Terms</a><a href="{{ route('legal.show', 'data-processing-agreement') }}">DPA</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
     </div>
     @stack('scripts')
 </body>

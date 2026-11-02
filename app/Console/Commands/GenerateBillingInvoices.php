@@ -20,7 +20,7 @@ class GenerateBillingInvoices extends Command
      *
      * @var string
      */
-    protected $description = 'Create monthly bills after each completed month of workspace use';
+    protected $description = 'Create monthly bills when each company billing period becomes due';
 
     /**
      * Execute the console command.

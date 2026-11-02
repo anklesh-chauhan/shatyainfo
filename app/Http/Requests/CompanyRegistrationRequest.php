@@ -52,6 +52,7 @@ class CompanyRegistrationRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
             'mobile_number' => ['bail', 'required', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/', Rule::unique(Tenant::class, 'registration_mobile')],
             'password' => ['required', 'string', 'confirmed', Password::min(12)->mixedCase()],
+            'legal_acceptance' => ['required', 'accepted'],
         ];
 
         if (RegistrationCaptcha::usesTurnstile()) {

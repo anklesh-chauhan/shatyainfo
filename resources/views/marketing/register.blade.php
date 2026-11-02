@@ -13,7 +13,7 @@
         <p class="kicker">Registration</p>
         <h1 style="font-size: 2.4rem;">Create your company</h1>
         <p class="lede">Create your workspace yourself. Verify your email, then follow the guided setup. With your data ready, this can often take about 30 minutes.</p>
-        <p class="panel" style="margin:0 0 18px"><strong>Full application · ₹59/user/month</strong><br>Minimum 10 licenses (₹590/month), including applicable tax. Your first bill arrives after one month of workspace use. Pay each bill through Razorpay; no automatic recurring charge. Cancel any time; your current month is your final bill. <a href="{{ route('help.index') }}">How setup and billing work</a>.</p>
+        <p class="panel" style="margin:0 0 18px"><strong>Try the full application free for 30 days</strong><br>Your trial starts when your workspace is ready. No card is required. After the trial, pay ₹59 per user license per month, with a 10-license minimum (₹590/month), including applicable tax. Pay each upcoming month through Razorpay; no automatic recurring charge. Cancel during the trial and owe nothing. <a href="{{ route('legal.show', 'trial-terms') }}">Read the trial terms</a> or <a href="{{ route('help.index') }}">see how setup and billing work</a>.</p>
 
         <form class="panel" method="post" action="{{ route('signup.store') }}">
             @csrf
@@ -77,6 +77,13 @@
                     @error('captcha') <span class="error">{{ $message }}</span> @enderror
                 </label>
             @endif
+            <div>
+                <label style="display:flex;align-items:flex-start;gap:10px">
+                    <input type="checkbox" name="legal_acceptance" value="1" required @checked(old('legal_acceptance')) style="width:auto;margin-top:5px">
+                    <span>I agree to the <a href="{{ route('legal.show', 'service-agreement') }}" target="_blank" rel="noopener">Service Agreement</a> and <a href="{{ route('legal.show', 'trial-terms') }}" target="_blank" rel="noopener">Trial Terms</a>, and I have read the <a href="{{ route('legal.show', 'privacy') }}" target="_blank" rel="noopener">Privacy Notice</a> and <a href="{{ route('legal.show', 'data-processing-agreement') }}" target="_blank" rel="noopener">DPA</a>.</span>
+                </label>
+                @error('legal_acceptance') <span class="error">{{ $message }}</span> @enderror
+            </div>
             <button class="btn btn-primary" type="submit">Create company</button>
         </form>
     </div>

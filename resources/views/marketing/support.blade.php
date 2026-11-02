@@ -19,5 +19,6 @@
         <button class="btn btn-primary" type="submit">Send request</button>
     </form>
     <p class="hint">You can also email <a href="mailto:support@shatyainfo.com">support@shatyainfo.com</a>.</p>
+    <p class="hint">For personal data requests, read our <a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a>.</p>
 </div>
 @endsection

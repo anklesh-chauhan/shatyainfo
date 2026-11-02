@@ -61,6 +61,8 @@ class MarketingController extends Controller
                 'registration_mobile' => $data['mobile_number'],
                 'domain' => CompanyDomain::fromSlug($data['slug']),
                 'provisioning_status' => 'awaiting_verification',
+                'legal_terms_version' => '2026-11-02',
+                'legal_accepted_at' => now(),
             ])->save();
         } catch (ValidationException $exception) {
             Tenant::$pendingOwner = null;
