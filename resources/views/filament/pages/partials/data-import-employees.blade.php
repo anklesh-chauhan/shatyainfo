@@ -123,12 +123,14 @@
         </section>
     @endif
 
-    @if ($hasResult)
+    @if ($hasResult && (! $embedded || $result['failed'] !== []))
         <section class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <h2 class="text-base font-semibold text-gray-950 dark:text-white">Last import</h2>
-            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                {{ $result['created'] }} created, {{ $result['updated'] }} updated, {{ count($result['failed']) }} failed.
-            </p>
+            <h2 class="text-base font-semibold text-gray-950 dark:text-white">{{ $embedded ? 'Rows to fix' : 'Last import' }}</h2>
+            @unless ($embedded)
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    {{ $result['created'] }} created, {{ $result['updated'] }} updated, {{ count($result['failed']) }} failed.
+                </p>
+            @endunless
 
             @if ($result['failed'] !== [])
                 <ul class="mt-4 space-y-2 text-sm text-gray-700 dark:text-gray-200">
@@ -140,7 +142,7 @@
                     <p class="mt-3 text-sm text-gray-500">Showing the first 50 failed rows.</p>
                 @endif
             @endif
-            @if (!empty($result['hierarchy']))
+            @if (! $embedded && ! empty($result['hierarchy']))
                 <div class="mt-4 overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead><tr><th class="p-2">Employee</th><th class="p-2">Primary position</th><th class="p-2">Reports to position</th><th class="p-2">Manager</th><th class="p-2">Status</th></tr></thead>

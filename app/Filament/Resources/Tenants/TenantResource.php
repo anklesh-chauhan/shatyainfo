@@ -60,6 +60,7 @@ class TenantResource extends Resource
                     ->label('Email ID')
                     ->email()
                     ->maxLength(255)
+                    ->unique(ignoreRecord: true)
                     ->visibleOn('edit'),
                 TextInput::make('registration_mobile')
                     ->label('Mobile number')
@@ -82,6 +83,7 @@ class TenantResource extends Resource
                     ->email()
                     ->required()
                     ->maxLength(255)
+                    ->unique(table: Tenant::class, column: 'registration_email')
                     ->visibleOn('create')
                     ->dehydrated(false),
                 TextInput::make('owner_password')

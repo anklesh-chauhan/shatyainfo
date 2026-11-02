@@ -14,6 +14,7 @@ class CompanyRegistrationRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'email.unique' => 'This email address is already registered.',
             'mobile_number.required' => 'Enter your mobile number.',
             'mobile_number.regex' => 'Enter a valid mobile number with country code (for example +91 9876543210).',
             'mobile_number.unique' => 'This mobile number is already registered.',
@@ -32,7 +33,11 @@ class CompanyRegistrationRequest extends FormRequest
         if (preg_match('/^(?:\+91|0091|91|0)?([6-9][0-9]{9})$/', $mobile, $matches)) {
             $mobile = '+91'.$matches[1];
         }
-        $this->merge(['slug' => strtolower(trim((string) $this->input('slug'))), 'mobile_number' => $mobile]);
+        $this->merge([
+            'slug' => strtolower(trim((string) $this->input('slug'))),
+            'email' => strtolower(trim((string) $this->input('email'))),
+            'mobile_number' => $mobile,
+        ]);
     }
 
     /**
@@ -49,7 +54,7 @@ class CompanyRegistrationRequest extends FormRequest
                 }
             }],
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique(Tenant::class, 'registration_email')],
             'mobile_number' => ['bail', 'required', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/', Rule::unique(Tenant::class, 'registration_mobile')],
             'password' => ['required', 'string', 'confirmed', Password::min(12)->mixedCase()],
             'legal_acceptance' => ['required', 'accepted'],

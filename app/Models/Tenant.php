@@ -83,6 +83,11 @@ class Tenant extends BaseTenant
         static::saving(function (Tenant $tenant) {
             $tenant->domain = LandlordDomains::normalize((string) $tenant->domain);
 
+            if (is_string($tenant->registration_email)) {
+                $email = strtolower(trim($tenant->registration_email));
+                $tenant->registration_email = $email === '' ? null : $email;
+            }
+
             if (LandlordDomains::isLandlordHost($tenant->domain)) {
                 throw ValidationException::withMessages([
                     'domain' => 'That host is reserved for the landlord application.',

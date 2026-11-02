@@ -71,6 +71,27 @@ it('rejects a reserved or taken company address', function () {
     expect(Tenant::query()->count())->toBe(1);
 });
 
+it('rejects an email address already registered by another company', function () {
+    Tenant::withoutEvents(function () {
+        $tenant = new Tenant;
+        $tenant->forceFill([
+            'name' => 'Existing Pharma',
+            'domain' => CompanyDomain::fromSlug('existing'),
+            'database' => 'tenant_existing_signup',
+            'provisioning_status' => 'ready',
+            'registration_email' => 'owner@example.test',
+            'registration_mobile' => '+919876543210',
+        ])->save();
+    });
+
+    $this->post('/register', tenantSignupPayload('new-company', [
+        'email' => ' Owner@Example.Test ',
+        'mobile_number' => '9123456789',
+    ]))->assertSessionHasErrors(['email' => 'This email address is already registered.']);
+
+    expect(Tenant::query()->count())->toBe(1);
+});
+
 it('requires a long mixed-case password', function () {
     $this->post('/register', tenantSignupPayload('short-pass', ['password' => 'short', 'password_confirmation' => 'short']))
         ->assertSessionHasErrors('password');

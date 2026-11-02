@@ -265,7 +265,9 @@ class DataImport extends Page implements HasForms
                     $body .= "\nRow ".$failure['row'].': '.$failure['message'];
                 }
                 if (count($result->failed) > 3) {
-                    $body .= "\nSee Last import for the remaining errors.";
+                    $body .= $this->embedded
+                        ? "\nSee Rows to fix below for the remaining errors."
+                        : "\nSee Last import for the remaining errors.";
                 }
             }
 

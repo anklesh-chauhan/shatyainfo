@@ -26,7 +26,7 @@ class CreateTenant extends CreateRecord
 
         $this->owner = [
             'name' => (string) ($raw['owner_name'] ?? ''),
-            'email' => (string) ($raw['owner_email'] ?? ''),
+            'email' => strtolower(trim((string) ($raw['owner_email'] ?? ''))),
             'password' => (string) ($raw['owner_password'] ?? ''),
         ];
 
@@ -44,7 +44,11 @@ class CreateTenant extends CreateRecord
     {
         Tenant::$pendingOwner = $this->owner;
 
-        return parent::handleRecordCreation($data);
+        try {
+            return parent::handleRecordCreation($data);
+        } finally {
+            Tenant::$pendingOwner = null;
+        }
     }
 
     protected function getCreatedNotificationTitle(): ?string

@@ -3,6 +3,7 @@
 use App\Http\Requests\CompanyRegistrationRequest;
 use App\Models\Tenant;
 use App\Support\Tenancy\TenantBranding;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -17,6 +18,7 @@ beforeEach(function () {
     Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
         $table->id();
         $table->string('registration_mobile')->nullable()->unique();
+        $table->string('registration_email')->nullable()->index();
     });
 });
 
@@ -57,6 +59,57 @@ test('registration requires a valid mobile number', function (mixed $mobile) {
 test('new mobile numbers pass validation', function () {
     $request = mobileRegistrationRequest('9876543210');
     expect(Validator::make($request->all(), ['mobile_number' => $request->rules()['mobile_number']])->passes())->toBeTrue();
+});
+
+test('registration normalizes email before checking for another tenant', function () {
+    DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
+    $request = new class extends CompanyRegistrationRequest
+    {
+        public function normalize(): void
+        {
+            $this->prepareForValidation();
+        }
+    };
+    $request->merge(['email' => ' Owner@Example.Test ']);
+    $request->normalize();
+
+    $validator = Validator::make($request->all(), ['email' => $request->rules()['email']], $request->messages());
+
+    expect($request->input('email'))->toBe('owner@example.test')
+        ->and($validator->errors()->first('email'))->toBe('This email address is already registered.');
+});
+
+test('tenant registration email is unique in the database', function () {
+    $migration = require base_path('database/migrations/2026_11_02_233457_make_registration_email_unique_on_tenants_table.php');
+    $migration->up();
+
+    DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
+
+    expect(fn () => DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']))
+        ->toThrow(QueryException::class);
+});
+
+test('unique email migration normalizes existing addresses and leaves missing addresses nullable', function () {
+    DB::connection('mysql')->table('tenants')->insert([
+        ['registration_email' => ' Owner@Example.Test '],
+        ['registration_email' => '   '],
+        ['registration_email' => null],
+    ]);
+    $migration = require base_path('database/migrations/2026_11_02_233457_make_registration_email_unique_on_tenants_table.php');
+    $migration->up();
+
+    expect(DB::connection('mysql')->table('tenants')->where('registration_email', 'owner@example.test')->exists())->toBeTrue()
+        ->and(DB::connection('mysql')->table('tenants')->whereNull('registration_email')->count())->toBe(2);
+});
+
+test('unique email migration stops when existing tenants share an address', function () {
+    DB::connection('mysql')->table('tenants')->insert([
+        ['registration_email' => 'owner@example.test'],
+        ['registration_email' => 'Owner@Example.Test'],
+    ]);
+    $migration = require base_path('database/migrations/2026_11_02_233457_make_registration_email_unique_on_tenants_table.php');
+
+    expect(fn () => $migration->up())->toThrow(RuntimeException::class, 'Resolve duplicate tenant registration emails');
 });
 
 test('panel branding follows the current tenant without leaking between tenants', function () {

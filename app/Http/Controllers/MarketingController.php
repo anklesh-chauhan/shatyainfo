@@ -74,6 +74,10 @@ class MarketingController extends Controller
                 throw ValidationException::withMessages(['mobile_number' => 'This mobile number is already registered.']);
             }
 
+            if (Tenant::query()->where('registration_email', $data['email'])->exists()) {
+                throw ValidationException::withMessages(['email' => 'This email address is already registered.']);
+            }
+
             throw ValidationException::withMessages([
                 'slug' => 'That company address is already in use.',
             ]);

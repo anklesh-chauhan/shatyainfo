@@ -49,7 +49,16 @@ class BackfillTenantContactDetails extends Command
                 }
             }
 
-            if (! is_string($email) || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $email = is_string($email) ? strtolower(trim($email)) : null;
+
+            if ($email === null || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+
+                return;
+            }
+
+            if (Tenant::query()->whereRaw('LOWER(TRIM(registration_email)) = ?', [$email])->exists()) {
+                $this->warn('Owner email is already registered; skipped tenant '.$tenant->id.'.');
                 $skipped++;
 
                 return;
@@ -59,7 +68,7 @@ class BackfillTenantContactDetails extends Command
             $updated++;
         });
 
-        $this->info("Updated {$updated} tenant emails; skipped {$skipped} without a readable owner email.");
+        $this->info("Updated {$updated} tenant emails; skipped {$skipped}.");
 
         return self::SUCCESS;
     }

@@ -16,3 +16,7 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+.fi-dropdown-list-item.period-option:not(.fi-selected) > .fi-icon {
+    visibility: hidden;
+}
