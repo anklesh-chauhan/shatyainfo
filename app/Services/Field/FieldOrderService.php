@@ -13,7 +13,7 @@ use Carbon\CarbonImmutable;
 
 class FieldOrderService
 {
-    public function apply(User $user, Visit $visit, array $payload, string $eventId, CarbonImmutable $capturedAt): FieldOrderState
+    public function apply(User $user, Visit $visit, array $payload, string $eventId, CarbonImmutable $capturedAt, bool $reviewedReplacement = false): FieldOrderState
     {
         $state = FieldOrderState::query()->where('order_id', $payload['order_id'])->lockForUpdate()->first();
         if (! $state) {
@@ -25,20 +25,14 @@ class FieldOrderService
         }
         abort_unless((int) $state->user_id === (int) $user->id && (int) $state->visit_id === (int) $visit->id, 404, 'Order not found for this call.');
         $order = SalesOrder::query()->lockForUpdate()->findOrFail($state->sales_order_id);
-        $order->assertApprovalDocumentEditable();
-        abort_unless($order->status === 'draft' && in_array($order->approval_status, [null, 'draft', 'rejected'], true), 409, 'Only editable order drafts can merge offline changes.');
-        // Commercial adjustments require ERP recalculation; never overwrite them with a field estimate.
-        abort_if((float) $order->tax !== 0.0 || (float) $order->transaction_discount !== 0.0
-            || (float) $order->discount_value !== 0.0 || (float) $order->round_off !== 0.0
-            || $order->items()->where(fn ($query) => $query->where('discount', '>', 0)->orWhere('tax_rate', '>', 0)->orWhere('quantity_delivered', '>', 0))->exists(),
-            409, 'This order has commercial adjustments or deliveries. Reconcile its changes in ERP.');
+        $this->assertEditable($order);
         [$fields, $clocks] = $this->currentFields($state, $order);
         foreach ($payload['changes'] as $change) {
             $field = $change['field'];
             $time = CarbonImmutable::parse($change['updated_at'])->utc();
             abort_if($time->greaterThan($capturedAt) || $time->lessThan($capturedAt->startOfDay()), 422, 'Order edit timestamps must fall within the captured call day.');
             $old = $clocks[$field] ?? null;
-            if ($old && ($time->lessThan(CarbonImmutable::parse($old['updated_at']))
+            if (! $reviewedReplacement && $old && ($time->lessThan(CarbonImmutable::parse($old['updated_at']))
                 || ($time->equalTo(CarbonImmutable::parse($old['updated_at'])) && strcmp($eventId, $old['event_id']) <= 0))) {
                 continue;
             }
@@ -89,6 +83,16 @@ class FieldOrderService
         $state->forceFill(['fields' => $fields, 'clocks' => $clocks])->save();
 
         return $state;
+    }
+
+    public function assertEditable(SalesOrder $order): void
+    {
+        $order->assertApprovalDocumentEditable();
+        abort_unless($order->status === 'draft' && in_array($order->approval_status, [null, 'draft', 'rejected'], true), 409, 'Only editable order drafts can merge offline changes.');
+        abort_if((float) $order->tax !== 0.0 || (float) $order->transaction_discount !== 0.0
+            || (float) $order->discount_value !== 0.0 || (float) $order->round_off !== 0.0
+            || $order->items()->where(fn ($query) => $query->where('discount', '>', 0)->orWhere('tax_rate', '>', 0)->orWhere('quantity_delivered', '>', 0))->exists(),
+            409, 'This order has commercial adjustments or deliveries. Reconcile its changes in ERP.');
     }
 
     private function currentFields(FieldOrderState $state, SalesOrder $order): array

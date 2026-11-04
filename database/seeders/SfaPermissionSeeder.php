@@ -13,7 +13,7 @@ class SfaPermissionSeeder extends Seeder
      */
     public function run(): void
     {
-        foreach (['Create:SecondarySales', 'Review:SecondarySales', 'Manage:SkuUnitConversion', 'Capture:Rcpa', 'View:Rcpa', 'Manage:RcpaCompetitor', 'View:SalesTargets', 'Manage:SalesTargets'] as $name) {
+        foreach (['Create:SecondarySales', 'Review:SecondarySales', 'Manage:SkuUnitConversion', 'Manage:SecondarySalesPreference', 'Capture:Rcpa', 'View:Rcpa', 'Manage:RcpaCompetitor', 'View:SalesTargets', 'Manage:SalesTargets', 'Review:FieldSyncRecovery'] as $name) {
             Permission::findOrCreate($name, 'web');
         }
         app(PermissionRegistrar::class)->forgetCachedPermissions();

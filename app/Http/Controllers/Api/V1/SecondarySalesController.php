@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\ReviewSecondarySalesRequest;
 use App\Http\Requests\Api\V1\StoreSecondarySalesRequest;
 use App\Models\SecondarySalesStatement;
 use App\Models\User;
+use App\Services\Field\SecondarySalesBalanceService;
 use App\Services\Field\SecondarySalesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class SecondarySalesController extends Controller
 
     public function show(Request $request, int $statement): JsonResponse
     {
-        return response()->json(['data' => $this->owned($request, $statement)->load('lines')]);
+        return response()->json(['data' => $this->owned($request, $statement)->load(['lines', 'balances'])]);
     }
 
     public function source(Request $request, int $statement): StreamedResponse
@@ -45,8 +46,12 @@ class SecondarySalesController extends Controller
     public function template(Request $request): Response
     {
         abort_unless($request->user()->can('Create:SecondarySales'), 403);
+        $kind = $request->query('kind', 'transactions');
+        abort_unless(in_array($kind, ['transactions', 'stock_balance'], true), 422, 'Choose the invoice or stock-balance template.');
+        $headers = $kind === 'stock_balance' ? SecondarySalesBalanceService::HEADERS : SecondarySalesService::HEADERS;
+        $name = $kind === 'stock_balance' ? 'secondary-sales-balance-template.csv' : 'secondary-sales-template.csv';
 
-        return response(implode(',', SecondarySalesService::HEADERS)."\r\n", 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="secondary-sales-template.csv"']);
+        return response(implode(',', $headers)."\r\n", 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="'.$name.'"']);
     }
 
     public function reviewers(Request $request): JsonResponse

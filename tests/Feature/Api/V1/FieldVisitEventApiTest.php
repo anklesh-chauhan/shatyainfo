@@ -94,8 +94,8 @@ it('requires the replay key and validates GPS and capture times', function () {
     $badGps = [...$event, 'payload' => ['latitude' => 95, 'longitude' => 72]];
     $this->postJson('/api/v1/field-visit-events', $badGps, ['Idempotency-Key' => $event['event_id']])
         ->assertUnprocessable()->assertJsonValidationErrors('payload.latitude');
-    $future = [...$event, 'captured_at' => now()->addHour()->toIso8601String()];
-    $this->postJson('/api/v1/field-visit-events', $future, ['Idempotency-Key' => $event['event_id']])->assertUnprocessable();
+    $future = [...$event, 'event_id' => (string) Str::uuid(), 'captured_at' => now()->addHour()->toIso8601String()];
+    $this->postJson('/api/v1/field-visit-events', $future, ['Idempotency-Key' => $future['event_id']])->assertUnprocessable();
     expect(FieldVisitEvent::query()->count())->toBe(0);
 });
 

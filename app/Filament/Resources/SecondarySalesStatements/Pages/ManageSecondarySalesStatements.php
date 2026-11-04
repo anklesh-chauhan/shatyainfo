@@ -7,6 +7,7 @@ use App\Models\AccountMaster;
 use App\Models\SecondaryOcrSource;
 use App\Models\Territory;
 use App\Models\User;
+use App\Services\Field\SecondarySalesBalanceService;
 use App\Services\Field\SecondarySalesService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -28,8 +29,10 @@ class ManageSecondarySalesStatements extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('template')->label('Download CSV template')
+            Action::make('template')->label('Download invoice template')
                 ->action(fn () => response()->streamDownload(fn () => print (implode(',', SecondarySalesService::HEADERS)."\r\n"), 'secondary-sales-template.csv')),
+            Action::make('balanceTemplate')->label('Download stock-balance template')
+                ->action(fn () => response()->streamDownload(fn () => print (implode(',', SecondarySalesBalanceService::HEADERS)."\r\n"), 'secondary-sales-balance-template.csv')),
             Action::make('import')->label('Import CSV / Excel')->visible(fn () => auth()->user()->can('Create:SecondarySales'))
                 ->schema([
                     Select::make('stockist_id')->label('Stockist')->options(fn () => AccountMaster::query()->applyVisibility('AccountMaster')->where('accept_secondary_statements', true)->orderBy('name')->pluck('name', 'id'))->searchable()->required(),

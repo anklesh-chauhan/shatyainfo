@@ -11,8 +11,10 @@ use App\Models\InventoryTransfer;
 use App\Models\PurchaseOrder;
 use App\Models\SalesDcr;
 use App\Models\SalesDocument;
+use App\Services\Field\FieldDeviceService;
 use App\Services\Field\FieldGeoFenceService;
 use App\Services\Field\FieldRcpaService;
+use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
@@ -58,6 +60,8 @@ trait HasOperationalApproval
         }
         if ($this instanceof SalesDcr) {
             app(FieldGeoFenceService::class)->assertCleared($this);
+            app(FieldSyncRecoveryService::class)->assertNoPendingReview($this);
+            app(FieldDeviceService::class)->assertNoOtherDevicePending($this);
             app(FieldRcpaService::class)->assertVisitedChemistsCurrent($this);
             if (! $this->visits()->exists() && ! $this->fieldEntries()->exists()) {
                 throw ValidationException::withMessages(['dcr' => 'Add at least one visit before submitting the DCR.']);

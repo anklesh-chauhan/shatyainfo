@@ -85,7 +85,7 @@ class FieldSgipService
                 'territory_id' => $visit->territory_id,
                 'sales_tour_plan_id' => $visit->sales_tour_plan_id,
                 'visit_date' => $visit->visit_date ?? today(),
-                'sample_issue_id' => $data['sample_issue_id'] ?? $distribution->sample_issue_id,
+                'sample_issue_id' => array_key_exists('sample_issue_id', $data) ? $data['sample_issue_id'] : $distribution->sample_issue_id,
                 'marketing_campaign_id' => $data['marketing_campaign_id'] ?? $distribution->marketing_campaign_id,
             ])->save();
 

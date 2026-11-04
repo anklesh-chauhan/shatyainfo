@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\SecondarySalesPreferences;
 use App\Filament\Resources\SecondarySalesStatements\Pages\ManageSecondarySalesStatements;
 use App\Filament\Resources\SkuUnitConversions\Pages\ManageSkuUnitConversions;
 use App\Models\SecondarySalesStatement;
@@ -87,6 +88,7 @@ it('renders the import, review and unit-conversion screens under explicit permis
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Livewire::test(ManageSecondarySalesStatements::class)->assertSuccessful();
     Livewire::test(ManageSkuUnitConversions::class)->assertSuccessful();
+    Livewire::test(SecondarySalesPreferences::class)->assertSuccessful();
 });
 
 it('retains unmatched rows for reconciliation and supports the same template as Excel', function () {

@@ -11,6 +11,9 @@ use App\Http\Controllers\Api\V1\DcrExpenseController;
 use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\Api\V1\ExpenseTypeController;
 use App\Http\Controllers\Api\V1\FieldDcrEventController;
+use App\Http\Controllers\Api\V1\FieldDeviceController;
+use App\Http\Controllers\Api\V1\FieldExpenseEventController;
+use App\Http\Controllers\Api\V1\FieldSyncRecoveryController;
 use App\Http\Controllers\Api\V1\FieldVisitEventController;
 use App\Http\Controllers\Api\V1\GeoExceptionController;
 use App\Http\Controllers\Api\V1\GpsPointController;
@@ -26,6 +29,7 @@ use App\Http\Controllers\Api\V1\SalespersonAiController;
 use App\Http\Controllers\Api\V1\SampleLedgerController;
 use App\Http\Controllers\Api\V1\SecondaryOcrController;
 use App\Http\Controllers\Api\V1\SecondarySalesController;
+use App\Http\Controllers\Api\V1\SecondarySalesCorrectionController;
 use App\Http\Controllers\Api\V1\TodaysTourController;
 use App\Http\Controllers\Api\V1\VisitController;
 use App\Http\Controllers\Api\V1\VisitSgipController;
@@ -39,6 +43,15 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware(['auth:sanctum', FieldIdempotency::class])->group(function (): void {
         Route::post('field-visit-events', [FieldVisitEventController::class, 'store']);
+        Route::post('field-expense-events', FieldExpenseEventController::class);
+        Route::get('field-sync-recoveries', [FieldSyncRecoveryController::class, 'index']);
+        Route::get('field-sync-recoveries/reviewers', [FieldSyncRecoveryController::class, 'reviewers']);
+        Route::post('field-sync-recoveries/{operation}/request', [FieldSyncRecoveryController::class, 'requestReview'])->whereUuid('operation');
+        Route::patch('field-sync-recoveries/{recovery}/review', [FieldSyncRecoveryController::class, 'review'])->whereNumber('recovery');
+        Route::get('field-devices', [FieldDeviceController::class, 'index']);
+        Route::put('field-devices/{device}', [FieldDeviceController::class, 'report'])->whereUuid('device');
+        Route::post('field-devices/{device}/close', [FieldDeviceController::class, 'close'])->whereUuid('device');
+        Route::post('field-devices/{registration}/retire', [FieldDeviceController::class, 'retire'])->whereNumber('registration');
         Route::get('sample-ledger', SampleLedgerController::class);
         Route::get('order-catalog', OrderCatalogController::class);
         Route::get('sales-targets', [SalesPerformanceController::class, 'index']);
@@ -56,6 +69,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('secondary-ocr', [SecondaryOcrController::class, 'index']);
         Route::get('secondary-ocr/{source}', [SecondaryOcrController::class, 'show'])->whereNumber('source');
         Route::get('secondary-ocr/{source}/file', [SecondaryOcrController::class, 'file'])->whereNumber('source');
+        Route::get('secondary-sales/corrections', [SecondarySalesCorrectionController::class, 'index']);
+        Route::post('secondary-sales/corrections/{correction}/review', [SecondarySalesCorrectionController::class, 'review'])->whereNumber('correction');
+        Route::post('secondary-sales/{statement}/corrections', [SecondarySalesCorrectionController::class, 'store'])->whereNumber('statement');
         Route::post('secondary-sales', [SecondarySalesController::class, 'store']);
         Route::get('secondary-sales/{statement}', [SecondarySalesController::class, 'show'])->whereNumber('statement');
         Route::get('secondary-sales/{statement}/source', [SecondarySalesController::class, 'source'])->whereNumber('statement');

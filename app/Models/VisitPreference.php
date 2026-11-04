@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SgipStockSource;
+use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -145,7 +146,8 @@ class VisitPreference extends BaseModel
 
     public function assertDcrDateIsReportable(Carbon|string $date, string $key = 'date'): void
     {
-        if ($this->allowsDcrDate($date)) {
+        $day = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
+        if ($this->allowsDcrDate($date) || FieldSyncRecoveryService::allowsDate($day)) {
             return;
         }
 

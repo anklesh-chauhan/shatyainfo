@@ -5,6 +5,8 @@ namespace App\Http\Resources\Api\V1;
 use App\Models\SalesDcr;
 use App\Models\VisitGeoAssessment;
 use App\Models\VisitPreference;
+use App\Services\Field\FieldDeviceService;
+use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -19,6 +21,8 @@ class SalesDcrResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $devices = app(FieldDeviceService::class)->summary($this->resource);
+
         return [
             'id' => $this->id,
             'dcr_date' => optional($this->dcr_date)?->toDateString(),
@@ -27,6 +31,10 @@ class SalesDcrResource extends JsonResource
             'territory_id' => $this->territory_id,
             'approval_status' => $this->approval_status,
             'reportable' => $this->dcr_date !== null && VisitPreference::current()->allowsDcrDate($this->dcr_date),
+            'recovery_submission_allowed' => app(FieldSyncRecoveryService::class)->canSubmitRecoveredDcr($this->resource),
+            'recovery_review_pending' => app(FieldSyncRecoveryService::class)->hasPendingReview($this->resource),
+            'other_device_pending' => $devices['blocked'],
+            'other_devices' => $devices['devices'],
             'visits_count' => (int) ($this->visits_count ?? 0),
             'total_expense' => $this->total_expense !== null ? (float) $this->total_expense : 0.0,
             'distance_covered' => $this->distance_covered !== null ? (float) $this->distance_covered : null,

@@ -33,7 +33,7 @@ class FieldDcrService
     public function submit(User $user, SalesDcr $dcr): SalesDcr
     {
         $this->assertOwned($user, $dcr);
-        $this->assertEditable($dcr);
+        $this->assertEditable($dcr, allowRecoveredSubmission: true);
 
         if ($dcr->visits()->count() === 0 && ! $dcr->fieldEntries()->exists()) {
             throw ValidationException::withMessages([
@@ -43,8 +43,10 @@ class FieldDcrService
 
         DB::transaction(function () use ($dcr): void {
             $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
-            $this->assertEditable($dcr);
+            $this->assertEditable($dcr, allowRecoveredSubmission: true);
             app(FieldGeoFenceService::class)->assertCleared($dcr);
+            app(FieldSyncRecoveryService::class)->assertNoPendingReview($dcr);
+            app(FieldDeviceService::class)->assertNoOtherDevicePending($dcr);
             app(FieldRcpaService::class)->assertVisitedChemistsCurrent($dcr);
             if (ApprovalSetting::moduleRequiresApproval(SalesDcr::class)) {
                 try {
@@ -75,7 +77,7 @@ class FieldDcrService
         }
     }
 
-    public function assertEditable(SalesDcr $dcr): void
+    public function assertEditable(SalesDcr $dcr, bool $allowRecoveredSubmission = false): void
     {
         $dcr->assertApprovalDocumentEditable();
         if (! in_array($dcr->approval_status, ['draft', 'rejected'], true)) {
@@ -84,7 +86,9 @@ class FieldDcrService
             ]);
         }
 
-        VisitPreference::current()->assertDcrDateIsReportable($dcr->dcr_date, 'dcr');
+        if (! $allowRecoveredSubmission || ! app(FieldSyncRecoveryService::class)->canSubmitRecoveredDcr($dcr)) {
+            VisitPreference::current()->assertDcrDateIsReportable($dcr->dcr_date, 'dcr');
+        }
     }
 
     private function getOrCreateForUser(User $user, Carbon|string $date): SalesDcr
