@@ -4,6 +4,8 @@ namespace App\Observers;
 
 use App\Jobs\ProcessMediaUploadJob;
 use App\Models\Media;
+use App\Models\SalesDcrExpense;
+use App\Models\Visit;
 
 class MediaObserver
 {
@@ -12,7 +14,11 @@ class MediaObserver
      */
     public function created(Media $media): void
     {
-        if ($media->model instanceof \App\Models\Visit) {
+        if ($media->model instanceof SalesDcrExpense) {
+            return;
+        }
+
+        if ($media->model instanceof Visit) {
 
             if ($media->model->visit_status === 'started') {
                 $media->attachTagBySlug('check-in');

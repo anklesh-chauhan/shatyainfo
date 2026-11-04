@@ -35,6 +35,9 @@ class TourPlanDetailResource extends JsonResource
                             ? $patch->companies->map(fn ($company): array => [
                                 'id' => $company->id,
                                 'name' => $company->name,
+                                'geo_latitude' => $company->geo_latitude !== null ? (float) $company->geo_latitude : null,
+                                'geo_longitude' => $company->geo_longitude !== null ? (float) $company->geo_longitude : null,
+                                'geo_radius_meters' => (int) $company->geo_radius_meters,
                                 'phone_number' => $company->phone_number,
                                 'email' => $company->email,
                                 'type_name' => $company->typeMaster?->name,

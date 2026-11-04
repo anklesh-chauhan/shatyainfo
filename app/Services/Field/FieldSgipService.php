@@ -113,30 +113,33 @@ class FieldSgipService
     {
         $visit = $this->visitService->findOwned($user, $visit->id);
 
-        $distribution = $visit->sgipDistribution()->with('items')->first();
+        return $user->getConnection()->transaction(function () use ($user, $visit): SgipDistribution {
+            $distribution = $visit->sgipDistribution()->with('items')->lockForUpdate()->first();
 
-        if (! $distribution) {
-            throw ValidationException::withMessages([
-                'sgip' => 'SGIP distribution not found for this visit.',
-            ]);
-        }
+            if (! $distribution) {
+                throw ValidationException::withMessages([
+                    'sgip' => 'SGIP distribution not found for this visit.',
+                ]);
+            }
 
-        if ($distribution->approval_status !== 'draft') {
-            throw ValidationException::withMessages([
-                'sgip' => 'Only draft SGIP distributions can be submitted.',
-            ]);
-        }
+            if ($distribution->approval_status !== 'draft') {
+                throw ValidationException::withMessages([
+                    'sgip' => 'Only draft SGIP distributions can be submitted.',
+                ]);
+            }
 
-        if ($distribution->items->isEmpty()) {
-            throw ValidationException::withMessages([
-                'items' => 'Add at least one item before submitting.',
-            ]);
-        }
+            if ($distribution->items->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Add at least one item before submitting.',
+                ]);
+            }
 
-        SGIPComplianceService::validate($distribution, true);
+            SGIPComplianceService::validate($distribution, true);
+            app(FieldSgipStockService::class)->assignSourceAndValidate($user, $distribution);
+            $distribution->approval_status = 'submitted';
+            $distribution->save();
 
-        $distribution->update(['approval_status' => 'submitted']);
-
-        return $distribution->fresh(['items.item', 'doctor', 'territory']);
+            return $distribution->fresh(['items.item', 'doctor', 'territory']);
+        });
     }
 }

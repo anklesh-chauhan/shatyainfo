@@ -18,6 +18,7 @@ class SgipDistributionResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'field_version' => $this->fieldVersion(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             'visit_id' => $this->visit_id,
             'user_id' => $this->user_id,

@@ -29,6 +29,12 @@ class FieldVisitWorkspaceService
             'feedback_questions' => VisitFeedbackQuestion::active()->get(['id', 'question']),
             'field_rules' => $prefs->field_rules ?? [],
             'allow_manual_time_edit' => (bool) $prefs->allow_manual_time_edit,
+            'visit_preferences' => [...$prefs->only([
+                'enable_check_in', 'enable_check_out', 'require_gps', 'field_rules',
+                'enforce_geo_fencing',
+                'require_check_in_image', 'require_check_out_image', 'require_general_visit_image',
+                'enforce_minimum_duration', 'minimum_duration_minutes',
+            ]), 'require_gps' => (bool) ($prefs->require_gps || $prefs->enforce_geo_fencing)],
         ];
     }
 

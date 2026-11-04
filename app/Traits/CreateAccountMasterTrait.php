@@ -7,6 +7,7 @@ use App\Models\TypeMaster;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,13 @@ trait CreateAccountMasterTrait
     public static function getCreateAccountMasterTraitFields(): array
     {
         return [
+            Toggle::make('accept_secondary_statements')->label('Stockist eligible for secondary statements')->default(false),
+            Select::make('rcpa_tier')->label('RCPA chemist tier')->options(['A' => 'A · weekly', 'B' => 'B · fortnightly'])->nullable(),
+            Grid::make(3)->schema([
+                TextInput::make('geo_latitude')->label('Clinic latitude')->numeric()->minValue(-90)->maxValue(90)->requiredWith('geo_longitude'),
+                TextInput::make('geo_longitude')->label('Clinic longitude')->numeric()->minValue(-180)->maxValue(180)->requiredWith('geo_latitude'),
+                TextInput::make('geo_radius_meters')->label('Allowed radius (metres)')->numeric()->integer()->default(100)->minValue(100)->maxValue(250)->required(),
+            ]),
             Grid::make(3)
                 ->schema([
                     Select::make('owner_id')

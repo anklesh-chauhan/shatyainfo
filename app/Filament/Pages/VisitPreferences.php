@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\SgipStockSource;
 use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
 use App\Models\LocationMaster;
+use App\Models\User;
 use App\Models\VisitPreference;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -123,9 +124,14 @@ class VisitPreferences extends Page implements HasForms
                                 Toggle::make('require_gps')
                                     ->label('Require GPS Location')
                                     ->live(),
+                                Toggle::make('enforce_geo_fencing')->label('Enforce clinic geo-fencing')->live(),
+                                Select::make('geo_asm_user_id')->label('ASM for location exceptions')
+                                    ->options(fn () => User::query()->orderBy('name')->pluck('name', 'id'))
+                                    ->searchable()->required(fn ($get) => (bool) $get('enforce_geo_fencing')),
                                 Forms\Components\TextInput::make('geo_fence_radius_meters')
                                     ->label('Geo-fence Radius (meters)')
                                     ->numeric()
+                                    ->default(100)->minValue(100)->maxValue(250)
                                     ->inlineLabel()
                                     ->columnSpan(2)
                                     ->visible(fn ($get) => $get('require_gps')),

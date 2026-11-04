@@ -22,6 +22,7 @@ class VisitPreference extends BaseModel
         'require_general_visit_image',
         'require_gps',
         'geo_fence_radius_meters',
+        'enforce_geo_fencing', 'geo_asm_user_id',
 
         'enforce_minimum_duration',
         'minimum_duration_minutes',
@@ -48,6 +49,8 @@ class VisitPreference extends BaseModel
         'require_check_out_image' => 'boolean',
         'require_general_visit_image' => 'boolean',
         'require_gps' => 'boolean',
+        'enforce_geo_fencing' => 'boolean',
+        'geo_asm_user_id' => 'integer',
 
         'enforce_minimum_duration' => 'boolean',
 

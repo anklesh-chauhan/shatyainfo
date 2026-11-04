@@ -47,6 +47,7 @@ class DatabaseSeeder extends Seeder
             VisitOutcomeSeeder::class,
             VisitFeedbackQuestionSeeder::class,
             VisitPreferenceSeeder::class,
+            SfaPermissionSeeder::class,
             ExpensePolicySeeder::class,
             ImageTagSeeder::class,
 

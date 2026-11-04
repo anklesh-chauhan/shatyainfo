@@ -19,6 +19,7 @@ class VisitCheckInRequest extends FormRequest
     {
         return [
             'recorded_at' => ['nullable', 'date_format:Y-m-d\TH:i:sP'],
+            'accuracy_meters' => ['nullable', 'numeric', 'min:0'],
             'latitude' => [VisitPreference::current()->require_gps ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
             'longitude' => [VisitPreference::current()->require_gps ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
         ];

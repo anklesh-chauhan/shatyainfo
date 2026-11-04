@@ -72,6 +72,11 @@ class SalesDcr extends BaseModel
         return $this->hasMany(SalesDcrExpense::class);
     }
 
+    public function fieldEntries(): HasMany
+    {
+        return $this->hasMany(FieldDcrEntry::class);
+    }
+
     public function travelSegments(): HasMany
     {
         return $this->hasMany(TravelSegment::class);

@@ -136,6 +136,11 @@ class FieldAccountService
         return DB::transaction(function () use ($user, $data): AccountMaster {
             $account = AccountMaster::query()->create([
                 'name' => $data['name'],
+                'geo_latitude' => $data['geo_latitude'] ?? null,
+                'geo_longitude' => $data['geo_longitude'] ?? null,
+                'geo_radius_meters' => $data['geo_radius_meters'] ?? 100,
+                'rcpa_tier' => $data['rcpa_tier'] ?? null,
+                'accept_secondary_statements' => $data['accept_secondary_statements'] ?? false,
                 'type_master_id' => $data['type_master_id'],
                 'owner_id' => $user->id,
                 'phone_number' => $data['phone_number'] ?? null,
@@ -204,6 +209,9 @@ class FieldAccountService
 
         return DB::transaction(function () use ($account, $data): AccountMaster {
             $account->fill(collect($data)->only([
+                'geo_latitude', 'geo_longitude', 'geo_radius_meters',
+                'rcpa_tier',
+                'accept_secondary_statements',
                 'name',
                 'type_master_id',
                 'phone_number',

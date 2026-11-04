@@ -9,6 +9,11 @@ trait AccountReportingRequestRules
     protected function accountReportingRules(): array
     {
         return [
+            'rcpa_tier' => ['nullable', Rule::in(['A', 'B'])],
+            'accept_secondary_statements' => ['sometimes', 'boolean'],
+            'geo_latitude' => ['nullable', 'required_with:geo_longitude', 'numeric', 'between:-90,90'],
+            'geo_longitude' => ['nullable', 'required_with:geo_latitude', 'numeric', 'between:-180,180'],
+            'geo_radius_meters' => ['sometimes', 'integer', 'between:100,250'],
             'specialty_id' => ['nullable', 'integer', Rule::exists('account_reporting_masters', 'id')->where('kind', 'specialty')->where('is_active', true)],
             'therapy_area_id' => ['nullable', 'integer', Rule::exists('account_reporting_masters', 'id')->where('kind', 'therapy_area')->where('is_active', true)],
             'institution_account_id' => ['nullable', 'integer', Rule::exists('account_masters', 'id')->whereNull('deleted_at')],

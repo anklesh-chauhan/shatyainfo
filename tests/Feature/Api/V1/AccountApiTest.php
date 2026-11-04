@@ -5,8 +5,17 @@ use App\Models\TypeMaster;
 use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $role = Role::findOrCreate('sales_user', 'web');
+    foreach (['ViewAny', 'View', 'Create', 'Update', 'ViewOwn'] as $action) {
+        $role->givePermissionTo(Permission::findOrCreate($action.':AccountMaster', 'web'));
+    }
+});
 
 it('lists visible account masters for sales users', function () {
     $user = fieldSalesUser('AccountList');
@@ -71,6 +80,11 @@ it('allows sales users to create account masters from the app', function () {
         'phone_number' => '9876543210',
         'territory_id' => $territory->id,
         'patch_ids' => [$patch->id],
+        'geo_latitude' => 19.076,
+        'geo_longitude' => 72.877,
+        'geo_radius_meters' => 250,
+        'rcpa_tier' => 'A',
+        'accept_secondary_statements' => true,
         'contact' => [
             'first_name' => 'New',
             'last_name' => 'Field',
@@ -82,7 +96,12 @@ it('allows sales users to create account masters from the app', function () {
         ->assertJsonPath('data.owner_id', $user->id)
         ->assertJsonPath('data.contacts.0.mobile_number', '9876543210');
 
-    expect(AccountMaster::query()->where('name', 'Dr New Field')->exists())->toBeTrue();
+    $created = AccountMaster::query()->where('name', 'Dr New Field')->sole();
+    expect((float) $created->geo_latitude)->toBe(19.076)
+        ->and((float) $created->geo_longitude)->toBe(72.877)
+        ->and($created->geo_radius_meters)->toBe(250)
+        ->and($created->rcpa_tier)->toBe('A')
+        ->and($created->accept_secondary_statements)->toBeTrue();
 });
 
 it('forbids account create without Create:AccountMaster permission', function () {
@@ -113,10 +132,23 @@ it('allows sales users to update accounts they can see', function () {
     $this->patchJson("/api/v1/accounts/{$doctor->id}", [
         'name' => 'Dr Renamed',
         'phone_number' => '9000011111',
+        'geo_latitude' => 20.5,
+        'geo_longitude' => 73.5,
+        'geo_radius_meters' => 150,
+        'rcpa_tier' => 'B',
+        'accept_secondary_statements' => true,
     ])
         ->assertSuccessful()
         ->assertJsonPath('data.name', 'Dr Renamed')
         ->assertJsonPath('data.phone_number', '9000011111');
+
+    expect((float) $doctor->fresh()->geo_latitude)->toBe(20.5)
+        ->and($doctor->fresh()->rcpa_tier)->toBe('B')
+        ->and($doctor->fresh()->accept_secondary_statements)->toBeTrue();
+    $this->patchJson("/api/v1/accounts/{$doctor->id}", [
+        'geo_latitude' => 91, 'geo_longitude' => 181, 'geo_radius_meters' => 251, 'rcpa_tier' => 'C',
+    ])->assertUnprocessable()->assertJsonValidationErrors(['geo_latitude', 'geo_longitude', 'geo_radius_meters', 'rcpa_tier']);
+    expect((float) $doctor->fresh()->geo_latitude)->toBe(20.5);
 });
 
 it('lists account types', function () {

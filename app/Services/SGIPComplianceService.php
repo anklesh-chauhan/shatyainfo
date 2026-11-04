@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SgipDistribution;
+use App\Models\SgipDistributionItem;
 use App\Models\SgipLimit;
 use App\Models\SgipViolation;
 use App\Services\Marketing\MarketingCampaignQuotaService;
@@ -60,7 +61,7 @@ class SGIPComplianceService
                             ->where('applies_to_id', $distribution->territory_id);
                     });
             })
-            ->get();
+            ->orderBy('id')->lockForUpdate()->get();
     }
 
     /* =========================================================
@@ -81,7 +82,7 @@ class SGIPComplianceService
         // Filter applicable items by type
         $items = $distribution->items()
             ->whereHas('item', function ($q) use ($limit) {
-                $q->where('category_type', $limit->item_type);
+                $q->where('item_type', $limit->item_type);
             })
             ->get();
 
@@ -144,7 +145,7 @@ class SGIPComplianceService
             ->whereBetween('visit_date', [$from, $to])
             ->whereIn('approval_status', ['submitted', 'approved'])
             ->whereHas('items.item', function ($q) use ($limit) {
-                $q->where('category_type', $limit->item_type);
+                $q->where('item_type', $limit->item_type);
             });
 
         match ($limit->applies_to) {
@@ -154,13 +155,13 @@ class SGIPComplianceService
             default => null,
         };
 
-        return [
-            'quantity' => $query->withSum('items as quantity', 'quantity')
-                ->value('quantity') ?? 0,
+        $ids = $query->lockForUpdate()->pluck('id');
+        $items = SgipDistributionItem::query()
+            ->whereIn('sgip_distribution_id', $ids)
+            ->whereHas('item', fn ($item) => $item->where('item_type', $limit->item_type))
+            ->lockForUpdate()->get(['quantity', 'total_value']);
 
-            'value' => $query->withSum('items as value', 'total_value')
-                ->value('value') ?? 0,
-        ];
+        return ['quantity' => $items->sum('quantity'), 'value' => $items->sum('total_value')];
     }
 
     /* =========================================================

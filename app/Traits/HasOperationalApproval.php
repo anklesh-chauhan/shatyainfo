@@ -11,6 +11,8 @@ use App\Models\InventoryTransfer;
 use App\Models\PurchaseOrder;
 use App\Models\SalesDcr;
 use App\Models\SalesDocument;
+use App\Services\Field\FieldGeoFenceService;
+use App\Services\Field\FieldRcpaService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
@@ -55,7 +57,9 @@ trait HasOperationalApproval
             throw ValidationException::withMessages(['approval' => 'Cancelled documents cannot be submitted.']);
         }
         if ($this instanceof SalesDcr) {
-            if (! $this->visits()->exists()) {
+            app(FieldGeoFenceService::class)->assertCleared($this);
+            app(FieldRcpaService::class)->assertVisitedChemistsCurrent($this);
+            if (! $this->visits()->exists() && ! $this->fieldEntries()->exists()) {
                 throw ValidationException::withMessages(['dcr' => 'Add at least one visit before submitting the DCR.']);
             }
             $this->forceFill(['total_expense' => $this->expenses()->sum('amount')])->saveQuietly();

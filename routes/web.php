@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\EDetailingController;
+use App\Http\Controllers\Api\V1\RcpaController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\MarketingController;
@@ -20,6 +21,7 @@ Route::get('/support', [SupportController::class, 'create'])->name('support.crea
 Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:3,1')->name('support.store');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/sfa/rcpa/export', [RcpaController::class, 'export'])->name('sfa.rcpa.export');
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::post('/billing/cancel', [BillingController::class, 'cancel'])->name('billing.cancel');
     Route::post('/billing/{invoice}/order', [BillingController::class, 'order'])->name('billing.order');

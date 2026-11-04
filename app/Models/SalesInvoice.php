@@ -13,6 +13,7 @@ class SalesInvoice extends SalesDocument
     protected $fillable = [
         ...parent::FILLABLE,
         'account_master_id',
+        'territory_id',
         'due_date',
         'payment_status',
         'paid_at',
@@ -27,6 +28,15 @@ class SalesInvoice extends SalesDocument
         'updated_by' => 'integer',
         'deleted_by' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $invoice): void {
+            if (! $invoice->exists || $invoice->isDirty('account_master_id')) {
+                $invoice->territory_id = $invoice->accountMaster?->territory_id;
+            }
+        });
+    }
 
     public function salesOrders()
     {

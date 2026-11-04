@@ -24,7 +24,7 @@ class FieldVisitService
     public function findOwned(User $user, int $visitId): Visit
     {
         $visit = Visit::query()
-            ->with(['territory', 'patch', 'media.tags', 'visitables.visitable', 'sgipDistribution.items'])
+            ->with(['territory', 'patch', 'media.tags', 'visitables.visitable', 'sgipDistribution.items', 'fieldOrders.salesOrder', 'geoAssessments'])
             ->find($visitId);
 
         if (! $visit || (int) $visit->employee_id !== (int) $user->id) {
@@ -121,6 +121,18 @@ class FieldVisitService
      */
     public function checkIn(User $user, Visit $visit, array $data): Visit
     {
+        return DB::transaction(function () use ($user, $visit, $data): Visit {
+            $visit = Visit::query()->lockForUpdate()->findOrFail($visit->id);
+            if ($visit->salesDcr) {
+                app(FieldDcrService::class)->assertEditable($visit->salesDcr);
+            }
+
+            return $this->performCheckIn($user, $visit, $data);
+        });
+    }
+
+    private function performCheckIn(User $user, Visit $visit, array $data): Visit
+    {
         $this->assertOwned($user, $visit);
 
         if ($visit->start_time) {
@@ -144,6 +156,7 @@ class FieldVisitService
             'checkin_longitude' => $longitude,
             'visit_status' => 'started',
         ]);
+        app(FieldGeoFenceService::class)->record($visit, 'check_in', $data, $recordedAt);
 
         return $visit->fresh(['territory', 'patch', 'media.tags', 'visitables.visitable']);
     }
@@ -153,6 +166,18 @@ class FieldVisitService
      * @return array{visit: Visit, needs_checkout_image: bool}
      */
     public function checkOut(User $user, Visit $visit, array $data): array
+    {
+        return DB::transaction(function () use ($user, $visit, $data): array {
+            $visit = Visit::query()->lockForUpdate()->findOrFail($visit->id);
+            if ($visit->salesDcr) {
+                app(FieldDcrService::class)->assertEditable($visit->salesDcr);
+            }
+
+            return $this->performCheckOut($user, $visit, $data);
+        });
+    }
+
+    private function performCheckOut(User $user, Visit $visit, array $data): array
     {
         $this->assertOwned($user, $visit);
 
@@ -177,6 +202,7 @@ class FieldVisitService
             'checkout_longitude' => $longitude,
             'visit_status' => 'checked_out_pending',
         ]);
+        app(FieldGeoFenceService::class)->record($visit, 'check_out', $data, $recordedAt);
 
         $visit = $visit->fresh(['territory', 'patch', 'media.tags', 'visitables.visitable']);
 

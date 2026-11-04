@@ -19,6 +19,11 @@ class AccountResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'geo_latitude' => $this->geo_latitude !== null ? (float) $this->geo_latitude : null,
+            'geo_longitude' => $this->geo_longitude !== null ? (float) $this->geo_longitude : null,
+            'geo_radius_meters' => (int) $this->geo_radius_meters,
+            'accept_secondary_statements' => (bool) $this->accept_secondary_statements,
+            'rcpa_tier' => $this->rcpa_tier,
             'account_code' => $this->account_code,
             'alias' => $this->alias,
             'phone_number' => $this->phone_number,

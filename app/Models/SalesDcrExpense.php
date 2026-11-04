@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SalesDcrExpense extends BaseModel
@@ -59,6 +60,11 @@ class SalesDcrExpense extends BaseModel
     public function items(): HasMany
     {
         return $this->hasMany(SalesDcrExpenseItem::class);
+    }
+
+    public function receipts(): MorphMany
+    {
+        return $this->morphMany(Media::class, 'model');
     }
 
     public function scopeAutoCalculated($query)

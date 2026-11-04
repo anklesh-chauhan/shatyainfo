@@ -22,6 +22,9 @@ class AccountMaster extends BaseModel
         'owner_id',
         'type_master_id',
         'name',
+        'geo_latitude', 'geo_longitude', 'geo_radius_meters',
+        'rcpa_tier',
+        'accept_secondary_statements',
         'external_reference',
         'account_code',
         'phone_number',
@@ -51,6 +54,11 @@ class AccountMaster extends BaseModel
         'account_ownership_id',
         'approval_status',
     ];
+
+    protected function casts(): array
+    {
+        return ['accept_secondary_statements' => 'boolean'];
+    }
 
     public function territory()
     {

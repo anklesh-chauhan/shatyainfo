@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\SalesDcr;
+use App\Models\VisitGeoAssessment;
 use App\Models\VisitPreference;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -22,6 +23,7 @@ class SalesDcrResource extends JsonResource
             'id' => $this->id,
             'dcr_date' => optional($this->dcr_date)?->toDateString(),
             'user_id' => $this->user_id,
+            'low_accuracy_warning' => VisitGeoAssessment::query()->whereHas('visit', fn ($query) => $query->where('sales_dcr_id', $this->id))->where('low_accuracy', true)->exists(),
             'territory_id' => $this->territory_id,
             'approval_status' => $this->approval_status,
             'reportable' => $this->dcr_date !== null && VisitPreference::current()->allowsDcrDate($this->dcr_date),
@@ -29,6 +31,10 @@ class SalesDcrResource extends JsonResource
             'total_expense' => $this->total_expense !== null ? (float) $this->total_expense : 0.0,
             'distance_covered' => $this->distance_covered !== null ? (float) $this->distance_covered : null,
             'remarks' => $this->remarks,
+            'field_entries' => $this->whenLoaded('fieldEntries', fn () => $this->fieldEntries->map(fn ($entry) => [
+                'event_id' => $entry->event_id, 'category' => $entry->category, 'remarks' => $entry->remarks,
+                'captured_at' => $entry->captured_at->toIso8601String(),
+            ])->values()),
             'submitted_at' => $this->formatTimestamp($this->submitted_at),
             'territory' => $this->whenLoaded('territory', fn (): ?array => $this->territory ? [
                 'id' => $this->territory->id,

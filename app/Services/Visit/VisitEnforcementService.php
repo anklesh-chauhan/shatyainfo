@@ -27,7 +27,7 @@ class VisitEnforcementService
             ]);
         }
 
-        if ($this->prefs->require_gps && ($latitude === null || $longitude === null)) {
+        if (($this->prefs->require_gps || $this->prefs->enforce_geo_fencing) && ($latitude === null || $longitude === null)) {
             throw ValidationException::withMessages([
                 'gps' => 'GPS location is required for check-in.',
             ]);
@@ -71,7 +71,7 @@ class VisitEnforcementService
             ]);
         }
 
-        if ($this->prefs->require_gps && ($latitude === null || $longitude === null)) {
+        if (($this->prefs->require_gps || $this->prefs->enforce_geo_fencing) && ($latitude === null || $longitude === null)) {
             throw ValidationException::withMessages([
                 'gps' => 'GPS location is required for check-out.',
             ]);

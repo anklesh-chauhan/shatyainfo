@@ -3,11 +3,14 @@
 namespace App\Services\Field;
 
 use App\Models\ExpenseType;
+use App\Models\Media;
 use App\Models\SalesDcr;
 use App\Models\SalesDcrExpense;
 use App\Models\User;
 use App\Services\Expense\ExpenseCalculationService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class FieldExpenseService
@@ -113,6 +116,45 @@ class FieldExpenseService
         if ((int) $expense->sales_dcr_id !== (int) $dcr->id) {
             abort(404, 'Expense not found.');
         }
+    }
+
+    public function storeReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, UploadedFile $receipt): Media
+    {
+        $this->dcrService->assertOwned($user, $dcr);
+        $this->dcrService->assertEditable($dcr);
+        $this->assertExpenseBelongsToDcr($dcr, $expense);
+        $this->assertManual($expense);
+
+        return $expense->getConnection()->transaction(function () use ($user, $dcr, $expense, $receipt): Media {
+            $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
+            $this->dcrService->assertEditable($dcr);
+            $expense = SalesDcrExpense::query()->lockForUpdate()->findOrFail($expense->id);
+            $tenant = hash('sha256', $expense->getConnection()->getDatabaseName());
+            $hash = hash_file('sha256', $receipt->getRealPath());
+            $path = 'expense-receipts/'.$tenant.'/'.$user->id.'/'.$dcr->id.'/'.$expense->id.'/'.$hash.'.'.$receipt->extension();
+            $existing = $expense->receipts()->where('disk', 'local')->where('path', $path)->first();
+            if ($existing) {
+                return $existing;
+            }
+            $stored = Storage::disk('local')->putFileAs(dirname($path), $receipt, basename($path));
+            abort_if($stored === false, 503, 'Receipt storage is unavailable. Retry synchronization.');
+
+            return $expense->receipts()->create([
+                'disk' => 'local', 'path' => $path,
+                'original_name' => $receipt->getClientOriginalName(),
+                'mime_type' => $receipt->getMimeType(), 'size' => $receipt->getSize(),
+                'captured_at' => now(),
+                'is_processed' => true, 'processed_at' => now(), 'processing_status' => 'completed',
+            ]);
+        });
+    }
+
+    public function findReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, int $receipt): Media
+    {
+        $this->dcrService->assertOwned($user, $dcr);
+        $this->assertExpenseBelongsToDcr($dcr, $expense);
+
+        return $expense->receipts()->where('disk', 'local')->findOrFail($receipt);
     }
 
     private function assertManual(SalesDcrExpense $expense): void

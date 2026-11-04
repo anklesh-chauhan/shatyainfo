@@ -21,6 +21,7 @@ use App\Models\SampleIssue;
 use App\Models\SampleRequestLine;
 use App\Models\SgipDistribution;
 use App\Models\VisitPreference;
+use App\Services\Field\FieldSgipStockService;
 use App\Services\Marketing\MarketingCampaignQuotaService;
 use App\Services\SGIPComplianceService;
 use Carbon\CarbonInterface;
@@ -394,6 +395,10 @@ class InventoryService
         }
 
         DB::transaction(function () use ($distribution): void {
+            $distribution = $distribution->newQuery()->lockForUpdate()->findOrFail($distribution->id);
+            if ($distribution->isInventoryPosted()) {
+                return;
+            }
             $distribution->loadMissing(['items.item', 'sampleIssue.sampleRequest']);
 
             SGIPComplianceService::validate($distribution, true);
@@ -417,6 +422,7 @@ class InventoryService
                 throw new RuntimeException('No inventory source location is configured for this SGIP distribution.');
             }
 
+            app(FieldSgipStockService::class)->release($distribution);
             foreach ($distribution->items as $item) {
                 $quantity = (float) $item->quantity;
 
@@ -495,7 +501,7 @@ class InventoryService
         $currentQuantity = (float) $stock->quantity_on_hand;
         $newQuantity = $currentQuantity + $quantity;
 
-        if ($newQuantity < 0) {
+        if ($newQuantity < 0 || ($quantity < 0 && abs($quantity) > $currentQuantity - (float) $stock->quantity_reserved)) {
             throw new RuntimeException('Insufficient stock for this inventory operation.');
         }
 

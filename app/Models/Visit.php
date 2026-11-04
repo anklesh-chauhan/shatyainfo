@@ -11,6 +11,16 @@ use Illuminate\Support\Collection;
 
 class Visit extends BaseModel
 {
+    public function fieldOrders(): HasMany
+    {
+        return $this->hasMany(FieldOrderState::class);
+    }
+
+    public function geoAssessments(): HasMany
+    {
+        return $this->hasMany(VisitGeoAssessment::class);
+    }
+
     use HasFactory;
 
     /*

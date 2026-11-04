@@ -75,3 +75,23 @@ it('rejects a duplicate limit combination', function () {
     expect(fn () => SgipLimit::query()->create($payload))
         ->toThrow(InvalidArgumentException::class);
 });
+
+it('counts all historical distributions and only the configured item type', function () {
+    $rep = reportingUser('HistoricalSgip');
+    $doctor = reportingDoctor($rep, 'Historical Doctor');
+    $item = reportingSampleItem('HISTORY', 'Sample');
+    $this->actingAs($rep);
+    SgipLimit::query()->create(['applies_to' => 'global', 'item_type' => 'sample', 'period' => 'daily', 'max_quantity' => 5]);
+    $make = function (int $qty, string $status) use ($rep, $doctor, $item) {
+        $distribution = SgipDistribution::query()->create(['user_id' => $rep->id, 'employee_id' => $rep->employee_id,
+            'account_master_id' => $doctor->id, 'visit_date' => today(), 'approval_status' => 'draft']);
+        SgipDistributionItem::query()->create(['sgip_distribution_id' => $distribution->id, 'item_master_id' => $item->id, 'quantity' => $qty, 'unit_value' => 10]);
+        $distribution->forceFill(['approval_status' => $status])->saveQuietly();
+
+        return $distribution->fresh();
+    };
+    $make(2, 'submitted');
+    $make(2, 'submitted');
+    $current = $make(2, 'draft');
+    expect(fn () => SGIPComplianceService::validate($current, true))->toThrow(ValidationException::class);
+});

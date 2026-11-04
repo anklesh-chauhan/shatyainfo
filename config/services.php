@@ -63,6 +63,11 @@ return [
         'secret' => env('TURNSTILE_SECRET_KEY'),
     ],
 
+    'secondary_ocr' => [
+        'tesseract_binary' => env('SFA_OCR_TESSERACT_BINARY'),
+        'pdf_rasterizer_binary' => env('SFA_OCR_PDFTOPPM_BINARY'),
+    ],
+
     'attendance_device' => [
         'api_url' => env('ATTENDANCE_DEVICE_API_URL'),
         'api_key' => env('ATTENDANCE_DEVICE_API_KEY'),

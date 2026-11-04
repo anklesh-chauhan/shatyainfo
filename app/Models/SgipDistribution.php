@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Field\FieldSgipStockService;
 use App\Services\Inventory\InventoryService;
 use App\Services\SGIPComplianceService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,6 +35,7 @@ class SgipDistribution extends BaseModel
             'visit_date' => 'date',
             'total_value' => 'decimal:2',
             'inventory_posted_at' => 'datetime',
+            'inventory_reserved_at' => 'datetime',
         ];
     }
 
@@ -116,14 +118,36 @@ class SgipDistribution extends BaseModel
         return $this->inventory_posted_at !== null;
     }
 
+    public function fieldVersion(): string
+    {
+        return hash('sha256', json_encode([
+            $this->id, $this->updated_at?->toISOString(), $this->approval_status,
+            $this->sample_issue_id, $this->marketing_campaign_id,
+            $this->items()->orderBy('id')->get(['item_master_id', 'quantity', 'unit_value'])->toArray(),
+        ], JSON_THROW_ON_ERROR));
+    }
+
     public function approve(): void
     {
         app(InventoryService::class)->postSgipDistribution($this);
     }
 
+    public function save(array $options = []): bool
+    {
+        if ($this->exists && $this->getOriginal('inventory_reserved_at') && $this->isDirty('approval_status')
+            && in_array($this->approval_status, ['draft', 'rejected', 'cancelled'], true)) {
+            return $this->getConnection()->transaction(fn (): bool => parent::save($options));
+        }
+
+        return parent::save($options);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (SgipDistribution $distribution): void {
+            if ($distribution->inventory_reserved_at && in_array($distribution->approval_status, ['draft', 'rejected', 'cancelled'], true)) {
+                app(FieldSgipStockService::class)->release($distribution);
+            }
 
             if (! $distribution->visit_date || ! $distribution->exists) {
                 return;

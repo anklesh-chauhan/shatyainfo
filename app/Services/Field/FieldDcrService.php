@@ -35,7 +35,7 @@ class FieldDcrService
         $this->assertOwned($user, $dcr);
         $this->assertEditable($dcr);
 
-        if ($dcr->visits()->count() === 0) {
+        if ($dcr->visits()->count() === 0 && ! $dcr->fieldEntries()->exists()) {
             throw ValidationException::withMessages([
                 'dcr' => 'Add at least one visit before submitting the DCR.',
             ]);
@@ -44,6 +44,8 @@ class FieldDcrService
         DB::transaction(function () use ($dcr): void {
             $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
             $this->assertEditable($dcr);
+            app(FieldGeoFenceService::class)->assertCleared($dcr);
+            app(FieldRcpaService::class)->assertVisitedChemistsCurrent($dcr);
             if (ApprovalSetting::moduleRequiresApproval(SalesDcr::class)) {
                 try {
                     $dcr->startApproval();
@@ -122,6 +124,7 @@ class FieldDcrService
     {
         return [
             'territory',
+            'fieldEntries',
             'expenses.expenseType',
             'visits' => fn ($query) => $query->select([
                 'id',

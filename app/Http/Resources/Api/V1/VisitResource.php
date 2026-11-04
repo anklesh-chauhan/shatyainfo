@@ -19,6 +19,15 @@ class VisitResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'geo_assessments' => $this->whenLoaded('geoAssessments', fn () => $this->geoAssessments->map(fn ($row) => [
+                'stage' => $row->stage, 'result' => $row->result, 'distance_meters' => $row->distance_meters,
+                'radius_meters' => $row->radius_meters, 'low_accuracy' => $row->low_accuracy, 'decision' => $row->decision,
+            ])->values()),
+            'field_orders' => $this->whenLoaded('fieldOrders', fn () => $this->fieldOrders->map(fn ($state) => [
+                'order_id' => $state->order_id, 'fields' => $state->fields, 'clocks' => $state->clocks,
+                'document_number' => $state->salesOrder?->document_number,
+                'status' => $state->salesOrder?->status,
+            ])->values()),
             'document_number' => $this->document_number,
             'employee_id' => $this->employee_id,
             'territory_id' => $this->territory_id,
@@ -38,12 +47,12 @@ class VisitResource extends JsonResource
                 $lastFollowUp = $this->followUps->sortByDesc('id')->first();
 
                 return [
-                    'preferences' => VisitPreference::current()->only([
+                    'preferences' => [...VisitPreference::current()->only([
                         'enable_check_in', 'enable_check_out', 'enforce_check_in_before_check_out',
                         'require_gps', 'field_rules', 'require_general_visit_image',
                         'require_check_in_image', 'require_check_out_image',
                         'enforce_minimum_duration', 'minimum_duration_minutes',
-                    ]),
+                    ]), 'require_gps' => (bool) (VisitPreference::current()->require_gps || VisitPreference::current()->enforce_geo_fencing)],
                     'remarks' => $this->remarks,
                     'visit_outcome_id' => $this->visit_outcome_id,
                     'outcome_label' => $this->outcome?->label,
@@ -121,6 +130,9 @@ class VisitResource extends JsonResource
                     return [
                         'id' => $company->id,
                         'name' => $company->name,
+                        'geo_latitude' => $company->geo_latitude !== null ? (float) $company->geo_latitude : null,
+                        'geo_longitude' => $company->geo_longitude !== null ? (float) $company->geo_longitude : null,
+                        'geo_radius_meters' => (int) $company->geo_radius_meters,
                     ];
                 },
             ),
@@ -135,6 +147,7 @@ class VisitResource extends JsonResource
 
                     return [
                         'id' => $sgip->id,
+                        'field_version' => $sgip->fieldVersion(),
                         'approval_status' => $sgip->approval_status,
                         'total_value' => $sgip->total_value !== null ? (float) $sgip->total_value : 0.0,
                         'items_count' => $sgip->relationLoaded('items') ? $sgip->items->count() : null,
