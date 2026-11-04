@@ -44,18 +44,26 @@ class UserResource extends Resource
                 TextInput::make('email')
                     ->email()
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->unique(ignoreRecord: true),
                 DateTimePicker::make('email_verified_at'),
                 TextInput::make('password')
                     ->password()
-                    ->required()
-                    ->maxLength(255),
+                    ->revealable()
+                    ->maxLength(255)
+                    ->dehydrated(fn (?string $state): bool => filled($state))
+                    ->required(fn (string $operation): bool => $operation === 'create'),
                 Select::make('roles')
-                    ->relationship('roles', 'name') // Links to roles relationship
-                    ->multiple() // Allow multiple roles
-                    ->preload() // Load existing roles
-                    ->searchable() // Enable searching roles
-                    ->required(), // Optional: make roles mandatory
+                    ->label('Roles')
+                    ->relationship(
+                        name: 'roles',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn ($query) => $query->where('guard_name', 'web')->orderBy('name'),
+                    )
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->required(),
             ]);
     }
 
@@ -67,9 +75,15 @@ class UserResource extends Resource
                     ->searchable(),
                 TextColumn::make('email')
                     ->searchable(),
+                TextColumn::make('roles.name')
+                    ->label('Roles')
+                    ->badge()
+                    ->separator(',')
+                    ->searchable(),
                 TextColumn::make('email_verified_at')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
