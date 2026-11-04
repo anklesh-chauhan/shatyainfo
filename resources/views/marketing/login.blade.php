@@ -18,5 +18,6 @@
             </label>
             <button class="btn btn-primary" type="submit">Continue</button>
         </form>
+        <p>Registration interrupted? <a href="{{ route('signup.resume') }}">Resume registration</a> to receive a new progress link.</p>
     </div>
 @endsection

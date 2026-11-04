@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CompanyRegistrationRequest;
+use App\Http\Requests\ResumeCompanyRegistrationRequest;
 use App\Jobs\ProvisionTenant;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Tenant;
@@ -12,6 +13,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -41,6 +43,29 @@ class MarketingController extends Controller
     public function addressAvailability(Request $request): JsonResponse
     {
         return response()->json(CompanyDomain::checkSlug((string) $request->query('slug', '')));
+    }
+
+    public function resumeForm(): View
+    {
+        return view('marketing.resume', ['baseDomain' => CompanyDomain::base()]);
+    }
+
+    public function resume(ResumeCompanyRegistrationRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+        $tenant = Tenant::query()
+            ->where('domain', CompanyDomain::resolve($data['company']))
+            ->where('registration_email', $data['email'])
+            ->first();
+
+        if ($tenant) {
+            $statusUrl = $this->statusUrl($tenant);
+            Mail::raw('Resume your company registration: '.$statusUrl."\n\nThis link expires in 6 hours. If email verification is pending, request a new code on that page. Company setup becomes available after your workspace is ready.", function ($message) use ($tenant): void {
+                $message->to($tenant->registration_email)->subject('Resume your company registration');
+            });
+        }
+
+        return redirect()->route('signup.resume')->with('status', 'If these details match an existing registration, we have emailed a link to continue. Check your inbox.');
     }
 
     public function store(CompanyRegistrationRequest $request): RedirectResponse
@@ -168,7 +193,7 @@ class MarketingController extends Controller
 
         if ($tenant->provisioning_status !== 'ready' || ! $tenant->accountIsConfigured()) {
             throw ValidationException::withMessages([
-                'company' => 'That company is still being set up. Open the setup page from your registration if you have it.',
+                'company' => 'That company is still being set up. Use Resume registration below to receive a new progress link.',
             ]);
         }
 

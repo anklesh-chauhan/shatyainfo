@@ -4,6 +4,8 @@ use App\Jobs\ProvisionTenant;
 use App\Models\Tenant;
 use App\Support\Tenancy\CompanyDomain;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
+use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Spatie\Multitenancy\Tasks\PrefixCacheTask;
+use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
 uses(TestCase::class);
@@ -24,6 +27,7 @@ beforeEach(function () {
         $table->id();
         $table->string('name');
         $table->string('registration_mobile', 16)->nullable()->unique();
+        $table->string('registration_email')->nullable()->unique();
         $table->string('domain');
         $table->string('database');
         $table->string('provisioning_status');
@@ -44,6 +48,63 @@ beforeEach(function () {
 test('pending companies show progress without onboarding forms', function () {
     $url = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => $this->tenant]);
     $this->get($url)->assertOk()->assertSee('Registration progress')->assertDontSee('Organization information')->assertDontSee('Employee information');
+});
+
+test('registration recovery is available from registration and company sign in', function () {
+    $this->get(route('signup.resume'))->assertOk()->assertSee('Email my progress link');
+    $this->get(route('signup.create'))->assertOk()->assertSee(route('signup.resume'), false);
+    $this->get(route('company.login'))->assertOk()->assertSee(route('signup.resume'), false);
+});
+
+test('registration recovery emails a signed progress link without changing the tenant or granting login', function (string $status) {
+    $this->tenant->forceFill(['registration_email' => 'owner@example.test', 'provisioning_status' => $status])->saveQuietly();
+    $progressUrl = null;
+    Mail::shouldReceive('raw')->once()->withArgs(function (string $body, Closure $callback) use (&$progressUrl): bool {
+        preg_match('~https?://[^\s]+~', $body, $matches);
+        $progressUrl = $matches[0];
+        $message = new Message(new Email);
+        $callback($message);
+        expect($message->getSymfonyMessage()->getTo()[0]->getAddress())->toBe('owner@example.test');
+
+        return true;
+    });
+
+    $this->post(route('signup.resume.store'), ['company' => 'northwind.test', 'email' => ' OWNER@example.test '])
+        ->assertRedirect(route('signup.resume'))->assertSessionHas('status')->assertSessionMissing('verified_registration');
+
+    expect(URL::hasValidSignature(Request::create($progressUrl)))->toBeTrue()
+        ->and($this->tenant->fresh()->provisioning_status)->toBe($status)
+        ->and(Tenant::query()->count())->toBe(1);
+    Queue::assertNothingPushed();
+    $this->getJson($progressUrl)->assertOk()->assertJsonPath('redirect_url', null);
+    $this->travel(7)->hours();
+    $this->get($progressUrl)->assertForbidden();
+})->with(['awaiting_verification', 'pending', 'failed', 'ready']);
+
+test('registration recovery does not send links for unknown or mismatched registrations', function (string $company, string $email) {
+    Mail::shouldReceive('raw')->never();
+    $this->tenant->forceFill(['registration_email' => 'owner@example.test'])->saveQuietly();
+    $this->post(route('signup.resume.store'), compact('company', 'email'))
+        ->assertRedirect(route('signup.resume'))->assertSessionHas('status');
+    expect(Tenant::query()->count())->toBe(1);
+    Queue::assertNothingPushed();
+})->with([
+    ['missing.test', 'owner@example.test'],
+    ['northwind.test', 'someone@example.test'],
+]);
+
+test('registration recovery validates the company address and email', function () {
+    Mail::shouldReceive('raw')->never();
+    $this->post(route('signup.resume.store'), ['email' => 'invalid'])->assertSessionHasErrors(['company', 'email']);
+    Queue::assertNothingPushed();
+});
+
+test('an unverified registration cannot use retry to bypass email verification', function () {
+    $this->tenant->forceFill(['provisioning_status' => 'awaiting_verification'])->saveQuietly();
+    $url = URL::temporarySignedRoute('signup.retry', now()->addHour(), ['tenant' => $this->tenant]);
+    $this->post($url)->assertRedirect();
+    expect($this->tenant->fresh()->provisioning_status)->toBe('awaiting_verification');
+    Queue::assertNothingPushed();
 });
 
 test('registration onboarding is unavailable before the company database exists', function () {

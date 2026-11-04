@@ -30,6 +30,7 @@
     <div class="registration-page">
         <div class="registration-copy">
             <p class="kicker">Start your free trial</p>
+            <p>Already registered or lost your progress page? <a href="{{ route('signup.resume') }}">Resume registration</a>.</p>
             <h1 style="font-size: 2.4rem;">Set up your pharma field team</h1>
             <p class="lede">Plan visits, record calls, and review the day in one company workspace. Choose your company address and create an owner account. After you verify your email, we will prepare your workspace and show you what to set up first.</p>
             <div class="panel registration-offer">

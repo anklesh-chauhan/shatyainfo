@@ -34,6 +34,9 @@ Route::get('/e-detailing/{material}/preview', [EDetailingController::class, 'pre
     ->middleware('auth')->name('e-detailing.preview');
 
 Route::middleware('landlord')->group(function () {
+    Route::get('/register/resume', [MarketingController::class, 'resumeForm'])->name('signup.resume');
+    Route::post('/register/resume', [MarketingController::class, 'resume'])
+        ->middleware('throttle:3,1')->name('signup.resume.store');
     Route::get('/register/captcha', [RegistrationAccessController::class, 'captcha'])->middleware('throttle:30,1')->name('signup.captcha');
     Route::post('/register/{tenant}/verify', [RegistrationAccessController::class, 'verify'])->middleware(['signed', 'throttle:8,1'])->name('signup.verify');
     Route::post('/register/{tenant}/resend', [RegistrationAccessController::class, 'resend'])->middleware(['signed', 'throttle:2,1'])->name('signup.resend');
