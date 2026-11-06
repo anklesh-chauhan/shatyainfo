@@ -4,20 +4,29 @@ use App\Filament\Resources\EDetailingMaterials\Pages\CreateEDetailingMaterial;
 use App\Http\Middleware\IdentifyTenant;
 use App\Models\EDetailingMaterial;
 use App\Models\EDetailingPresentation;
+use App\Models\FieldVisitEvent;
+use App\Models\SalesDcr;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\Field\FieldDcrService;
+use App\Services\Field\FieldVisitEventService;
+use App\Services\Field\FieldVisitService;
+use App\Services\Field\FieldVisitWorkspaceService;
 use App\Services\Visit\VisitEnforcementService;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function (): void {
     config(['database.default' => 'mysql', 'database.connections.mysql' => [
@@ -42,6 +51,8 @@ beforeEach(function (): void {
     Schema::create('visits', function (Blueprint $table): void {
         $table->id();
         $table->foreignId('employee_id');
+        $table->foreignId('sales_dcr_id')->nullable();
+        $table->date('visit_date')->nullable();
         $table->timestamp('start_time')->nullable();
         $table->timestamp('end_time')->nullable();
         $table->string('visit_status');
@@ -62,6 +73,32 @@ beforeEach(function (): void {
         $table->id();
         $table->foreignId('visit_id');
         $table->softDeletes();
+    });
+    Schema::create('field_order_states', function (Blueprint $table): void {
+        $table->id();
+        $table->foreignId('visit_id');
+    });
+    Schema::create('visit_geo_assessments', function (Blueprint $table): void {
+        $table->id();
+        $table->foreignId('visit_id');
+    });
+    Schema::create('sales_dcrs', function (Blueprint $table): void {
+        $table->id();
+        $table->timestamps();
+        $table->softDeletes();
+    });
+    Schema::create('field_visit_events', function (Blueprint $table): void {
+        $table->id();
+        $table->uuid('event_id')->unique();
+        $table->foreignId('user_id');
+        $table->foreignId('visit_id');
+        $table->foreignId('sales_dcr_id');
+        $table->uuid('previous_event_id')->nullable();
+        $table->string('action');
+        $table->json('target');
+        $table->json('payload');
+        $table->timestamp('captured_at');
+        $table->timestamp('received_at');
     });
     (require database_path('migrations/tenant/2026_10_18_183759_create_e_detailing_tables.php'))->up();
     (require database_path('migrations/tenant/2025_03_10_160426_create_permission_tables.php'))->up();
@@ -139,7 +176,72 @@ it('requires authentication', function (): void {
     auth()->forgetGuards();
     $this->app['auth']->forgetGuards();
     $this->getJson($this->endpoint)->assertUnauthorized();
+    $this->getJson('/api/v1/e-detailing')->assertUnauthorized();
+    $this->getJson('/api/v1/e-detailing/'.$this->material->id.'/file?version='.$this->material->content_version)->assertUnauthorized();
 });
+
+it('prepares the published library without opening a server visit', function (): void {
+    $this->getJson('/api/v1/e-detailing')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('can_record', false)->assertJsonCount(0, 'presentations')->assertJsonMissingPath('data.0.file_path');
+    $url = '/api/v1/e-detailing/'.$this->material->id.'/file?version=';
+    $this->get($url.$this->material->content_version)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    $this->getJson($url.str_repeat('a', 64))->assertConflict();
+    $this->material->update(['is_active' => false]);
+    $this->getJson($url.$this->material->content_version)->assertNotFound();
+});
+
+function offlineDetailingReplayService(Visit $visit): FieldVisitEventService
+{
+    $visits = Mockery::mock(FieldVisitService::class);
+    $visits->shouldReceive('findOwned')->andReturnUsing(fn () => $visit->fresh());
+    $workspace = Mockery::mock(FieldVisitWorkspaceService::class);
+    $workspace->shouldReceive('load')->andReturnUsing(fn (Visit $record) => $record);
+    $dcrs = Mockery::mock(FieldDcrService::class);
+    $dcrs->shouldReceive('assertOwned')->atLeast()->once();
+    $dcrs->shouldReceive('assertEditable')->atLeast()->once();
+
+    return new FieldVisitEventService($visits, $workspace, $dcrs);
+}
+
+it('persists queued presentations at capture time and deduplicates the material version', function (): void {
+    $dcr = SalesDcr::withoutEvents(fn () => SalesDcr::forceCreate([]));
+    $this->visit->forceFill(['sales_dcr_id' => $dcr->id, 'visit_date' => today(), 'start_time' => now()->subMinutes(10)])->saveQuietly();
+    $service = offlineDetailingReplayService($this->visit);
+    $event = ['event_id' => (string) Str::uuid(), 'action' => 'e_detailing',
+        'target' => ['visit_id' => $this->visit->id], 'payload' => $this->payload,
+        'captured_at' => now()->subMinute()->toIso8601String()];
+    $service->apply($this->rep, $event);
+    $service->apply($this->rep, [...$event, 'event_id' => (string) Str::uuid(), 'previous_event_id' => $event['event_id']]);
+    expect(EDetailingPresentation::query()->count())->toBe(1)
+        ->and(EDetailingPresentation::query()->sole()->presented_at->toIso8601String())->toBe($event['captured_at'])
+        ->and(FieldVisitEvent::query()->count())->toBe(2);
+});
+
+it('rejects invalid offline presentation state without persisting journal records', function (string $state, string $exception): void {
+    $dcr = SalesDcr::withoutEvents(fn () => SalesDcr::forceCreate([]));
+    $this->visit->forceFill(['sales_dcr_id' => $dcr->id, 'visit_date' => today()])->saveQuietly();
+    $payload = $this->payload;
+    if ($state === 'stale') {
+        $payload['content_version'] = str_repeat('a', 64);
+    } elseif ($state === 'unpublished') {
+        $this->material->update(['is_active' => false]);
+    } elseif ($state === 'not checked in') {
+        $this->visit->forceFill(['start_time' => null])->saveQuietly();
+    } else {
+        $this->visit->forceFill(['end_time' => now()])->saveQuietly();
+    }
+    $service = offlineDetailingReplayService($this->visit);
+    expect(fn () => $service->apply($this->rep, [
+        'event_id' => (string) Str::uuid(), 'action' => 'e_detailing',
+        'target' => ['visit_id' => $this->visit->id], 'payload' => $payload,
+        'captured_at' => now()->toIso8601String(),
+    ]))->toThrow($exception);
+    expect(EDetailingPresentation::query()->count())->toBe(0)->and(FieldVisitEvent::query()->count())->toBe(0);
+})->with([
+    ['stale', HttpException::class],
+    ['unpublished', ModelNotFoundException::class],
+    ['not checked in', HttpException::class],
+    ['checked out', HttpException::class],
+]);
 
 it('uploads a private image through the admin form as a draft', function (): void {
     Role::create(['name' => 'administration_admin', 'guard_name' => 'web']);

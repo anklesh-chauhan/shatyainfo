@@ -16,9 +16,9 @@ class EDetailingController extends Controller
 {
     public function __construct(private FieldVisitService $visits) {}
 
-    public function index(Request $request, int $visit): JsonResponse
+    public function index(Request $request, ?int $visit = null): JsonResponse
     {
-        $record = $this->visits->findOwned($request->user(), $visit);
+        $record = $visit === null ? null : $this->visits->findOwned($request->user(), $visit);
         $materials = EDetailingMaterial::query()->where('is_active', true)->with('item:id,item_name')->orderBy('sort_order')->orderBy('title')->get();
 
         return response()->json([
@@ -27,8 +27,8 @@ class EDetailingController extends Controller
                 'product' => $material->item?->item_name, 'mime_type' => $material->mime_type,
                 'file_size' => $material->file_size, 'content_version' => $material->content_version,
             ]),
-            'presentations' => $record->eDetailingPresentations()->latest('presented_at')->get(),
-            'can_record' => $record->start_time !== null && $record->end_time === null && $record->visit_status === 'started',
+            'presentations' => $record?->eDetailingPresentations()->latest('presented_at')->get() ?? [],
+            'can_record' => $record !== null && $record->start_time !== null && $record->end_time === null && $record->visit_status === 'started',
         ]);
     }
 
@@ -46,6 +46,14 @@ class EDetailingController extends Controller
         Gate::authorize('view', $material);
 
         return $this->fileResponse($material);
+    }
+
+    public function libraryFile(Request $request, int $material): BinaryFileResponse
+    {
+        $record = EDetailingMaterial::query()->where('is_active', true)->findOrFail($material);
+        abort_unless(hash_equals($record->content_version, (string) $request->query('version')), 409, 'This material changed. Refresh the library.');
+
+        return $this->fileResponse($record);
     }
 
     private function fileResponse(EDetailingMaterial $material): BinaryFileResponse

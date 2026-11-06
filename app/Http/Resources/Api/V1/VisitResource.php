@@ -151,6 +151,18 @@ class VisitResource extends JsonResource
                         'approval_status' => $sgip->approval_status,
                         'total_value' => $sgip->total_value !== null ? (float) $sgip->total_value : 0.0,
                         'items_count' => $sgip->relationLoaded('items') ? $sgip->items->count() : null,
+                        'items' => $sgip->relationLoaded('items') ? $sgip->items->map(fn ($item): array => [
+                            'id' => $item->id,
+                            'item_master_id' => $item->item_master_id,
+                            'quantity' => (float) $item->quantity,
+                            'unit_value' => (float) $item->unit_value,
+                            'total_value' => (float) $item->total_value,
+                            'item' => $item->relationLoaded('item') && $item->item ? [
+                                'id' => $item->item->id,
+                                'item_code' => $item->item->item_code,
+                                'item_name' => $item->item->item_name,
+                            ] : null,
+                        ])->values() : [],
                     ];
                 },
             ),

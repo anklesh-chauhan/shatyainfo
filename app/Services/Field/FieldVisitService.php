@@ -24,7 +24,7 @@ class FieldVisitService
     public function findOwned(User $user, int $visitId): Visit
     {
         $visit = Visit::query()
-            ->with(['territory', 'patch', 'media.tags', 'visitables.visitable', 'sgipDistribution.items', 'fieldOrders.salesOrder', 'geoAssessments'])
+            ->with(['territory', 'patch', 'media.tags', 'visitables.visitable', 'sgipDistribution.items.item', 'fieldOrders.salesOrder', 'geoAssessments'])
             ->find($visitId);
 
         if (! $visit || (int) $visit->employee_id !== (int) $user->id) {

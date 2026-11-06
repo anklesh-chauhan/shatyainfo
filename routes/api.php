@@ -80,6 +80,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('geo-exceptions', [GeoExceptionController::class, 'index']);
         Route::patch('geo-exceptions/{assessment}', [GeoExceptionController::class, 'review'])->whereNumber('assessment');
         Route::get('accounts/reporting-options', [AccountController::class, 'reportingOptions']);
+        Route::get('e-detailing', [EDetailingController::class, 'index']);
+        Route::get('e-detailing/{material}/file', [EDetailingController::class, 'libraryFile'])->whereNumber('material');
         Route::get('visits/{visit}/e-detailing', [EDetailingController::class, 'index'])->whereNumber('visit');
         Route::get('visits/{visit}/e-detailing/{material}/file', [EDetailingController::class, 'file'])->whereNumber(['visit', 'material']);
         Route::post('visits/{visit}/e-detailing', [EDetailingController::class, 'store'])->whereNumber('visit');

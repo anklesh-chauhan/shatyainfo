@@ -4,6 +4,8 @@ use App\Enums\SgipStockSource;
 use App\Jobs\ProcessMediaUploadJob;
 use App\Models\AccountMaster;
 use App\Models\ContactDetail;
+use App\Models\EDetailingMaterial;
+use App\Models\EDetailingPresentation;
 use App\Models\FieldOrderState;
 use App\Models\FieldSyncRecovery;
 use App\Models\FieldVisitEvent;
@@ -61,6 +63,36 @@ function queuedFieldEvent(array $target, string $action, array $payload = [], ?s
         'payload' => $payload, 'captured_at' => $captured ?? now()->subMinutes(10)->toIso8601String(),
         'previous_event_id' => $previous];
 }
+
+it('replays an offline presentation between check in and checkout exactly once', function () {
+    Storage::fake('local');
+    $material = EDetailingMaterial::factory()->create();
+    $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
+    $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72], captured: now()->subMinutes(30)->toIso8601String());
+    $send($checkIn)->assertSuccessful();
+    $presentation = queuedFieldEvent($this->target, 'e_detailing', ['material_id' => $material->id, 'content_version' => $material->content_version, 'notes' => 'Presented offline'], $checkIn['event_id']);
+    $send($presentation)->assertSuccessful();
+    $send($presentation)->assertSuccessful()->assertHeader('Idempotency-Replayed', 'true');
+    $saved = EDetailingPresentation::query()->sole();
+    expect($saved->notes)->toBe('Presented offline')->and($saved->presented_at->toIso8601String())->toBe($presentation['captured_at']);
+    $checkout = queuedFieldEvent($this->target, 'check_out', ['latitude' => 19, 'longitude' => 72], $presentation['event_id'], now()->subMinute()->toIso8601String());
+    $send($checkout)->assertSuccessful()->assertJsonPath('data.visit_status', 'completed');
+    expect(FieldVisitEvent::query()->where('action', 'e_detailing')->count())->toBe(1);
+});
+
+it('rejects offline presentation capture before check in and stale material versions', function () {
+    Storage::fake('local');
+    $material = EDetailingMaterial::factory()->create();
+    $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
+    $payload = ['material_id' => $material->id, 'content_version' => $material->content_version];
+    $send(queuedFieldEvent($this->target, 'e_detailing', $payload))->assertUnprocessable();
+    $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72]);
+    $send($checkIn)->assertSuccessful();
+    $send(queuedFieldEvent($this->target, 'e_detailing', [...$payload, 'content_version' => str_repeat('a', 64)], $checkIn['event_id']))->assertConflict();
+    $material->update(['is_active' => false]);
+    $send(queuedFieldEvent($this->target, 'e_detailing', $payload, $checkIn['event_id']))->assertNotFound();
+    expect(EDetailingPresentation::query()->count())->toBe(0);
+});
 
 it('applies planned call events once and preserves original capture times and notes', function () {
     $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19.07, 'longitude' => 72.87], captured: now()->subMinutes(30)->toIso8601String());

@@ -2,6 +2,7 @@
 
 namespace App\Services\Field;
 
+use App\Models\EDetailingMaterial;
 use App\Models\FieldSyncRecovery;
 use App\Models\FieldVisitEvent;
 use App\Models\SalesDcr;
@@ -40,6 +41,20 @@ class FieldVisitEventService
             $location = Arr::only($payload, ['latitude', 'longitude', 'accuracy_meters']);
             $location['recorded_at'] = $data['captured_at'];
             switch ($data['action']) {
+                case 'e_detailing':
+                    abort_unless($visit->start_time && ! $visit->end_time && $visit->visit_status === 'started', 422, 'Record presentations during an active, checked-in visit.');
+                    $material = EDetailingMaterial::query()->where('is_active', true)->lockForUpdate()->findOrFail($payload['material_id']);
+                    abort_unless(hash_equals($material->content_version, $payload['content_version']), 409, 'This material changed. Reopen it before recording.');
+                    $visit->eDetailingPresentations()->firstOrCreate([
+                        'e_detailing_material_id' => $material->id,
+                        'content_version' => $material->content_version,
+                    ], [
+                        'user_id' => $user->id,
+                        'material_title' => $material->title,
+                        'notes' => $payload['notes'] ?? null,
+                        'presented_at' => $capturedAt,
+                    ]);
+                    break;
                 case 'order':
                     abort_unless($visit->start_time && ! $visit->end_time, 422, 'Book orders during a checked-in visit.');
                     app(FieldOrderService::class)->apply($user, $visit, $payload, $data['event_id'], $amendment?->amended_at ?? $capturedAt, $amendment !== null);
