@@ -30,7 +30,7 @@ class SwitchTenantFilesystemTask implements SwitchTenantTask
 
         config([
             'filesystems.disks.public.root' => $publicRoot,
-            'filesystems.disks.public.url' => rtrim((string) config('app.url'), '/').'/storage/'.$suffix,
+            'filesystems.disks.public.url' => url('/storage/'.$suffix),
             'filesystems.disks.local.root' => $localRoot,
         ]);
 
