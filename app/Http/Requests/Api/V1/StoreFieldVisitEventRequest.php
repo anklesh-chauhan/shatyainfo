@@ -34,7 +34,7 @@ class StoreFieldVisitEventRequest extends FormRequest
             'target.detail_id' => ['nullable', 'integer', 'min:1', 'required_without:target.visit_id', Rule::prohibitedIf($this->filled('target.visit_id'))],
             'target.patch_id' => ['integer', 'min:1', 'required_with:target.detail_id', Rule::prohibitedIf($this->filled('target.visit_id'))],
             'target.company_id' => ['integer', 'min:1', 'required_with:target.detail_id', Rule::prohibitedIf($this->filled('target.visit_id'))],
-            'payload' => ['present', 'array:remarks,visit_outcome_id,visit_purpose_ids,next_follow_up_date,feedback,latitude,longitude,accuracy_meters,tag,items,sample_issue_id,expected_version,order_id,changes'],
+            'payload' => ['present', 'array:remarks,visit_outcome_id,visit_purpose_ids,is_joint_work,joint_user_ids,start_time,end_time,next_follow_up_date,feedback,latitude,longitude,accuracy_meters,tag,items,sample_issue_id,expected_version,order_id,changes'],
             'payload.order_id' => ['required_if:action,order', 'uuid'],
             'payload.changes' => ['required_if:action,order', 'array', 'min:1', 'max:102'],
             'payload.changes.*' => ['array:field,value,updated_at'],
@@ -51,6 +51,11 @@ class StoreFieldVisitEventRequest extends FormRequest
             'payload.visit_outcome_id' => ['sometimes', 'nullable', 'integer'],
             'payload.visit_purpose_ids' => ['sometimes', 'array'],
             'payload.visit_purpose_ids.*' => ['integer', 'distinct'],
+            'payload.is_joint_work' => ['sometimes', 'boolean'],
+            'payload.joint_user_ids' => ['sometimes', 'array'],
+            'payload.joint_user_ids.*' => ['integer', 'distinct'],
+            'payload.start_time' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'payload.end_time' => ['sometimes', 'nullable', 'date_format:H:i'],
             'payload.next_follow_up_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'payload.feedback' => ['sometimes', 'array'],
             'payload.feedback.*.question_id' => ['required', 'integer', 'distinct'],
@@ -60,6 +65,16 @@ class StoreFieldVisitEventRequest extends FormRequest
             'payload.accuracy_meters' => ['nullable', 'numeric', 'min:0'],
             'payload.tag' => ['required_if:action,photo', Rule::in(['check-in', 'check-out', 'general-visit'])],
             'photo' => ['required_if:action,photo', 'prohibited_unless:action,photo', 'file', 'image', 'max:10240'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'payload.array' => 'Visit data contains unsupported fields or is not a valid object.',
         ];
     }
 

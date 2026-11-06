@@ -5,6 +5,7 @@ use App\Jobs\ProcessMediaUploadJob;
 use App\Models\AccountMaster;
 use App\Models\ContactDetail;
 use App\Models\FieldOrderState;
+use App\Models\FieldSyncRecovery;
 use App\Models\FieldVisitEvent;
 use App\Models\InventoryStock;
 use App\Models\SalesDcr;
@@ -12,13 +13,21 @@ use App\Models\SalesTourPlan;
 use App\Models\SalesTourPlanDetail;
 use App\Models\SgipDistribution;
 use App\Models\Visit;
+use App\Models\VisitFeedbackQuestion;
+use App\Models\VisitOutcome;
 use App\Models\VisitPreference;
+use App\Models\VisitPurpose;
+use App\Models\VisitType;
+use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
@@ -79,6 +88,82 @@ it('rejects a missing predecessor without applying a visit or DCR', function () 
     $event = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72], (string) Str::uuid());
     $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']])->assertConflict();
     expect(FieldVisitEvent::query()->count())->toBe(0)->and(Visit::query()->count())->toBe(0)->and(SalesDcr::query()->count())->toBe(0);
+});
+
+it('retries the unchanged failed mobile details packet and completes its dependent checkout', function () {
+    $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
+    $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72], captured: now()->subMinutes(30)->toIso8601String());
+    $visitId = $send($checkIn)->assertSuccessful()->json('data.id');
+    $outcome = VisitOutcome::create(['label' => 'Interested', 'code' => 'OFFLINE-DETAILS']);
+    $type = VisitType::create(['name' => 'Field Work', 'code' => 'OFFLINE-DETAILS', 'is_active' => true]);
+    $purpose = VisitPurpose::create(['name' => 'Product discussion', 'visit_type_id' => $type->id, 'is_active' => true]);
+    $feedback = [];
+    foreach ([2, 3, 4, 5] as $index => $answer) {
+        $question = VisitFeedbackQuestion::create(['question' => 'Offline question '.$index, 'code' => 'OFFLINE-'.$index, 'is_active' => true]);
+        $feedback[] = ['question_id' => $question->id, 'answer' => $answer];
+    }
+    $details = queuedFieldEvent($this->target, 'details', [
+        'remarks' => null, 'feedback' => $feedback,
+        'is_joint_work' => false, 'joint_user_ids' => [],
+        'visit_outcome_id' => $outcome->id, 'visit_purpose_ids' => [$purpose->id],
+        'next_follow_up_date' => today()->addDays(11)->toDateString(),
+    ], $checkIn['event_id']);
+    $request = Request::create('/api/v1/field-visit-events', 'POST', $details);
+    $request->setUserResolver(fn () => $this->rep);
+    $hash = hash('sha256', json_encode(['POST', $request->path(), Arr::sortRecursive($details), []], JSON_THROW_ON_ERROR));
+    app(FieldSyncRecoveryService::class)->recordFailure($request, $details['event_id'], $hash, [], 'The payload field must be an array.');
+    $recovery = FieldSyncRecovery::query()->where('operation_id', $details['event_id'])->sole();
+    $snapshot = $recovery->snapshot;
+
+    $send($details)->assertSuccessful()->assertJsonPath('data.workspace.feedback.0.answer', 2);
+    $send($details)->assertSuccessful()->assertHeader('Idempotency-Replayed', 'true');
+    expect($recovery->fresh()->status)->toBe('recovered')
+        ->and($recovery->fresh()->snapshot)->toBe($snapshot)
+        ->and($recovery->fresh()->request_hash)->toBe($hash);
+    $checkout = queuedFieldEvent($this->target, 'check_out', ['latitude' => 19, 'longitude' => 72], $details['event_id'], now()->subMinutes(2)->toIso8601String());
+    $send($checkout)->assertSuccessful()->assertJsonPath('data.visit_status', 'completed');
+    $visit = Visit::query()->findOrFail($visitId);
+    expect($visit->feedbacks()->count())->toBe(4)
+        ->and($visit->visitPurposes()->pluck('visit_purposes.id')->all())->toBe([$purpose->id])
+        ->and($visit->jointUsers()->count())->toBe(0)
+        ->and(FieldVisitEvent::query()->where('action', 'details')->count())->toBe(1);
+    $this->getJson('/api/v1/dcrs/'.$visit->sales_dcr_id)->assertSuccessful()->assertJsonPath('data.visits.0.visit_status', 'completed');
+});
+
+it('still rejects malformed mobile details arrays', function (array $payload, string $field) {
+    $event = queuedFieldEvent($this->target, 'details', $payload);
+    $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']])
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+    expect(FieldVisitEvent::query()->count())->toBe(0);
+})->with([
+    'joint users must be an array' => [['joint_user_ids' => 'invalid'], 'payload.joint_user_ids'],
+    'feedback must be an array' => [['feedback' => 'invalid'], 'payload.feedback'],
+    'purposes must be an array' => [['visit_purpose_ids' => 'invalid'], 'payload.visit_purpose_ids'],
+    'joint work must be a boolean' => [['is_joint_work' => 'invalid'], 'payload.is_joint_work'],
+    'unknown fields remain rejected' => [['unrecognized_field' => true], 'payload'],
+]);
+
+it('enforces joint employee eligibility and the manual time policy for queued details', function () {
+    $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
+    $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72]);
+    $send($checkIn)->assertSuccessful();
+    $other = reportingUser('IneligibleJointEmployee');
+    $joint = queuedFieldEvent($this->target, 'details', ['is_joint_work' => true, 'joint_user_ids' => [$other->id]], $checkIn['event_id']);
+    $send($joint)->assertUnprocessable()->assertJsonPath('message', 'Select eligible joint employees.');
+    $this->rep->givePermissionTo(Permission::findOrCreate('AccessAllRecords', 'web'));
+    $send($joint)->assertSuccessful();
+    $visit = FieldVisitEvent::query()->where('event_id', $joint['event_id'])->sole()->visit;
+    expect((bool) $visit->is_joint_work)->toBeTrue()
+        ->and($visit->jointUsers()->pluck('users.id')->all())->toBe([$other->id]);
+    $clearJoint = queuedFieldEvent($this->target, 'details', ['is_joint_work' => false, 'joint_user_ids' => []], $joint['event_id']);
+    $send($clearJoint)->assertSuccessful();
+    expect((bool) $visit->fresh()->is_joint_work)->toBeFalse()->and($visit->jointUsers()->count())->toBe(0);
+    VisitPreference::current()->update(['allow_manual_time_edit' => false]);
+    $manual = queuedFieldEvent($this->target, 'details', ['start_time' => '14:20'], $checkIn['event_id']);
+    $send($manual)->assertUnprocessable()->assertJsonPath('message', 'Manual time editing is disabled.');
+    VisitPreference::current()->update(['allow_manual_time_edit' => true]);
+    $send($manual)->assertSuccessful();
+    expect(FieldVisitEvent::query()->where('event_id', $manual['event_id'])->sole()->visit->start_time->format('H:i'))->toBe('14:20');
 });
 
 it('does not allow another employee to submit work against the tour', function () {

@@ -59,7 +59,7 @@ class FieldVisitEventService
                     break;
                 case 'details':
                     abort_unless($visit->start_time && ! $visit->end_time, 422, 'Add call details after check-in and before check-out.');
-                    $details = Arr::only($payload, ['remarks', 'visit_outcome_id', 'visit_purpose_ids', 'next_follow_up_date', 'feedback']);
+                    $details = Arr::only($payload, ['remarks', 'visit_outcome_id', 'visit_purpose_ids', 'is_joint_work', 'joint_user_ids', 'start_time', 'end_time', 'next_follow_up_date', 'feedback']);
                     if (array_key_exists('remarks', $details)) {
                         $details['remarks'] = trim(implode("\n", array_filter([(string) $visit->remarks, trim((string) $details['remarks'])], fn (string $note): bool => $note !== '')));
                     }
