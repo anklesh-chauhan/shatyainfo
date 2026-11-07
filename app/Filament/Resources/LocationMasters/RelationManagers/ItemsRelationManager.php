@@ -52,7 +52,7 @@ class ItemsRelationManager extends RelationManager
                     ->alignEnd()
                     ->toggleable(),
                 TextColumn::make('last_movement_at')
-                    ->dateTime('d M Y, h:i A')
+                    ->dateTime()
                     ->sortable(),
             ])
             ->defaultSort('last_movement_at', 'desc')

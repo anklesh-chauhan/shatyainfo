@@ -8,7 +8,7 @@
         <div class="flex items-baseline justify-between gap-4">
             <div>
                 <div class="text-lg font-semibold">
-                    Expenses for {{ $dcr->dcr_date?->format('d M Y') }}
+                    Expenses for {{ $dcr->dcr_date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}
                 </div>
                 <div class="text-sm text-gray-500">
                     Total: ₹{{ number_format((float) $dcr->total_expense, 2) }}

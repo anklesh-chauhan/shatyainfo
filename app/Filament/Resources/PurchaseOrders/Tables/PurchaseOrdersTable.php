@@ -21,7 +21,7 @@ class PurchaseOrdersTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('order_date')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable(),
                 TextColumn::make('supplier.name')
                     ->label('Supplier')
@@ -39,7 +39,7 @@ class PurchaseOrdersTable
                     ->sortable()
                     ->alignEnd(),
                 TextColumn::make('expected_delivery_date')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('approval_status')

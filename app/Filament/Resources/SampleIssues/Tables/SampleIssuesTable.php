@@ -8,9 +8,9 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class SampleIssuesTable
@@ -20,7 +20,7 @@ class SampleIssuesTable
         return $table
             ->columns([
                 TextColumn::make('document_number')->label('Issue')->searchable()->sortable(),
-                TextColumn::make('issue_date')->date('d M Y')->sortable(),
+                TextColumn::make('issue_date')->date()->sortable(),
                 TextColumn::make('sampleRequest.document_number')->label('Request')->searchable(),
                 TextColumn::make('sampleRequest.employee.full_name')->label('Representative')->searchable(),
                 TextColumn::make('fromLocation.name')->label('From')->searchable(),

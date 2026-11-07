@@ -2,18 +2,19 @@
 
 namespace App\Filament\Resources\Holidays\Tables;
 
+use App\Filament\Imports\HolidayImporter;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\ImportAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Actions\ImportAction;
 
 class HolidaysTable
 {
@@ -22,7 +23,7 @@ class HolidaysTable
         return $table
             ->columns([
                 TextColumn::make('date')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable(),
 
                 TextColumn::make('name')
@@ -63,7 +64,7 @@ class HolidaysTable
             ])
             ->headerActions([
                 ImportAction::make()
-                    ->importer(\App\Filament\Imports\HolidayImporter::class)
+                    ->importer(HolidayImporter::class)
                     ->label('Import Holidays')
                     ->icon('heroicon-o-arrow-up-tray'),
             ])

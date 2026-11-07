@@ -6,10 +6,9 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Tables;
-use Filament\Actions;
 
 class EmployeeAttendancesTable
 {
@@ -17,14 +16,14 @@ class EmployeeAttendancesTable
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee.full_name')
+                TextColumn::make('employee.full_name')
                     ->label('Employee')
                     ->sortable()      // optional (remove if error)
                     ->searchable(),   // optional searchable
-                Tables\Columns\TextColumn::make('attendance_date')->date('d M, Y')->sortable(),
-                Tables\Columns\TextColumn::make('check_in'),
-                Tables\Columns\TextColumn::make('check_out'),
-                Tables\Columns\TextColumn::make('status.status')
+                TextColumn::make('attendance_date')->date()->sortable(),
+                TextColumn::make('check_in'),
+                TextColumn::make('check_out'),
+                TextColumn::make('status.status')
                     ->badge()
                     ->tooltip(fn ($record) => $record->status->remarks ?? 'No remarks')
                     ->color(fn ($record) => match ($record->status->status_code) {
@@ -35,20 +34,20 @@ class EmployeeAttendancesTable
                         'H' => 'primary',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('total_hours'),
+                TextColumn::make('total_hours'),
 
-                //add latitude and longitude
-                Tables\Columns\TextColumn::make('check_in_latitude')
+                // add latitude and longitude
+                TextColumn::make('check_in_latitude')
                     ->label('Check-in Latitude')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('check_in_longitude')
+                TextColumn::make('check_in_longitude')
                     ->label('Check-in Longitude')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('check_out_latitude')
+                TextColumn::make('check_out_latitude')
                     ->label('Check-out Latitude')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('check_out_longitude')
+                TextColumn::make('check_out_longitude')
                     ->label('Check-out Longitude')
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -64,7 +63,7 @@ class EmployeeAttendancesTable
             ->defaultSort('attendance_date', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status_id')
-                    ->relationship('status', 'status')
+                    ->relationship('status', 'status'),
             ])
             ->recordActions([
                 ViewAction::make(),

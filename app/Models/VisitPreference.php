@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SgipStockSource;
+use App\Services\DateFormatService;
 use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -128,7 +129,7 @@ class VisitPreference extends BaseModel
             return 'DCR reporting is open for today only.';
         }
 
-        return 'DCR reporting is open from '.$this->earliestReportableDcrDate()->format('j M Y').' through today.';
+        return 'DCR reporting is open from '.$this->earliestReportableDcrDate()->format(app(DateFormatService::class)->dateFormat()).' through today.';
     }
 
     /**

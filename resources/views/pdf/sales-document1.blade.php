@@ -14,7 +14,7 @@
 </head>
 <body>
     <h1>Quotation #{{ $document->document_number }}</h1>
-    <p><strong>Date:</strong> {{ \Carbon\Carbon::parse($document->date)->format('d M, Y') }}</p>
+    <p><strong>Date:</strong> {{ \Carbon\Carbon::parse($document->date)->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}</p>
     <p><strong>Customer:</strong> {{ $document->contactDetail?->name ?? '-' }}</p>
 
     <table>

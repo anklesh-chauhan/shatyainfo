@@ -6,6 +6,7 @@ use App\Filament\Clusters\Reports\ReportsCluster;
 use App\Models\AccountMaster;
 use App\Models\OrganizationalUnit;
 use App\Services\AccountReportingService;
+use App\Services\DateFormatService;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -73,7 +74,7 @@ class AccountReachFrequency extends Page implements HasTable
                         $metrics = app(AccountReportingService::class)->metrics($account);
                         $history = $account->assignmentHistory->first();
                         $profile = $account->divisionProfiles->first();
-                        $row = [$this->month, $account->account_code, $account->name, $history?->owner?->name, $history?->territory?->name, $account->specialty?->name, $account->therapyArea?->name, $profile?->ratingType?->name, $profile?->potential_value, $profile?->potentialUnit?->name, $profile?->currency, $profile?->potential_period, $profile?->assessed_on?->toDateString(), $metrics['target'], $metrics['completed'], $metrics['gap'], $metrics['achievement'], $metrics['reached'] ? 'Yes' : 'No'];
+                        $row = [$this->month, $account->account_code, $account->name, $history?->owner?->name, $history?->territory?->name, $account->specialty?->name, $account->therapyArea?->name, $profile?->ratingType?->name, $profile?->potential_value, $profile?->potentialUnit?->name, $profile?->currency, $profile?->potential_period, $profile?->assessed_on?->format(app(DateFormatService::class)->dateFormat()), $metrics['target'], $metrics['completed'], $metrics['gap'], $metrics['achievement'], $metrics['reached'] ? 'Yes' : 'No'];
                         fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $row), ',', '"', '');
                     }
                     fclose($stream);

@@ -12,6 +12,7 @@ use App\Models\Company;
 use App\Models\ContactDetail;
 use App\Models\Department;
 use App\Models\Designation;
+use App\Services\DateFormatService;
 use App\Traits\HasSafeGlobalSearch;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -127,7 +128,7 @@ class ContactDetailResource extends BaseResource
                             })->preload(),
                         DatePicker::make('birthday')
                             ->nullable()
-                            ->displayFormat('d M Y')
+                            ->displayFormat(fn (): string => app(DateFormatService::class)->dateFormat())
                             ->native(false)
                             ->label('Birthday'),
 
@@ -324,7 +325,7 @@ class ContactDetailResource extends BaseResource
                     ->searchable(),
 
                 TextColumn::make('birthday')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable(),
 
                 TextColumn::make('mobile_number')

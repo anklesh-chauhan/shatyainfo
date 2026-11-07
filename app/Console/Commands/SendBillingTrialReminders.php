@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Services\DateFormatService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -42,7 +43,7 @@ class SendBillingTrialReminders extends Command
             ->each(function (Tenant $tenant) use (&$failed): void {
                 try {
                     Mail::raw(
-                        "Your 30-day Shatya Info trial for {$tenant->name} ends on {$tenant->billing_trial_ends_at->format('d M Y')}. All features remain available during the trial. If you want to continue, open Billing in your company workspace and pay for the next month through Razorpay. Plans start at ₹590 per month for 10 user licenses, including tax. You can cancel from Billing before the trial ends and owe nothing. No payment is charged automatically.",
+                        "Your 30-day Shatya Info trial for {$tenant->name} ends on {$tenant->billing_trial_ends_at->format(app(DateFormatService::class)->dateFormat())}. All features remain available during the trial. If you want to continue, open Billing in your company workspace and pay for the next month through Razorpay. Plans start at ₹590 per month for 10 user licenses, including tax. You can cancel from Billing before the trial ends and owe nothing. No payment is charged automatically.",
                         function ($message) use ($tenant): void {
                             $message->to($tenant->registration_email)->subject('Your Shatya Info trial ends soon');
                         },

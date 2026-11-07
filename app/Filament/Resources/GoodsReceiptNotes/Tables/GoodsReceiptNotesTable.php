@@ -22,7 +22,7 @@ class GoodsReceiptNotesTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('receipt_date')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable(),
                 TextColumn::make('purchaseOrder.document_number')
                     ->label('PO Number')
@@ -40,7 +40,7 @@ class GoodsReceiptNotesTable
                     ->badge()
                     ->sortable(),
                 TextColumn::make('posted_at')
-                    ->dateTime('d M Y, h:i A')
+                    ->dateTime()
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('postedBy.name')

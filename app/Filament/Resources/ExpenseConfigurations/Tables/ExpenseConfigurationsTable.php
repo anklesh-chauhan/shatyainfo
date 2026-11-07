@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ExpenseConfigurations\Tables;
 
 use App\Models\ExpenseConfiguration as ExpenseRule;
+use App\Services\DateFormatService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -86,8 +87,8 @@ class ExpenseConfigurationsTable
                 // Validity Period
                 TextColumn::make('effective_from')
                     ->label('Validity')
-                    ->date('d M, Y')
-                    ->description(fn (ExpenseRule $record): string => $record->effective_to ? 'Until '.$record->effective_to->format('d M, Y') : 'Indefinite Duration'
+                    ->date()
+                    ->description(fn (ExpenseRule $record): string => $record->effective_to ? 'Until '.$record->effective_to->format(app(DateFormatService::class)->dateFormat()) : 'Indefinite Duration'
                     )
                     ->sortable(),
 

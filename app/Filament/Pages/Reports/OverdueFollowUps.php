@@ -75,11 +75,11 @@ class OverdueFollowUps extends BaseReportPage
         return [
             TextColumn::make('follow_up_date')
                 ->label('Follow-up')
-                ->dateTime('d M Y, h:i A')
+                ->dateTime()
                 ->sortable(),
             TextColumn::make('next_follow_up_date')
                 ->label('Next due')
-                ->dateTime('d M Y, h:i A')
+                ->dateTime()
                 ->placeholder('—')
                 ->sortable(),
             TextColumn::make('user.name')

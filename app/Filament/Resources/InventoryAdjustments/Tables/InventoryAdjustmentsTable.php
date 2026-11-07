@@ -36,7 +36,7 @@ class InventoryAdjustmentsTable
                     ->badge()
                     ->sortable(),
                 TextColumn::make('posted_at')
-                    ->dateTime('d M Y, h:i A')
+                    ->dateTime()
                     ->sortable(),
                 TextColumn::make('reason')
                     ->limit(30)

@@ -2,33 +2,30 @@
 
 namespace App\Filament\Resources\Leads\RelationManagers;
 
-use Filament\Schemas\Schema;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use App\Models\ContactDetail;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\CreateAction;
-use Carbon\Carbon;
-use Filament\Actions\EditAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use App\Models\FollowUp;
-use Filament\Forms;
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
-use Filament\Tables\Table;
 use App\Models\LeadActivity;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Services\DateFormatService;
+use Carbon\Carbon;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 
 class LeadFollowUpRelationManager extends RelationManager
 {
     protected static string $relationship = 'followUps';
+
     protected static ?string $title = 'Follow-ups';
 
     public function form(Schema $schema): Schema
@@ -43,8 +40,8 @@ class LeadFollowUpRelationManager extends RelationManager
                     ->default(fn (callable $get) => $get('record.id')),
 
                 DateTimePicker::make('follow_up_date')
-                        ->required()
-                        ->label('Follow-up Date'),
+                    ->required()
+                    ->label('Follow-up Date'),
 
                 Select::make('to_whom')
                     ->options(function () {
@@ -53,9 +50,10 @@ class LeadFollowUpRelationManager extends RelationManager
                             return ContactDetail::where('company_id', $lead->company_id)
                                 ->get()
                                 ->mapWithKeys(fn ($contact) => [
-                                    $contact->id => "{$contact->first_name} {$contact->last_name}"
+                                    $contact->id => "{$contact->first_name} {$contact->last_name}",
                                 ]);
                         }
+
                         return [];
                     })
                     ->searchable()
@@ -111,7 +109,7 @@ class LeadFollowUpRelationManager extends RelationManager
                     ->label('To Whom')
                     ->tooltip(fn ($record) => $record->contactDetail
                         ? "Email: {$record->contactDetail->email}\nPhone: {$record->contactDetail->mobile_number}"
-                        : "No contact details available.")
+                        : 'No contact details available.')
                     ->sortable()
                     ->searchable(query: function ($query, $search) {
                         $query->whereHas('contactDetail', function ($q) use ($search) {
@@ -151,9 +149,9 @@ class LeadFollowUpRelationManager extends RelationManager
                                 'lead_id' => $lead->id,
                                 'user_id' => Auth::id(),
                                 'activity_type' => 'Follow-up Created',
-                                'description' => "A new follow-up has been added on " .
-                                    Carbon::parse($followUp->followup_date)->format('d M Y, h:i A')  . " using " .
-                                    ($followUp->media->name ?? 'Unknown') . " as media type.",
+                                'description' => 'A new follow-up has been added on '.
+                                    Carbon::parse($followUp->followup_date)->format(app(DateFormatService::class)->dateFormat().' h:i A').' using '.
+                                    ($followUp->media->name ?? 'Unknown').' as media type.',
                             ]);
                         }
                     }),
@@ -169,9 +167,9 @@ class LeadFollowUpRelationManager extends RelationManager
                                 'lead_id' => $lead->id,
                                 'user_id' => Auth::id(),
                                 'activity_type' => 'Follow-up Updated',
-                                'description' => "A new follow-up has been added on " .
-                                    Carbon::parse($followUp->followup_date)->format('d M Y, h:i A')  . " using " .
-                                    ($followUp->media->name ?? 'Unknown') . " as media type.",
+                                'description' => 'A new follow-up has been added on '.
+                                    Carbon::parse($followUp->followup_date)->format(app(DateFormatService::class)->dateFormat().' h:i A').' using '.
+                                    ($followUp->media->name ?? 'Unknown').' as media type.',
                             ]);
                         }
                     }),
@@ -185,9 +183,9 @@ class LeadFollowUpRelationManager extends RelationManager
                                 'lead_id' => $lead->id,
                                 'user_id' => Auth::id(),
                                 'activity_type' => 'Follow-up Deleted',
-                                'description' => "A new follow-up has been added on " .
-                                    Carbon::parse($followUp->followup_date)->format('d M Y, h:i A')  . " using " .
-                                    ($followUp->media->name ?? 'Unknown') . " as media type.",
+                                'description' => 'A new follow-up has been added on '.
+                                    Carbon::parse($followUp->followup_date)->format(app(DateFormatService::class)->dateFormat().' h:i A').' using '.
+                                    ($followUp->media->name ?? 'Unknown').' as media type.',
                             ]);
                         }
                     }),

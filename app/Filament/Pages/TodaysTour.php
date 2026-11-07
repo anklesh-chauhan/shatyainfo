@@ -8,6 +8,7 @@ use App\Models\Quote;
 use App\Models\SalesOrder;
 use App\Models\SalesTourPlanDetail;
 use App\Models\Visit;
+use App\Services\DateFormatService;
 use App\Traits\HasVisitManagement;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -211,7 +212,7 @@ class TodaysTour extends Page implements HasActions, HasForms
                     ->required()
                     ->native(false)
                     ->minDate(now()->addDay()) // Cannot reschedule to today or the past
-                    ->displayFormat('d/m/Y'),
+                    ->displayFormat(fn (): string => app(DateFormatService::class)->dateFormat()),
 
                 Textarea::make('cancel_reason')
                     ->label('Reason for Rescheduling')

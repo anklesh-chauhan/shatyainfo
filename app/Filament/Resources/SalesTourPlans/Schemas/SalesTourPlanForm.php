@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\VisitPreference;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
+use App\Services\DateFormatService;
 use App\Services\JointUserService;
 use App\Services\PositionService;
 use Filament\Forms\Components\DatePicker;
@@ -302,7 +303,7 @@ class SalesTourPlanForm
                                     ->label('Date')
                                     ->required()
                                     ->native(false)
-                                    ->displayFormat('j M, (D)')
+                                    ->displayFormat(fn (): string => app(DateFormatService::class)->dateFormat())
                                     ->default(fn (Get $get) => self::resolveNextDate($get))
                                     ->dehydrateStateUsing(function ($state, Get $get) {
                                         // Normalize or rebuild the date before save

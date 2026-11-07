@@ -22,7 +22,7 @@ class DeliveryChallansTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('delivery_date')
-                    ->date('d M Y')
+                    ->date()
                     ->sortable(),
                 TextColumn::make('salesInvoice.document_number')
                     ->label('Invoice Number')
@@ -40,7 +40,7 @@ class DeliveryChallansTable
                     ->badge()
                     ->sortable(),
                 TextColumn::make('posted_at')
-                    ->dateTime('d M Y, h:i A')
+                    ->dateTime()
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('postedBy.name')

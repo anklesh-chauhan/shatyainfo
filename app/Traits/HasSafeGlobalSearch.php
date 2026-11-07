@@ -5,6 +5,7 @@ namespace App\Traits;
 use App\Filament\GlobalSearch\RecordLabel;
 use App\Models\Employee;
 use App\Models\User;
+use App\Services\DateFormatService;
 use Exception;
 use Filament\Actions\Action;
 use Filament\GlobalSearch\GlobalSearchResult;
@@ -269,7 +270,7 @@ trait HasSafeGlobalSearch
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         $details = [
-            'Created At' => $record->created_at?->format('d-m-Y H:i'),
+            'Created At' => $record->created_at?->format(app(DateFormatService::class)->dateFormat().' H:i'),
         ];
 
         // Add resource-specific details

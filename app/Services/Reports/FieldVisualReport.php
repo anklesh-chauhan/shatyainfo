@@ -8,6 +8,7 @@ use App\Models\SalesDcrExpense;
 use App\Models\SalesTourPlanDetail;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\DateFormatService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -135,7 +136,7 @@ class FieldVisualReport
 
         return [
             'labels' => array_map(
-                fn (string $day): string => CarbonImmutable::parse($day)->format('d M'),
+                fn (string $day): string => CarbonImmutable::parse($day)->format(app(DateFormatService::class)->dateFormat()),
                 array_keys($days)
             ),
             'completed' => array_column($days, 'completed'),

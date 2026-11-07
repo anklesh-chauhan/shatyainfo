@@ -110,7 +110,7 @@ class StandardFareChartsTable
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime('d M, Y')
+                    ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])

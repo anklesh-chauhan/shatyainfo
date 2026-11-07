@@ -16,7 +16,7 @@ class InventoryMovementsTable
         return $table
             ->columns([
                 TextColumn::make('movement_at')
-                    ->dateTime('d M Y, h:i A')
+                    ->dateTime()
                     ->sortable(),
                 TextColumn::make('item.item_code')
                     ->label('Code')

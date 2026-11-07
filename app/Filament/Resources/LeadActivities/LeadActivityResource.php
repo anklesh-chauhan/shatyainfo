@@ -96,7 +96,7 @@ class LeadActivityResource extends BaseResource
 
                 TextColumn::make('created_at')
                     ->label('Created At')
-                    ->dateTime('d M Y, h:i A') // Improved date format
+                    ->dateTime() // Improved date format
                     ->sortable(),
             ])
             ->filters([

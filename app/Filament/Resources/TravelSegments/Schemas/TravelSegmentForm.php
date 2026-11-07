@@ -4,6 +4,7 @@ namespace App\Filament\Resources\TravelSegments\Schemas;
 
 use App\Models\CityPinCode;
 use App\Models\SalesDcr;
+use App\Services\DateFormatService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -21,7 +22,7 @@ class TravelSegmentForm
                 Select::make('sales_dcr_id')
                     ->label('Daily call report')
                     ->relationship('salesDcr', 'dcr_date', modifyQueryUsing: fn (Builder $query) => $query->with('user'))
-                    ->getOptionLabelFromRecordUsing(fn (SalesDcr $record): string => '#'.$record->id.' — '.$record->dcr_date?->format('Y-m-d').' — '.$record->user?->name)
+                    ->getOptionLabelFromRecordUsing(fn (SalesDcr $record): string => '#'.$record->id.' — '.$record->dcr_date?->format(app(DateFormatService::class)->dateFormat()).' — '.$record->user?->name)
                     ->searchable(['id', 'dcr_date'])
                     ->optionsLimit(50)
                     ->live()

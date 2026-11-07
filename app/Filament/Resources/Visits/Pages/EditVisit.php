@@ -8,6 +8,7 @@ use App\Filament\Widgets\VisitPreCallBriefingWidget;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitPreference;
+use App\Services\DateFormatService;
 use App\Services\SalespersonAi\VisitVoiceNoteService;
 use App\Services\Visit\VisitEnforcementService;
 use App\Traits\HasVisitManagement;
@@ -68,7 +69,7 @@ class EditVisit extends EditRecord
         }
 
         if ($this->record->start_time && ! $this->record->end_time) {
-            return 'Visit started on '.$this->record->start_time->format('M d, Y \a\t H:i');
+            return 'Visit started on '.$this->record->start_time->format(app(DateFormatService::class)->dateFormat().' H:i');
         }
 
         if ($this->record->end_time) {

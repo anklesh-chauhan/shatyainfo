@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Media;
 use App\Models\Visit;
+use App\Services\DateFormatService;
 use App\Services\ImageWatermarkService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -63,7 +64,7 @@ class ProcessMediaUploadJob implements ShouldQueue, TenantAware
 
         // 3️⃣ Apply watermark
         ImageWatermarkService::apply($fullPath, [
-            'timestamp' => now()->format('d M Y H:i'),
+            'timestamp' => now()->format(app(DateFormatService::class)->dateFormat().' H:i'),
         ]);
 
         // 4️⃣ Future AI tagging hook

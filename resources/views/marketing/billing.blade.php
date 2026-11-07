@@ -13,7 +13,7 @@
         <p>Your first bill is created after one month of workspace use. You pay each monthly bill through Razorpay checkout. The amounts shown are the total payable.</p>
     @endif
     @if($tenant->billing_started_at)
-        <p class="panel">Workspace ready: <strong>{{ $tenant->billing_started_at->format('d M Y') }}</strong> · {{ $tenant->billing_trial_ends_at ? 'Free trial ends and first paid month begins' : 'First monthly bill' }}: <strong>{{ ($tenant->billing_trial_ends_at ?? $tenant->billing_started_at->copy()->addMonthNoOverflow())->format('d M Y') }}</strong></p>
+        <p class="panel">Workspace ready: <strong>{{ $tenant->billing_started_at->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}</strong> · {{ $tenant->billing_trial_ends_at ? 'Free trial ends and first paid month begins' : 'First monthly bill' }}: <strong>{{ ($tenant->billing_trial_ends_at ?? $tenant->billing_started_at->copy()->addMonthNoOverflow())->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}</strong></p>
     @endif
 
     @if(session('billing_status')) <p class="panel" role="status">{{ session('billing_status') }}</p> @endif
@@ -23,7 +23,7 @@
     @forelse($invoices as $invoice)
         <article class="panel" style="margin:14px 0;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
             <div>
-                <strong>Month starting {{ $invoice->period_start->format('d M Y') }}</strong>
+                <strong>Month starting {{ $invoice->period_start->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}</strong>
                 <p style="margin:4px 0;color:var(--muted)">{{ $invoice->licensed_users }} licenses × ₹59 · ₹{{ number_format($invoice->amount_paise / 100) }} total · {{ $invoice->status === 'paid' ? 'Paid' : 'Payment due' }}</p>
             </div>
             @if($invoice->status !== 'paid')
@@ -45,7 +45,7 @@
     <section class="panel" style="margin:36px 0">
         <h2 style="font-size:1.35rem">Cancellation</h2>
         @if($tenant->billing_cancelled_at)
-            <p>Cancelled on {{ $tenant->billing_cancelled_at->format('d M Y') }}. @if($tenant->billing_trial_ends_at && $tenant->billing_cancelled_at->lessThan($tenant->billing_trial_ends_at)) Your free trial has no charge. @else Any paid month already started remains payable, along with earlier unpaid bills. @endif No later monthly bills will be created.</p>
+            <p>Cancelled on {{ $tenant->billing_cancelled_at->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}. @if($tenant->billing_trial_ends_at && $tenant->billing_cancelled_at->lessThan($tenant->billing_trial_ends_at)) Your free trial has no charge. @else Any paid month already started remains payable, along with earlier unpaid bills. @endif No later monthly bills will be created.</p>
             <p class="hint">Need to resume? <a href="{{ route('support.create') }}">Contact support</a>.</p>
         @else
             <p>You can cancel any time. @if($tenant->billing_trial_ends_at && now()->lessThan($tenant->billing_trial_ends_at)) Cancel during your free trial and pay nothing. @else Any paid month already started remains payable. @endif No later monthly bills will be created.</p>

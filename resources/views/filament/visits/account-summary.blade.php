@@ -50,7 +50,7 @@
 
         @if ($lastVisit)
             <div class="text-xs text-gray-500 pt-2">
-                Last visit: {{ $lastVisit->visit_date->format('d M Y') }}
+                Last visit: {{ $lastVisit->visit_date->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}
             </div>
         @endif
 

@@ -19,7 +19,7 @@
             />
 
             <div class="px-2 py-2 text-sm font-semibold whitespace-nowrap">
-                {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}
+                {{ \Carbon\Carbon::parse($selectedDate)->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}
             </div>
 
             <x-filament::icon-button

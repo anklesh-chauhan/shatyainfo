@@ -63,15 +63,15 @@
             <td style="text-align:left; width:50%;">
                 @if ($document instanceof \App\Models\Quote)
                     Quote No: {{ $document->document_number }}<br>
-                    Quote Date: {{ $document->date?->format('d M Y') }}<br>
-                    Valid Till: {{ $document->expiration_date?->format('d M Y') }}<br>
+                    Quote Date: {{ $document->date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}<br>
+                    Valid Till: {{ $document->expiration_date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}<br>
                 @elseif ($document instanceof \App\Models\SalesOrder)
                     Sales Order No: {{ $document->document_number }}<br>
-                    Sales Order Date: {{ $document->date?->format('d M Y') }}<br>
+                    Sales Order Date: {{ $document->date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}<br>
                 @elseif ($document instanceof \App\Models\SalesInvoice)
                     Invoice No: {{ $document->document_number }}<br>
-                    Invoice Date: {{ $document->date?->format('d M Y') }}<br>
-                    Due Date: {{ $document->due_date?->format('d M Y') }}<br>
+                    Invoice Date: {{ $document->date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}<br>
+                    Due Date: {{ $document->due_date?->format(app(\App\Services\DateFormatService::class)->dateFormat()) }}<br>
                 @endif
             </td>
             <td style="text-align:left; width:50%;">

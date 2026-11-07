@@ -11,9 +11,9 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class SampleRequestsTable
@@ -23,7 +23,7 @@ class SampleRequestsTable
         return $table
             ->columns([
                 TextColumn::make('document_number')->label('Request')->searchable()->sortable(),
-                TextColumn::make('request_date')->date('d M Y')->sortable(),
+                TextColumn::make('request_date')->date()->sortable(),
                 TextColumn::make('employee.full_name')->label('Representative')->searchable(),
                 TextColumn::make('territory.name')->searchable(),
                 TextColumn::make('destinationLocation.name')->label('Destination')->searchable(),

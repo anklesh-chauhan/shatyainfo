@@ -5,6 +5,7 @@ namespace App\Filament\Resources\HrChangeRequests;
 use App\Filament\Resources\HrChangeRequests\Pages\ManageHrChangeRequests;
 use App\Models\Employee;
 use App\Models\HrChangeRequest;
+use App\Services\DateFormatService;
 use App\Services\HR\HrChangeService;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
@@ -58,7 +59,7 @@ class HrChangeRequestResource extends Resource
 
                     return $class::query()->where($class === Employee::class ? 'id' : 'employee_id', $get('employee_id'))->get()
                         ->filter(fn ($record): bool => auth()->user()->can('update', $record))
-                        ->mapWithKeys(fn ($record): array => [$record->id => '#'.$record->id.' '.($record->attendance_date?->format('Y-m-d') ?? $record->full_name ?? '')])->all();
+                        ->mapWithKeys(fn ($record): array => [$record->id => '#'.$record->id.' '.($record->attendance_date?->format(app(DateFormatService::class)->dateFormat()) ?? $record->full_name ?? '')])->all();
                 })
                 ->afterStateUpdated(function (Get $get, Set $set): void {
                     if (! $get('target_id')) {

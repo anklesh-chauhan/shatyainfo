@@ -12,6 +12,7 @@ use App\Models\SgipDistribution;
 use App\Models\Visit;
 use App\Models\VisitOutcome;
 use App\Models\VisitPreference;
+use App\Services\DateFormatService;
 use App\Services\Visit\DcrService;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -135,7 +136,7 @@ class VisitForm
                                             ->inlineLabel(fn () => ! request()->header('User-Agent') || ! str_contains(request()->header('User-Agent'), 'Mobile')),
                                         TextEntry::make('visit_date')
                                             ->label('Visit Date')
-                                            ->getStateUsing(fn ($record) => $record->visit_date?->format('d M Y') ?? '—')
+                                            ->getStateUsing(fn ($record) => $record->visit_date?->format(app(DateFormatService::class)->dateFormat()) ?? '—')
                                             ->inlineLabel(fn () => ! request()->header('User-Agent') || ! str_contains(request()->header('User-Agent'), 'Mobile')),
                                     ])->columns([
                                         'default' => 3, // 📱 This forces 2 columns on mobile/extra small screens
@@ -477,7 +478,7 @@ class VisitForm
                                                     ),
                                             ]),
 
-                                            Section::make('Linked Documents')
+                                        Section::make('Linked Documents')
                                             ->schema([
                                                 RepeatableEntry::make('visitDocumentLinks')
                                                     ->hiddenLabel()
@@ -510,20 +511,18 @@ class VisitForm
                                                                     $document = $record->documentable;
 
                                                                     return match (get_class($document)) {
-                                                                        Quote::class =>
-                                                                            QuoteResource::getUrl('edit', [
-                                                                                'record' => $document,
-                                                                            ]),
+                                                                        Quote::class => QuoteResource::getUrl('edit', [
+                                                                            'record' => $document,
+                                                                        ]),
 
-                                                                        SalesOrder::class =>
-                                                                            SalesOrderResource::getUrl('edit', [
-                                                                                'record' => $document,
-                                                                            ]),
+                                                                        SalesOrder::class => SalesOrderResource::getUrl('edit', [
+                                                                            'record' => $document,
+                                                                        ]),
 
                                                                         default => '#',
                                                                     };
                                                                 }),
-                                                            ])
+                                                        ]),
                                                     ])
                                                     ->columns(5),
 
