@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Requests\RegistrationOnboardingRequest;
 use App\Models\IntegrationSetting;
 use App\Models\Tenant;
 use App\Services\DateFormatService;
@@ -10,6 +11,8 @@ use Filament\Schemas\Schema as FilamentSchema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ViewErrorBag;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -71,4 +74,20 @@ test('invalid saved formats fall back and unsupported changes fail validation', 
         'is_enabled' => true,
     ]);
     expect(app(DateFormatService::class)->dateFormat())->toBe('d/m/Y');
+});
+
+test('registration onboarding asks for a supported format and preserves the selection', function () {
+    $rules = (new RegistrationOnboardingRequest)->rules();
+    $data = ['organization' => ['name' => 'Company', 'email' => 'owner@example.test', 'phone' => '9999999999', 'date_format' => 'm/d/Y']];
+    expect(Validator::make($data, $rules)->passes())->toBeTrue();
+    unset($data['organization']['date_format']);
+    expect(Validator::make($data, $rules)->errors()->has('organization.date_format'))->toBeTrue();
+    $data['organization']['date_format'] = 'unsupported';
+    expect(Validator::make($data, $rules)->errors()->has('organization.date_format'))->toBeTrue();
+    expect(Validator::make(['skip' => '1'], $rules)->passes())->toBeTrue();
+
+    $tenant = new Tenant;
+    $tenant->forceFill(['name' => 'Company', 'onboarding_data' => ['organization' => ['date_format' => 'm/d/Y']]]);
+    $this->view('marketing.registration-onboarding', ['tenant' => $tenant, 'onboardingUrl' => '/setup', 'templateUrl' => '/template', 'errors' => new ViewErrorBag])
+        ->assertSee('Date display format')->assertSee('value="m/d/Y" selected', false);
 });

@@ -12,6 +12,7 @@ use App\Filament\Resources\Organizations\Pages\CreateOrganization;
 use App\Filament\Resources\Organizations\Pages\EditOrganization;
 use App\Filament\Resources\Organizations\Pages\ListOrganizations;
 use App\Models\Organization;
+use App\Services\DateFormatService;
 use App\Traits\HasSafeGlobalSearch;
 use DateTimeZone;
 use Filament\Actions\BulkActionGroup;
@@ -38,6 +39,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 // Import Fieldset
 use Filament\Tables\Table;
+use Illuminate\Validation\Rule;
 
 // Import ViewAction
 
@@ -130,6 +132,15 @@ class OrganizationResource extends BaseResource
                                 TextInput::make('language')
                                     ->maxLength(255)
                                     ->placeholder('e.g., English'),
+                                Select::make('date_format')
+                                    ->label('Date display format')
+                                    ->options(DateFormatService::FORMATS)
+                                    ->required()
+                                    ->rules([Rule::in(array_keys(DateFormatService::FORMATS))])
+                                    ->default(fn (): string => app(DateFormatService::class)->dateFormat())
+                                    ->dehydrated(false)
+                                    ->visible(fn (): bool => auth()->user()?->hasAnyRole(['super_admin', 'administration_admin']) ?? false)
+                                    ->helperText('Applies throughout this company’s panels, reports and field app. The app receives changes on sign-in or restart and keeps the setting offline.'),
                             ]),
 
                         Tab::make('Contact Information')

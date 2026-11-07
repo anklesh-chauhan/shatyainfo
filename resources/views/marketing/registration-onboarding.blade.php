@@ -14,6 +14,15 @@
                     <input id="org-{{ $key }}" name="organization[{{ $key }}]" type="{{ $key === 'email' ? 'email' : 'text' }}" value="{{ old('organization.'.$key, $tenant->onboarding_data['organization'][$key] ?? ($key === 'name' ? $tenant->name : ($key === 'email' ? ($tenant->provisioning_owner['email'] ?? '') : ''))) }}" maxlength="{{ $key === 'phone' ? 30 : 255 }}" required>
                 </div>
             @endforeach
+            <div class="field">
+                <label for="org-date-format">Date display format *</label>
+                <select id="org-date-format" name="organization[date_format]" required>
+                    @foreach (\App\Services\DateFormatService::FORMATS as $format => $label)
+                        <option value="{{ $format }}" @selected(old('organization.date_format', $tenant->onboarding_data['organization']['date_format'] ?? \App\Services\DateFormatService::DEFAULT_FORMAT) === $format)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <p>Used across your workspace, reports and field app. You can change it later in Organization Profile.</p>
+            </div>
             <button type="button" class="btn btn-primary" id="next-step">Continue to employees</button>
         </section>
         <section id="employee-step" hidden>

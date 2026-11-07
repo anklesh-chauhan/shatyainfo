@@ -12,6 +12,7 @@ use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\DivisionImportTemplate;
+use App\Services\DateFormatService;
 use App\Services\DivisionOnboardingService;
 use App\Services\TerritoryOnboardingService;
 use Filament\Facades\Filament;
@@ -137,11 +138,13 @@ it('offers combined territory and division preview and persists the no-divisions
         $this->assertDatabaseCount('organizational_units', 0);
         $page->call('importTerritories')->assertHasNoErrors();
         $this->assertDatabaseCount('organizational_units', 1);
-        $page->call('back')->set('organization.uses_divisions', 0)
+        $page->call('back')->assertSee('Date display format')
+            ->set('organization.date_format', 'd-m-Y')->set('organization.uses_divisions', 0)
             ->set('organization.email', 'company@example.test')->set('organization.phone', '9999999999')
             ->call('saveOrganization')->assertHasNoErrors()->assertSet('step', 2)
             ->assertSee('Your company does not use divisions')->assertDontSee('Import divisions first');
-        Livewire::test(Onboarding::class)->assertSet('organization.uses_divisions', 0)->call('back')->assertSee('Your company does not use divisions');
+        expect(app(DateFormatService::class)->dateFormat())->toBe('d-m-Y');
+        Livewire::test(Onboarding::class)->assertSet('organization.date_format', 'd-m-Y')->assertSet('organization.uses_divisions', 0)->call('back')->assertSee('Your company does not use divisions');
     } finally {
         Tenant::forgetCurrent();
     }

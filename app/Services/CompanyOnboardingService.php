@@ -79,6 +79,7 @@ class CompanyOnboardingService
         $data = Validator::make($data, [
             'name' => ['required', 'string', 'max:255'],
             'uses_divisions' => ['sometimes', 'boolean'],
+            'date_format' => ['sometimes', 'required', Rule::in(array_keys(DateFormatService::FORMATS))],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'legal_name' => ['nullable', 'string', 'max:255'],
@@ -91,7 +92,8 @@ class CompanyOnboardingService
         ])->validate();
         $organization = $this->organization() ?? new Organization;
         $usesDivisions = $data['uses_divisions'] ?? null;
-        unset($data['uses_divisions']);
+        $dateFormat = $data['date_format'] ?? null;
+        unset($data['uses_divisions'], $data['date_format']);
         $organization->fill($data);
         $metadata = $organization->metadata ?? [];
         if ($usesDivisions !== null) {
@@ -99,7 +101,12 @@ class CompanyOnboardingService
         }
         $metadata['company_setup']['organization_saved'] = true;
         $organization->metadata = $metadata;
-        $organization->save();
+        DB::transaction(function () use ($organization, $dateFormat): void {
+            $organization->save();
+            if ($dateFormat !== null) {
+                app(DateFormatService::class)->save($dateFormat);
+            }
+        });
 
         return $organization;
     }

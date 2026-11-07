@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Services\CompanyOnboardingService;
+use App\Services\DateFormatService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class RegistrationOnboardingRequest extends FormRequest
 {
@@ -28,6 +30,7 @@ class RegistrationOnboardingRequest extends FormRequest
             'organization.name' => ['required_unless:skip,1', 'nullable', 'string', 'max:255'],
             'organization.email' => ['required_unless:skip,1', 'nullable', 'email', 'max:255'],
             'organization.phone' => ['required_unless:skip,1', 'nullable', 'string', 'max:30'],
+            'organization.date_format' => ['required_unless:skip,1', 'nullable', Rule::in(array_keys(DateFormatService::FORMATS))],
             'employees' => ['nullable', 'array', 'max:500'],
             'employees.*.employee_id' => ['required', 'string', 'max:20', 'distinct:ignore_case'],
             'employees.*.first_name' => ['required', 'string', 'max:50'],

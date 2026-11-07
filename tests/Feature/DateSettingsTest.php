@@ -1,8 +1,10 @@
 <?php
 
-use App\Filament\Pages\DateSettings;
+use App\Filament\Resources\Organizations\Pages\CreateOrganization;
+use App\Filament\Resources\Organizations\Pages\EditOrganization;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\IntegrationSetting;
+use App\Models\Organization;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DateFormatService;
@@ -11,6 +13,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Schemas\Schema;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Livewire\livewire;
@@ -76,20 +79,45 @@ it('applies saved formats to date pickers tables and infolists', function () {
         ->and($schema->getDefaultDateTimeDisplayFormat())->toBe('Y-m-d H:i:s');
 });
 
-it('allows only administrators to view and save date settings', function () {
+it('edits the shared format from organization profile and protects it from non-administrators', function () {
     $admin = User::factory()->create();
     $admin->assignRole(Role::findOrCreate('administration_admin', 'web'));
+    foreach (['ViewAny:Organization', 'View:Organization', 'Update:Organization', 'AccessAllRecords'] as $permission) {
+        $admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
     $this->actingAs($admin);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $organization = Organization::create(['name' => 'Date Company', 'status' => 'active']);
 
-    livewire(DateSettings::class)->assertSuccessful()
+    livewire(EditOrganization::class, ['record' => $organization->id])->assertSuccessful()
+        ->assertFormSet(['date_format' => 'd/m/Y'])
         ->fillForm(['date_format' => 'd M Y'])->call('save')
-        ->assertHasNoFormErrors()->assertNotified('Date format saved');
+        ->assertHasNoFormErrors();
     expect(app(DateFormatService::class)->dateFormat())->toBe('d M Y');
-    livewire(DateSettings::class)->fillForm(['date_format' => 'unsupported'])->call('save')
-        ->assertHasFormErrors(['date_format']);
+    livewire(EditOrganization::class, ['record' => $organization->id])->assertFormSet(['date_format' => 'd M Y'])
+        ->fillForm(['date_format' => 'unsupported'])->call('save')->assertHasFormErrors(['date_format']);
 
-    $this->actingAs(User::factory()->create());
-    expect(DateSettings::canAccess())->toBeFalse();
-    livewire(DateSettings::class)->assertForbidden();
+    $editor = User::factory()->create();
+    foreach (['ViewAny:Organization', 'View:Organization', 'Update:Organization', 'AccessAllRecords'] as $permission) {
+        $editor->givePermissionTo($permission);
+    }
+    $this->actingAs($editor);
+    livewire(EditOrganization::class, ['record' => $organization->id])
+        ->assertFormFieldIsHidden('date_format')->set('data.date_format', 'Y-m-d')->call('save')
+        ->assertHasNoFormErrors();
+    expect(app(DateFormatService::class)->dateFormat())->toBe('d M Y');
+});
+
+it('saves the company format when creating an organization profile', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+    foreach (['ViewAny:Organization', 'Create:Organization', 'AccessAllRecords'] as $permission) {
+        $admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $this->actingAs($admin);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    livewire(CreateOrganization::class)->assertSuccessful()->fillForm([
+        'name' => 'New Date Company', 'status' => 'active', 'date_format' => 'd-m-Y',
+    ])->call('create')->assertHasNoFormErrors();
+    expect(app(DateFormatService::class)->dateFormat())->toBe('d-m-Y');
 });

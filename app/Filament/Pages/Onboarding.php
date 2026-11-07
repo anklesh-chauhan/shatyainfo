@@ -13,6 +13,7 @@ use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\AccountImportTemplate;
 use App\Services\DataImport\ImportDownloadResponse;
 use App\Services\DataImport\TerritoryImportTemplate;
+use App\Services\DateFormatService;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -21,6 +22,7 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\WithFileUploads;
@@ -408,6 +410,7 @@ class Onboarding extends Page
     {
         $organization = app(CompanyOnboardingService::class)->organization();
         $this->organization = [
+            'date_format' => app(DateFormatService::class)->dateFormat(),
             'uses_divisions' => (int) ($organization?->metadata['uses_divisions'] ?? true),
             'name' => $organization?->name ?? Tenant::current()?->name,
             'email' => $organization?->email ?? auth()->user()->email,
@@ -489,6 +492,7 @@ class Onboarding extends Page
         $this->validate([
             'companyLogo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
             'organization.name' => ['required', 'string', 'max:255'],
+            'organization.date_format' => ['required', Rule::in(array_keys(DateFormatService::FORMATS))],
             'organization.uses_divisions' => ['required', 'boolean'],
             'organization.email' => ['required', 'email', 'max:255'],
             'organization.phone' => ['required', 'string', 'max:30'],
