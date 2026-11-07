@@ -4,6 +4,7 @@ namespace App\Http\Resources\Api\V1;
 
 use App\Models\User;
 use App\Services\DateFormatService;
+use App\Services\Field\FieldPlanningService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,6 +23,7 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'date_format' => app(DateFormatService::class)->dateFormat(),
+            'field_planning' => app(FieldPlanningService::class)->capabilities(),
             'employee' => $this->whenLoaded('employee', fn (): ?array => $this->employee ? [
                 'id' => $this->employee->id,
                 'employee_id' => $this->employee->employee_id,

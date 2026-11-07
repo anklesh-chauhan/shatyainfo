@@ -24,7 +24,7 @@ class SgipDistributionResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGift;
 
-    protected static ?string $recordTitleAttribute = 'approval_status';
+    protected static ?string $recordTitleAttribute = 'id';
 
     protected static array $relatedGlobalSearchAttributes = [
         'employee.first_name',

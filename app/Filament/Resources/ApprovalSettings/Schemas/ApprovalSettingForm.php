@@ -4,6 +4,8 @@ namespace App\Filament\Resources\ApprovalSettings\Schemas;
 
 use App\Models\ApprovalSetting;
 use Filament\Forms;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class ApprovalSettingForm
@@ -12,7 +14,23 @@ class ApprovalSettingForm
     {
         return $schema
             ->components([
+                Forms\Components\Toggle::make('approvals_required')
+                    ->label('Does your team need approvals?')
+                    ->default(fn (): bool => ApprovalSetting::enabledModules() !== [])
+                    ->afterStateHydrated(fn (Forms\Components\Toggle $component, ?ApprovalSetting $record) => $component->state(($record?->enabled_modules ?? []) !== []))
+                    ->dehydrated(false)
+                    ->afterStateUpdated(function (bool $state, Set $set): void {
+                        if (! $state) {
+                            $set('enabled_modules', []);
+                        }
+                    })
+                    ->live()
+                    ->helperText('Turn off for no approvals in the admin workspace and field app. Existing approval flows are kept so you can enable them later.'),
                 Forms\Components\CheckboxList::make('enabled_modules')
+                    ->disabled(fn (Get $get): bool => ! $get('approvals_required'))
+                    ->dehydrated()
+                    ->dehydrateStateUsing(fn (?array $state, Get $get): array => $get('approvals_required') ? ($state ?? []) : [])
+                    ->required(fn (Get $get): bool => (bool) $get('approvals_required'))
                     ->label('Modules Requiring Approval')
                     ->options(function (): array {
                         $legacy = collect(ApprovalSetting::enabledModules())

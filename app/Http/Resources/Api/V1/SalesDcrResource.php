@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\ApprovalSetting;
 use App\Models\SalesDcr;
 use App\Models\VisitGeoAssessment;
 use App\Models\VisitPreference;
@@ -24,6 +25,7 @@ class SalesDcrResource extends JsonResource
         $devices = app(FieldDeviceService::class)->summary($this->resource);
 
         return [
+            'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'dcr_date' => optional($this->dcr_date)?->toDateString(),
             'user_id' => $this->user_id,

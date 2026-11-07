@@ -2,6 +2,7 @@
 
 namespace App\Services\Field;
 
+use App\Models\ApprovalSetting;
 use App\Models\ApprovalStep;
 use App\Models\Patch;
 use App\Models\SalesTourPlan;
@@ -14,6 +15,7 @@ use App\Models\VisitType;
 use App\Services\Approval\ApprovalService;
 use App\Services\JointUserService;
 use App\Services\PositionService;
+use App\Services\Travel\TravelSegmentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -31,6 +33,10 @@ class FieldMtpService
         $query = SalesTourPlan::query()->with($this->relations());
         if (! $inbox) {
             return $query->where('user_id', $user->id);
+        }
+
+        if (! ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class)) {
+            return $query->whereRaw('1 = 0');
         }
 
         return $query->where('user_id', '!=', $user->id)->whereHas('approval', function (Builder $q) use ($user): void {
@@ -71,6 +77,9 @@ class FieldMtpService
 
     public function canDecide(User $user, SalesTourPlan $plan): bool
     {
+        if (! ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class)) {
+            return false;
+        }
         $approval = $plan->approval;
         if ((int) $plan->user_id === (int) $user->id || ! $approval || $approval->isFinalized() || $approval->approval_status !== 'pending') {
             return false;
@@ -99,6 +108,7 @@ class FieldMtpService
         $territories = $territories->get(['id', 'name']);
 
         return [
+            'approval_required' => ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class),
             'can_create' => Gate::forUser($user)->allows('create', SalesTourPlan::class),
             'tour_plan_months' => VisitPreference::current()->allowedTourPlanMonths(),
             'territories' => $territories->toArray(),
@@ -190,6 +200,12 @@ class FieldMtpService
                     'visit_purpose_ids' => $day->visit_purpose_ids ?? [], 'joint_with' => $day->joint_with ?? [],
                 ])->all(),
             ]);
+            if (! ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class)) {
+                $plan->update(['approval_status' => 'approved', 'manager_remarks' => null, 'approved_by' => null, 'approved_at' => now()]);
+                app(TravelSegmentService::class)->regenerateFromTourPlan($plan);
+
+                return $plan->fresh($this->relations());
+            }
             $territories = $plan->details->pluck('territory_id')->filter()->unique();
             if ($plan->approval) {
                 $plan->approval->delete();

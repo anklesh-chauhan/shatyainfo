@@ -1,17 +1,29 @@
 <?php
 
 use App\Filament\Pages\Onboarding;
+use App\Filament\Resources\ApprovalSettings\Pages\EditApprovalSetting;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalSetting;
 use App\Models\Employee;
 use App\Models\JobRole;
 use App\Models\Organization;
 use App\Models\Position;
+use App\Models\SalesDcr;
+use App\Models\SalesOrder;
 use App\Models\Tenant;
+use App\Models\Visit;
 use App\Services\Approval\OnboardingApprovalService;
 use App\Services\CompanyOnboardingService;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -179,6 +191,70 @@ it('renders approval selection overrides and review in the onboarding wizard', f
             ->call('reviewApprovals')->assertHasNoErrors()->assertSet('step', 6)
             ->assertSee('These flows will become active when you finish setup.');
         $this->assertDatabaseCount('approval_flows', 0);
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
+
+it('hides approval fields for disabled modules and restores them when enabled', function () {
+    $this->setup->saveDraft(['required' => 'no']);
+    app(CompanyOnboardingService::class)->finish();
+    expect(ApprovalSetting::showsApprovalField(SalesDcr::class, 'approval_status'))->toBeFalse()
+        ->and(ApprovalSetting::showsApprovalField(SalesOrder::class, 'approval.approval_status'))->toBeFalse()
+        ->and(ApprovalSetting::showsApprovalField(Visit::class, 'sgipDistribution.approval_status'))->toBeFalse();
+    ApprovalSetting::instance()->update(['enabled_modules' => ['SalesDcr']]);
+    expect(ApprovalSetting::showsApprovalField(SalesDcr::class, 'approval_status'))->toBeTrue()
+        ->and(ApprovalSetting::showsApprovalField(SalesOrder::class, 'approval.approval_status'))->toBeFalse();
+});
+
+it('applies approval visibility to admin table columns filters and form fields', function () {
+    $setting = ApprovalSetting::instance();
+    $setting->update(['enabled_modules' => []]);
+    $table = Table::make(Mockery::mock(HasTable::class))
+        ->query(SalesDcr::query());
+    $column = TextColumn::make('approval_status')->table($table);
+    $filter = SelectFilter::make('approval_status')->table($table);
+    $schema = Schema::make()->model(SalesDcr::class)->components([
+        Select::make('approval_status'),
+        TextEntry::make('approved_at'),
+    ]);
+    expect($column->isHidden())->toBeTrue()->and($filter->isHidden())->toBeTrue();
+    foreach ($schema->getComponents(withHidden: true) as $component) {
+        expect($component->isHidden())->toBeTrue();
+    }
+    $setting->update(['enabled_modules' => ['SalesDcr']]);
+    expect($column->isHidden())->toBeFalse()->and($filter->isHidden())->toBeFalse();
+    foreach ($schema->getComponents(withHidden: true) as $component) {
+        expect($component->isHidden())->toBeFalse();
+    }
+});
+
+it('switches approvals off and back on from admin settings without removing flows', function () {
+    $this->setup->saveDraft(onboardingInput(onboardingRole('SETTINGS')));
+    app(CompanyOnboardingService::class)->finish();
+    $setting = ApprovalSetting::instance();
+    Gate::before(fn (): bool => true);
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99999, 'name' => 'Test', 'master_setup_status' => 'ready']);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant->makeCurrent();
+    auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    try {
+        Livewire::test(EditApprovalSetting::class, ['record' => $setting->id])
+            ->assertSuccessful()
+            ->assertSet('data.approvals_required', true)
+            ->fillForm(['approvals_required' => false])->call('save')->assertHasNoFormErrors();
+        expect(ApprovalSetting::enabledModules())->toBe([]);
+        expect(ApprovalFlow::where('active', true)->count())->toBe(2);
+        Livewire::test(EditApprovalSetting::class, ['record' => $setting->id])
+            ->assertSuccessful()
+            ->assertSet('data.approvals_required', false)
+            ->fillForm(['approvals_required' => true, 'enabled_modules' => [SalesOrder::class]])
+            ->call('save')->assertHasNoFormErrors();
+        expect(ApprovalSetting::moduleRequiresApproval(SalesOrder::class))->toBeTrue();
+        expect(ApprovalFlow::where('active', true)->count())->toBe(2);
     } finally {
         Tenant::forgetCurrent();
     }

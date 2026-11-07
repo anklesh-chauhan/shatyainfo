@@ -3,14 +3,15 @@
 namespace App\Services\Visit;
 
 use App\Models\SalesDcr;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class DcrService
 {
-    public function getOrCreateForDate(Carbon|string $date): SalesDcr
+    public function getOrCreateForDate(Carbon|string $date, ?User $owner = null): SalesDcr
     {
-        $user = Auth::user();
+        $user = $owner ?? Auth::user();
         $dcrDate = $date instanceof Carbon ? $date->toDateString() : $date;
 
         return SalesDcr::firstOrCreate(

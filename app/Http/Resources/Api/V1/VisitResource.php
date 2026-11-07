@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\ApprovalSetting;
+use App\Models\SgipDistribution;
 use App\Models\Visit;
 use App\Models\VisitPreference;
 use Illuminate\Http\Request;
@@ -34,11 +36,13 @@ class VisitResource extends JsonResource
             'patch_id' => $this->patch_id,
             'sales_dcr_id' => $this->sales_dcr_id,
             'sales_tour_plan_detail_id' => $this->sales_tour_plan_detail_id,
+            'flexible_plan_entry_id' => $this->flexible_plan_entry_id, 'flexible_plan_version' => $this->flexible_plan_version,
             'visit_date' => optional($this->visit_date)?->toDateString(),
             'start_time' => optional($this->start_time)?->toIso8601String(),
             'end_time' => optional($this->end_time)?->toIso8601String(),
             'visit_type' => $this->visit_type,
             'visit_status' => $this->visit_status,
+            'sgip_approval_required' => ApprovalSetting::moduleRequiresApproval(SgipDistribution::class),
             'reschedule_state' => $this->reschedule_state,
             'rescheduled_for' => optional($this->rescheduled_for)?->toDateString(),
             'cancel_reason' => $this->cancel_reason,
@@ -149,6 +153,7 @@ class VisitResource extends JsonResource
                         'id' => $sgip->id,
                         'field_version' => $sgip->fieldVersion(),
                         'approval_status' => $sgip->approval_status,
+                        'approval_required' => ApprovalSetting::moduleRequiresApproval($sgip::class),
                         'total_value' => $sgip->total_value !== null ? (float) $sgip->total_value : 0.0,
                         'items_count' => $sgip->relationLoaded('items') ? $sgip->items->count() : null,
                         'items' => $sgip->relationLoaded('items') ? $sgip->items->map(fn ($item): array => [

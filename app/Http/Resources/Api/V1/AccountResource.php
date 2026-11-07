@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\AccountMaster;
+use App\Models\ApprovalSetting;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +18,7 @@ class AccountResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'name' => $this->name,
             'geo_latitude' => $this->geo_latitude !== null ? (float) $this->geo_latitude : null,

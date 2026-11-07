@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\ApprovalSetting;
 use App\Models\LeaveApplication;
 use App\Services\Field\FieldLeaveService;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class LeaveApplicationResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'from_date' => optional($this->from_date)?->toDateString(),
             'to_date' => optional($this->to_date)?->toDateString(),

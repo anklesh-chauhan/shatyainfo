@@ -11,11 +11,16 @@ use App\Models\Visit;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->travelTo(Carbon::parse('2026-10-01 09:00:00'));
+});
 
 function fieldMtpFixture(): array
 {
@@ -157,7 +162,7 @@ it('requires rejection remarks and allows corrected resubmission', function () {
 
 it('keeps the draft intact when no approval flow is configured', function () {
     $f = fieldMtpFixture();
-    ApprovalSetting::query()->update(['enabled_modules' => []]);
+    ApprovalFlow::query()->where('module', 'SalesTourPlan')->update(['active' => false]);
     $plan = $this->postJson('/api/v1/monthly-tour-plans', $f['body'])->json('data');
     $this->postJson('/api/v1/monthly-tour-plans/'.$plan['id'].'/submit', ['revision' => $plan['revision']])->assertUnprocessable();
     expect(SalesTourPlan::find($plan['id'])->approval_status)->toBe('draft');
@@ -174,4 +179,27 @@ it('does not submit an empty generated month and validates missing nullable fiel
     $body['details'][0]['remarks'] = null;
     $plan = $this->postJson('/api/v1/monthly-tour-plans', $body)->assertSuccessful()->json('data');
     $this->postJson('/api/v1/monthly-tour-plans/'.$plan['id'].'/submit', ['revision' => $plan['revision']])->assertUnprocessable();
+});
+
+it('finalizes a monthly plan without a workflow when approvals are disabled and can enable them again', function () {
+    $f = fieldMtpFixture();
+    $setting = ApprovalSetting::instance();
+    $setting->update(['enabled_modules' => []]);
+    $plan = $this->postJson('/api/v1/monthly-tour-plans', $f['body'])
+        ->assertSuccessful()->assertJsonPath('data.approval_required', false)->json('data');
+    $this->postJson('/api/v1/monthly-tour-plans/'.$plan['id'].'/submit', ['revision' => $plan['revision']])
+        ->assertSuccessful()->assertJsonPath('data.approval_status', 'approved')
+        ->assertJsonPath('data.approval_required', false)->assertJsonPath('data.can_edit', false)
+        ->assertJsonCount(0, 'data.approval_steps');
+    expect(SalesTourPlan::findOrFail($plan['id'])->approval)->toBeNull();
+    expect(ApprovalFlow::where('module', 'SalesTourPlan')->where('active', true)->exists())->toBeTrue();
+
+    $setting->update(['enabled_modules' => ['SalesTourPlan']]);
+    $body = $f['body'];
+    $body['month'] = '2026-11';
+    $body['details'][0]['date'] = '2026-11-01';
+    $next = $this->postJson('/api/v1/monthly-tour-plans', $body)
+        ->assertSuccessful()->assertJsonPath('data.approval_required', true)->json('data');
+    $this->postJson('/api/v1/monthly-tour-plans/'.$next['id'].'/submit', ['revision' => $next['revision']])
+        ->assertSuccessful()->assertJsonPath('data.approval_status', 'pending')->assertJsonCount(2, 'data.approval_steps');
 });

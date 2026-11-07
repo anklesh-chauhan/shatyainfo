@@ -2,15 +2,14 @@
 
 namespace App\Filament\Resources\SalesTourPlans\Tables;
 
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
 use App\Models\SalesTourPlan;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Table;
 use Filament\Tables;
-use Filament\Actions\Action;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 class SalesTourPlansTable
@@ -21,8 +20,7 @@ class SalesTourPlansTable
             ->columns([
                 Tables\Columns\TextColumn::make('sales_employee')
                     ->label('Sales Employee')
-                    ->getStateUsing(fn ($record) =>
-                        $record->user?->employee?->full_name
+                    ->getStateUsing(fn ($record) => $record->user?->employee?->full_name
                             ?? $record->user?->email
                     )
                     ->sortable(
@@ -38,14 +36,14 @@ class SalesTourPlansTable
                         query: function (Builder $query, string $search): Builder {
                             return $query->whereHas('user.employee', function ($q) use ($search) {
                                 $q->where('first_name', 'like', "%{$search}%")
-                                ->orWhere('last_name', 'like', "%{$search}%")
-                                ->orWhere('email', 'like', "%{$search}%");
+                                    ->orWhere('last_name', 'like', "%{$search}%")
+                                    ->orWhere('email', 'like', "%{$search}%");
                             });
                         }
                     ),
 
                 Tables\Columns\TextColumn::make('month')->label('Month')->sortable()->date('F Y'),
-                Tables\Columns\TextColumn::make('status')
+                Tables\Columns\TextColumn::make('approval_status')
                     ->colors([
                         'secondary' => 'draft',
                         'warning' => 'submitted',
@@ -62,8 +60,7 @@ class SalesTourPlansTable
                 EditAction::make(),
                 Action::make('send_for_approval')
                     // ->visible(fn ($record) => $record->status === 'draft')
-                    ->action(fn (SalesTourPlan $record) =>
-                        $record->update(['approval_status' => 'pending'])
+                    ->action(fn (SalesTourPlan $record) => $record->update(['approval_status' => 'pending'])
                     ),
 
             ])

@@ -150,6 +150,11 @@ class AccountMaster extends BaseModel
         return $this->hasMany(AccountCallTarget::class);
     }
 
+    public function scopeApplyOwnVisibility(Builder $query, mixed $user): Builder
+    {
+        return $query->where('account_masters.owner_id', $user->id);
+    }
+
     public function assignmentHistory(): HasMany
     {
         return $this->hasMany(AccountAssignmentHistory::class);

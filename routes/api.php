@@ -10,11 +10,13 @@ use App\Http\Controllers\Api\V1\DcrController;
 use App\Http\Controllers\Api\V1\DcrExpenseController;
 use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\Api\V1\ExpenseTypeController;
+use App\Http\Controllers\Api\V1\FieldCoverageController;
 use App\Http\Controllers\Api\V1\FieldDcrEventController;
 use App\Http\Controllers\Api\V1\FieldDeviceController;
 use App\Http\Controllers\Api\V1\FieldExpenseEventController;
 use App\Http\Controllers\Api\V1\FieldSyncRecoveryController;
 use App\Http\Controllers\Api\V1\FieldVisitEventController;
+use App\Http\Controllers\Api\V1\FlexiblePlanController;
 use App\Http\Controllers\Api\V1\GeoExceptionController;
 use App\Http\Controllers\Api\V1\GpsPointController;
 use App\Http\Controllers\Api\V1\ItemController;
@@ -87,6 +89,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('visits/{visit}/e-detailing', [EDetailingController::class, 'store'])->whereNumber('visit');
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', MeController::class);
+        Route::get('flexible-plans', [FlexiblePlanController::class, 'index']);
+        Route::post('flexible-plans', [FlexiblePlanController::class, 'store']);
+        Route::get('field-coverage', FieldCoverageController::class);
 
         Route::get('attendance/today', [AttendanceController::class, 'today']);
         Route::get('attendance', [AttendanceController::class, 'index']);
@@ -141,6 +146,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'update']);
         Route::delete('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'destroy']);
 
+        Route::post('visits/direct', [VisitController::class, 'openDirect']);
         Route::get('visits/options', [VisitController::class, 'options']);
         Route::get('visits/{visit}', [VisitController::class, 'show']);
         Route::patch('visits/{visit}', [VisitController::class, 'update']);

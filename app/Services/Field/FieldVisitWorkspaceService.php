@@ -53,6 +53,7 @@ class FieldVisitWorkspaceService
             $visit = Visit::query()->lockForUpdate()->findOrFail($visit->id);
             abort_unless((int) $visit->employee_id === (int) $user->id, 404, 'Visit not found.');
             abort_if($visit->isCancelled(), 422, 'This visit can no longer be edited.');
+            app(FieldVisitService::class)->assertPlanning($visit);
             $prefs = VisitPreference::current();
             $fields = [
                 'visit_outcome_id' => 'outcome',

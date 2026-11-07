@@ -104,6 +104,9 @@
                             <div class="setup-note">Approval configuration already exists. Continue to retain it. Use the links below to make changes.</div>
                         @else
                             <div class="setup-field"><label for="approval-required">Approval required?</label><x-filament::input.wrapper><x-filament::input.select id="approval-required" wire:model.live="approval.required"><option value="">Choose an option</option><option value="no">No approvals required</option><option value="yes">Yes, configure approvals</option></x-filament::input.select></x-filament::input.wrapper></div>
+                            @if (($approval['required'] ?? '') === 'no')
+                                <p class="setup-hint">Approval statuses will be hidden in the admin workspace and field app. You can enable approvals later in Approval Settings.</p>
+                            @endif
                             @if (($approval['required'] ?? '') === 'yes')
                                 <p class="setup-hint">Choose modules with approval support.</p>
                                 @foreach ($this->approvalSetup()->groups() as $group => $modules)
@@ -139,7 +142,7 @@
                         @if (($approvalReview['required'] ?? '') === 'existing')
                             <p>Keep the existing approval settings and flows. Your admin changes are preserved.</p>
                         @elseif (($approvalReview['required'] ?? '') === 'no')
-                            <p>No approvals required. Approval modules will remain disabled.</p>
+                            <p>No approvals required. Approval statuses are hidden in the admin workspace and field app. You can enable approvals later in Approval Settings.</p>
                         @else
                             @foreach (($approvalReview['flows'] ?? []) as $flow)
                                 <p><strong>{{ $flow['label'] }}</strong> — {{ $flow['territory'] }}</p>

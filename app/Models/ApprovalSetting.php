@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Helpers\ModelHelper;
 use App\Services\Approval\ApprovalDomainDispatcher;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Validation\ValidationException;
 
 class ApprovalSetting extends BaseModel
@@ -23,6 +25,33 @@ class ApprovalSetting extends BaseModel
             ->filter(fn (string $class): bool => method_exists($class, 'approval'))
             ->mapWithKeys(fn (string $class): array => [$class => ModelHelper::labelFromClass($class)])
             ->all();
+    }
+
+    public static function showsApprovalField(Model|string|null $model, string $field): bool
+    {
+        if ($model === null) {
+            return true;
+        }
+        $model = is_string($model) ? new $model : $model;
+        $segments = explode('.', $field);
+        array_pop($segments);
+        foreach ($segments as $relationship) {
+            if (in_array($relationship, ['approval', 'approvedBy', 'approved_by', 'rejectedBy'], true)) {
+                break;
+            }
+            if (! method_exists($model, $relationship)) {
+                return true;
+            }
+            $relation = $model->{$relationship}();
+            if (! $relation instanceof Relation) {
+                return true;
+            }
+            $model = $relation->getRelated();
+        }
+
+        return $model instanceof Approval
+            ? static::enabledModules() !== []
+            : static::moduleRequiresApproval($model::class);
     }
 
     public static function supportsModule(string $module): bool

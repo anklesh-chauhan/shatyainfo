@@ -82,7 +82,6 @@ class TravelSegmentService
     public function generateFromActualVisits(SalesDcr $dcr): void
     {
         $visits = $dcr->visits()
-            ->whereNotNull('patch_id')
             ->with(['visitables', 'visitables.visitable.addresses'])
             ->orderBy('start_time')
             ->orderBy('id')

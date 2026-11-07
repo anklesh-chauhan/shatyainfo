@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\OpenDirectVisitRequest;
 use App\Http\Requests\Api\V1\StoreVisitPhotoRequest;
 use App\Http\Requests\Api\V1\VisitCheckInRequest;
 use App\Http\Requests\Api\V1\VisitCheckOutRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Resources\Api\V1\VisitResource;
+use App\Models\Visit;
 use App\Services\Field\FieldVisitService;
 use App\Services\Field\FieldVisitWorkspaceService;
 use App\Services\Visit\VisitEnforcementService;
@@ -20,6 +22,11 @@ class VisitController extends Controller
         private FieldVisitService $visitService,
         private VisitEnforcementService $enforcement,
     ) {}
+
+    public function openDirect(OpenDirectVisitRequest $request): VisitResource
+    {
+        return new VisitResource($this->visitService->openDirect($request->user(), $request->validated()));
+    }
 
     public function options(Request $request, FieldVisitWorkspaceService $workspace): JsonResponse
     {
@@ -99,7 +106,7 @@ class VisitController extends Controller
         return response()->json(['data' => $workspace->createDocument($request->user(), $record, $data['type'])]);
     }
 
-    private function workspaceVisit(Request $request, int $visit): \App\Models\Visit
+    private function workspaceVisit(Request $request, int $visit): Visit
     {
         return $this->visitService->findOwned($request->user(), $visit);
     }

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SgipDistributions\Tables;
 
+use App\Models\ApprovalSetting;
+use App\Models\SgipDistribution;
 use App\Services\SGIPComplianceService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -94,7 +96,7 @@ class SgipDistributionsTable
                     }),
 
                 Action::make('approve')
-                    ->label('Approve & Deduct Stock')
+                    ->label(fn (): string => ApprovalSetting::moduleRequiresApproval(SgipDistribution::class) ? 'Approve & Deduct Stock' : 'Post & Deduct Stock')
                     ->color('success')
                     ->requiresConfirmation()
                     ->visible(fn ($record): bool => $record->approval_status === 'submitted' && ! $record->isInventoryPosted())
@@ -104,18 +106,18 @@ class SgipDistributionsTable
                             $record->approve();
 
                             Notification::make()
-                                ->title('SGIP approved and stock deducted')
+                                ->title('SGIP posted and stock deducted')
                                 ->success()
                                 ->send();
                         } catch (ValidationException $exception) {
                             Notification::make()
-                                ->title('Unable to approve SGIP distribution')
+                                ->title('Unable to post SGIP distribution')
                                 ->body(collect($exception->errors())->flatten()->implode(' '))
                                 ->danger()
                                 ->send();
                         } catch (Throwable $exception) {
                             Notification::make()
-                                ->title('Unable to approve SGIP distribution')
+                                ->title('Unable to post SGIP distribution')
                                 ->body($exception->getMessage())
                                 ->danger()
                                 ->send();

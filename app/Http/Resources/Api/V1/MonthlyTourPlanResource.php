@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\ApprovalSetting;
 use App\Models\User;
 use App\Models\VisitPurpose;
 use App\Services\Field\FieldMtpService;
@@ -17,6 +18,7 @@ class MonthlyTourPlanResource extends JsonResource
         $jointUsers = User::query()->whereIn('id', $this->details->pluck('joint_with')->flatten()->filter())->pluck('name', 'id');
 
         return [
+            'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id, 'month' => $this->month->format('Y-m'),
             'employee_name' => $this->user?->name, 'approval_status' => $service->status($this->resource),
             'manager_remarks' => $this->manager_remarks,
@@ -35,10 +37,10 @@ class MonthlyTourPlanResource extends JsonResource
                 'joint_names' => collect($d->joint_with ?? [])->map(fn ($id) => $jointUsers[$id] ?? 'Unavailable employee'),
                 'remarks' => $d->remarks,
             ]),
-            'approval_steps' => $this->approval?->steps->map(fn ($s) => [
+            'approval_steps' => ApprovalSetting::moduleRequiresApproval($this->resource::class) ? ($this->approval?->steps->map(fn ($s) => [
                 'order' => $s->step_order, 'approver' => $s->approver?->name,
                 'status' => $s->status->value, 'comments' => $s->comments,
-            ]) ?? [],
+            ]) ?? []) : [],
         ];
     }
 }

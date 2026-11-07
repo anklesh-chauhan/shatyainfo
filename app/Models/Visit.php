@@ -30,6 +30,7 @@ class Visit extends BaseModel
     */
     protected $fillable = [
         'document_number',
+        'client_call_id', 'unplanned_reason', 'planning_revision_id', 'flexible_plan_entry_id', 'flexible_plan_version',
 
         'employee_id',
         'reporting_manager_id',

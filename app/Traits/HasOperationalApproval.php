@@ -15,6 +15,7 @@ use App\Services\Field\FieldDeviceService;
 use App\Services\Field\FieldGeoFenceService;
 use App\Services\Field\FieldRcpaService;
 use App\Services\Field\FieldSyncRecoveryService;
+use App\Services\Field\FieldVisitService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
@@ -59,6 +60,9 @@ trait HasOperationalApproval
             throw ValidationException::withMessages(['approval' => 'Cancelled documents cannot be submitted.']);
         }
         if ($this instanceof SalesDcr) {
+            foreach ($this->visits()->get() as $visit) {
+                app(FieldVisitService::class)->assertPlanning($visit);
+            }
             app(FieldGeoFenceService::class)->assertCleared($this);
             app(FieldSyncRecoveryService::class)->assertNoPendingReview($this);
             app(FieldDeviceService::class)->assertNoOtherDevicePending($this);
@@ -118,6 +122,9 @@ trait HasOperationalApproval
 
     public function canProceedAfterApproval(): bool
     {
+        if (! ApprovalSetting::moduleRequiresApproval($this::class)) {
+            return true;
+        }
         $status = $this->approval()->value('approval_status');
         if ($status !== null) {
             return $status === 'approved';

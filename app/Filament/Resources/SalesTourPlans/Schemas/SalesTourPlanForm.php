@@ -265,7 +265,7 @@ class SalesTourPlanForm
                         })
                         ->searchable(),
 
-                    Select::make('status')
+                    Select::make('approval_status')
                         ->options([
                             'draft' => 'Draft',
                             'submitted' => 'Submitted',

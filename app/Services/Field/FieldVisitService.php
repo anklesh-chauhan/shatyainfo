@@ -2,6 +2,7 @@
 
 namespace App\Services\Field;
 
+use App\Enums\FieldPlanningMode;
 use App\Models\AccountMaster;
 use App\Models\ImageTag;
 use App\Models\Media;
@@ -10,6 +11,7 @@ use App\Models\SalesTourPlanDetail;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitFeedbackQuestion;
+use App\Models\VisitPreference;
 use App\Services\Visit\VisitEnforcementService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +36,51 @@ class FieldVisitService
         return $visit;
     }
 
+    public function openDirect(User $user, array $data): Visit
+    {
+        abort_unless($user->can('create', Visit::class), 403);
+
+        return $user->getConnection()->transaction(function () use ($user, $data): Visit {
+            $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $existing = Visit::query()->where('client_call_id', $data['client_call_id'])->first();
+            if ($existing) {
+                abort_unless((int) $existing->employee_id === (int) $user->id, 404);
+                abort_unless($existing->visit_date->toDateString() === $data['date']
+                    && (int) $existing->primaryCompany()?->id === (int) $data['company_id']
+                    && (int) $existing->flexible_plan_entry_id === (int) ($data['flexible_plan_entry_id'] ?? 0)
+                    && (int) $existing->flexible_plan_version === (int) ($data['flexible_plan_version'] ?? 0)
+                    && (string) $existing->unplanned_reason === (string) ($data['unplanned_reason'] ?? ''), 409, 'Call identifier already belongs to a different call.');
+
+                return $existing->load(['territory', 'patch', 'media.tags', 'visitables.visitable']);
+            }
+            abort_unless(in_array(app(FieldPlanningService::class)->active()?->mode, [FieldPlanningMode::DirectDcr, FieldPlanningMode::Flexible], true), 422, 'Direct calls are not enabled.');
+            app(VisitPreference::class)->current()->assertDcrDateIsReportable($data['date']);
+            $account = app(FieldAccountService::class)->findVisible($user, $data['company_id']);
+            $intention = ! empty($data['flexible_plan_entry_id']) ? app(FieldFlexiblePlanningService::class)->executable($user, (int) $data['flexible_plan_entry_id'], (int) ($data['flexible_plan_version'] ?? 0), (int) $account->id, $data['date']) : null;
+            $dcr = app(FieldDcrService::class)->forDate($user, $data['date']);
+            app(FieldDcrService::class)->assertEditable($dcr);
+            $visit = Visit::create([
+                'document_number' => NumberSeries::getNextNumber(Visit::class),
+                'client_call_id' => $data['client_call_id'],
+                'employee_id' => $user->id,
+                'reporting_manager_id' => $user->reporting_manager_id,
+                'sales_dcr_id' => $dcr->id,
+                'visit_date' => $data['date'], 'visit_type' => $intention ? 'planned' : 'unplanned',
+                'flexible_plan_entry_id' => $intention?->id, 'flexible_plan_version' => $intention?->version,
+                'patch_id' => $intention?->patch_id, 'territory_id' => $intention?->patch?->territory_id,
+                'visit_status' => 'draft', 'approval_status' => 'pending',
+                'unplanned_reason' => $data['unplanned_reason'] ?? null,
+            ]);
+            NumberSeries::incrementNextNumber(Visit::class);
+            $visit->visitables()->create(['visitable_type' => AccountMaster::class, 'visitable_id' => $account->id]);
+            foreach (VisitFeedbackQuestion::query()->where('is_active', true)->get() as $question) {
+                $visit->feedbacks()->create(['visit_feedback_question_id' => $question->id]);
+            }
+
+            return $visit->fresh(['territory', 'patch', 'media.tags', 'visitables.visitable']);
+        });
+    }
+
     public function openPlanned(User $user, int $detailId, int $patchId, int $companyId): Visit
     {
         return $user->getConnection()->transaction(function () use ($user, $detailId, $patchId, $companyId): Visit {
@@ -52,6 +99,8 @@ class FieldVisitService
                     ->where('visitable_id', $companyId))
                 ->first();
             if ($existing) {
+                $this->assertPlanning($existing);
+
                 return $existing->load(['territory', 'patch', 'media.tags', 'visitables.visitable']);
             }
 
@@ -261,11 +310,20 @@ class FieldVisitService
         });
     }
 
+    public function assertPlanning(Visit $visit): void
+    {
+        $policy = app(FieldPlanningService::class)->active();
+        if ($policy) {
+            app(FieldVisitPlanningPolicy::class)->validate($visit, $policy->rules, $visit->unplanned_reason);
+        }
+    }
+
     private function assertOwned(User $user, Visit $visit): void
     {
         if ((int) $visit->employee_id !== (int) $user->id) {
             abort(404, 'Visit not found.');
         }
+        $this->assertPlanning($visit);
     }
 
     private function ensureImageTag(string $slug): void

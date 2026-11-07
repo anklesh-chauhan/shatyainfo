@@ -25,7 +25,9 @@ class FieldVisitEventService
             $target = $data['target'];
             $visit = isset($target['visit_id'])
                 ? $this->visits->findOwned($user, $target['visit_id'])
-                : $this->visits->openPlanned($user, $target['detail_id'], $target['patch_id'], $target['company_id']);
+                : (isset($target['client_call_id'])
+                    ? $this->visits->openDirect($user, $target)
+                    : $this->visits->openPlanned($user, $target['detail_id'], $target['patch_id'], $target['company_id']));
             $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($visit->sales_dcr_id);
             $this->dcrs->assertOwned($user, $dcr);
             $this->dcrs->assertEditable($dcr);

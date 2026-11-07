@@ -16,6 +16,10 @@ use function Pest\Livewire\livewire;
 
 uses(RefreshDatabase::class);
 
+beforeEach(function () {
+    $this->travelTo(Carbon::parse('2026-10-01 09:00:00'));
+});
+
 it('creates every day of the selected month and opens the plan', function () {
     $user = reportingUser('TourPlanner');
 

@@ -21,7 +21,7 @@ class SalesDcrsTable
             ->columns([
                 TextColumn::make('dcr_date')->date(),
                 TextColumn::make('user.name')->label('User'),
-                TextColumn::make('status')->badge(),
+                TextColumn::make('approval_status')->badge(),
                 TextColumn::make('total_expense')->money('INR'),
             ])
             ->filters([

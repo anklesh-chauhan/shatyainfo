@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\SgipDistributions\Pages;
 
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
+use App\Models\ApprovalSetting;
+use App\Models\SgipDistribution;
 use App\Services\SGIPComplianceService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -60,7 +62,7 @@ class EditSgipDistribution extends EditRecord
                 }),
 
             Action::make('approve')
-                ->label('Approve & Deduct Stock')
+                ->label(fn (): string => ApprovalSetting::moduleRequiresApproval(SgipDistribution::class) ? 'Approve & Deduct Stock' : 'Post & Deduct Stock')
                 ->color('success')
                 ->requiresConfirmation()
                 ->visible(fn (): bool => $this->record->approval_status === 'submitted' && ! $this->record->isInventoryPosted())
@@ -71,18 +73,18 @@ class EditSgipDistribution extends EditRecord
                         $this->refreshFormData(['approval_status', 'inventory_posted_at']);
 
                         Notification::make()
-                            ->title('SGIP approved and stock deducted')
+                            ->title('SGIP posted and stock deducted')
                             ->success()
                             ->send();
                     } catch (ValidationException $exception) {
                         Notification::make()
-                            ->title('Unable to approve SGIP distribution')
+                            ->title('Unable to post SGIP distribution')
                             ->body(collect($exception->errors())->flatten()->implode(' '))
                             ->danger()
                             ->send();
                     } catch (Throwable $exception) {
                         Notification::make()
-                            ->title('Unable to approve SGIP distribution')
+                            ->title('Unable to post SGIP distribution')
                             ->body($exception->getMessage())
                             ->danger()
                             ->send();
