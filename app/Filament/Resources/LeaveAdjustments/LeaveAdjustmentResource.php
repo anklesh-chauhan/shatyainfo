@@ -40,7 +40,7 @@ class LeaveAdjustmentResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
-    protected static ?string $navigationLabel = 'Adjustment';
+    protected static ?string $navigationLabel = 'Leave Adjustments';
 
     public static function form(Schema $schema): Schema
     {

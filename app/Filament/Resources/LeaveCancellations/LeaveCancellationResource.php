@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LeaveCancellations;
 
+use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Resources\LeaveCancellations\Pages\ManageLeaveCancellations;
 use App\Models\LeaveCancellation;
 use Filament\Resources\Resource;
@@ -10,9 +11,9 @@ use Filament\Tables\Table;
 
 class LeaveCancellationResource extends Resource
 {
-    protected static ?string $model = LeaveCancellation::class;
+    protected static ?string $cluster = LeaveManagementCluster::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'HR';
+    protected static ?string $model = LeaveCancellation::class;
 
     public static function table(Table $table): Table
     {

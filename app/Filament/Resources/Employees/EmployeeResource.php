@@ -57,7 +57,7 @@ class EmployeeResource extends BaseResource
 
     protected static ?string $cluster = EmployeeManagementCluster::class;
 
-    protected static ?string $navigationLabel = 'Employee';
+    protected static ?string $navigationLabel = 'Employees';
 
     protected static ?int $navigationSort = 10;
 

@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\RcpaCompetitors;
 
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\RcpaCompetitors\Pages\ManageRcpaCompetitors;
 use App\Models\AccountReportingMaster;
 use App\Models\RcpaCompetitor;
-use BackedEnum;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -21,11 +21,13 @@ use Illuminate\Validation\Rule;
 
 class RcpaCompetitorResource extends Resource
 {
+    protected static ?int $navigationSort = 130;
+
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     protected static ?string $model = RcpaCompetitor::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
 
     public static function canViewAny(): bool
     {

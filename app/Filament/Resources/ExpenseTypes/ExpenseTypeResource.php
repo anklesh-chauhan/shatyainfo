@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ExpenseTypes;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ExpenseTypes\Pages\CreateExpenseType;
 use App\Filament\Resources\ExpenseTypes\Pages\EditExpenseType;
@@ -23,17 +24,15 @@ use Filament\Tables\Table;
 
 class ExpenseTypeResource extends BaseResource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = ExpenseType::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedReceiptPercent;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Config';
-
-    protected static ?string $navigationParentItem = 'Expense Config';
-
-    protected static ?int $navigationSort = 1003;
+    protected static ?int $navigationSort = 70;
 
     protected static ?string $navigationLabel = 'Expense Types';
 

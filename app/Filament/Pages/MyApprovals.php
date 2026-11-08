@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Auth;
 
 class MyApprovals extends Page implements HasTable
 {
+    protected static ?int $navigationSort = 40;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
     use InteractsWithTable;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AccountReportingMasters;
 
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Models\AccountReportingMaster;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
@@ -10,15 +11,20 @@ use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 
 class AccountReportingMasterResource extends Resource
 {
-    protected static ?string $model = AccountReportingMaster::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBarSquare;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
+    protected static ?int $navigationSort = 20;
+
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
+    protected static ?string $model = AccountReportingMaster::class;
 
     protected static ?string $navigationLabel = 'Account Reporting Masters';
 

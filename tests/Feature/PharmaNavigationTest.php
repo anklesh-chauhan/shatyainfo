@@ -13,9 +13,12 @@ use Database\Seeders\PackingTypeSeeder;
 use Database\Seeders\TypeMasterSeeder;
 use Database\Seeders\UnitOfMeasurementSeeder;
 use Filament\Facades\Filament;
+use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
@@ -39,6 +42,33 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     DB::purge('mysql');
+});
+
+it('resolves regrouped admin menu destinations and renders their icons', function (): void {
+    $panel = Filament::getPanel('admin');
+
+    foreach (array_unique([...$panel->getResources(), ...$panel->getPages()]) as $class) {
+        if (is_subclass_of($class, Resource::class)) {
+            if (! isset($class::getPages()['index'])) {
+                continue;
+            }
+
+            $url = $class::getUrl('index', panel: 'admin');
+        } else {
+            $url = $class::getUrl(panel: 'admin');
+        }
+
+        $route = Route::getRoutes()->match(Request::create($url));
+        expect($route->getName())->toStartWith('filament.admin.');
+
+        if ($icon = $class::getNavigationIcon()) {
+            expect(\Filament\Support\generate_icon_html($icon)->toHtml())->toContain('<svg');
+        }
+    }
+
+    foreach ($panel->getNavigationGroups() as $group) {
+        expect(\Filament\Support\generate_icon_html($group->getIcon())->toHtml())->toContain('<svg');
+    }
 });
 
 it('filters defaults and saved shortcuts by access while preserving order and empty choices', function (): void {

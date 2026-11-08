@@ -6,16 +6,21 @@ use App\Models\User;
 use App\Services\Field\FieldCoverageService;
 use App\Services\Field\FieldTeamOnboardingService;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 
 class FieldCoverage extends Page
 {
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBar;
+
+    protected static ?int $navigationSort = 70;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     protected string $view = 'filament.pages.field-coverage';
 
-    protected static ?string $navigationLabel = 'Customer coverage';
+    protected static ?string $navigationLabel = 'Customer Coverage';
 
     protected static ?string $title = 'Customer coverage and frequency';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
 
     public string $month = '';
 

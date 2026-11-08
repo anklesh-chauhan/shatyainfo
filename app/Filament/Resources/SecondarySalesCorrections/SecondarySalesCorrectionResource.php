@@ -5,7 +5,6 @@ namespace App\Filament\Resources\SecondarySalesCorrections;
 use App\Filament\Resources\SecondarySalesCorrections\Pages\ManageSecondarySalesCorrections;
 use App\Models\SecondarySalesCorrection;
 use App\Services\Field\SecondarySalesCorrectionService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
@@ -21,11 +20,15 @@ use Illuminate\Support\Facades\Storage;
 
 class SecondarySalesCorrectionResource extends Resource
 {
+    protected static ?int $navigationSort = 20;
+
+    protected static ?string $navigationLabel = 'Corrections';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Secondary Sales';
+
     protected static ?string $model = SecondarySalesCorrection::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowUturnLeft;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedPencilSquare;
 
     protected static ?string $modelLabel = 'Secondary sales correction';
 

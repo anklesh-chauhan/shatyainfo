@@ -5,7 +5,6 @@ namespace App\Filament\Resources\TerritorySalesAssignments;
 use App\Filament\Resources\TerritorySalesAssignments\Pages\ManageTerritorySalesAssignments;
 use App\Models\TerritorySalesAssignment;
 use App\Services\Field\SalesPerformanceService;
-use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -19,11 +18,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class TerritorySalesAssignmentResource extends Resource
 {
+    protected static ?int $navigationSort = 70;
+
+    protected static ?string $navigationLabel = 'Territory Sales Assignments';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     protected static ?string $model = TerritorySalesAssignment::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     public static function canViewAny(): bool
     {

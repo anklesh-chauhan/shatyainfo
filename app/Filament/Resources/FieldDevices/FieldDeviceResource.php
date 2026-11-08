@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\FieldDevices;
 
+use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Resources\FieldDevices\Pages\ManageFieldDevices;
 use App\Models\FieldDevice;
 use App\Services\Field\FieldDeviceService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Resources\Resource;
@@ -18,11 +18,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class FieldDeviceResource extends Resource
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static ?string $cluster = OrganizationAndCompanyCluster::class;
+
     protected static ?string $model = FieldDevice::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDevicePhoneMobile;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDevicePhoneMobile;
 
     protected static ?string $modelLabel = 'Field device';
 

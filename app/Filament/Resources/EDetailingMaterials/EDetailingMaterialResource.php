@@ -23,13 +23,15 @@ use Filament\Tables\Table;
 
 class EDetailingMaterialResource extends Resource
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Samples';
+
     protected static ?string $model = EDetailingMaterial::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedPresentationChartBar;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
-
-    protected static ?string $navigationLabel = 'E-detailing library';
+    protected static ?string $navigationLabel = 'E-detailing Library';
 
     protected static ?string $modelLabel = 'e-detailing material';
 

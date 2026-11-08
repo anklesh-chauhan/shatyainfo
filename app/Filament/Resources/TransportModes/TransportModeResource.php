@@ -24,15 +24,15 @@ use Filament\Tables\Table;
 
 class TransportModeResource extends BaseResource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = TransportMode::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 50;
 
     protected static ?string $navigationLabel = 'Transport Modes';
 

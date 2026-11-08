@@ -20,17 +20,17 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class HolidayResource extends Resource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     protected static ?string $model = Holiday::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedSun;
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $cluster = ShiftAndCalanderCluster::class;
-
     protected static ?string $navigationLabel = 'Holiday List';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 60;
 
     public static function form(Schema $schema): Schema
     {

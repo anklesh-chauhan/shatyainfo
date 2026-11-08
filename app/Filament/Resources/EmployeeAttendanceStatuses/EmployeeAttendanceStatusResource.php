@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\EmployeeAttendanceStatuses;
 
-use App\Filament\Clusters\HR\AttendanceCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Pages\CreateEmployeeAttendanceStatus;
 use App\Filament\Resources\EmployeeAttendanceStatuses\Pages\EditEmployeeAttendanceStatus;
@@ -17,17 +17,17 @@ use Filament\Tables\Table;
 
 class EmployeeAttendanceStatusResource extends BaseResource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = EmployeeAttendanceStatus::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckCircle;
 
-    protected static ?string $cluster = AttendanceCluster::class;
-
     protected static ?string $navigationLabel = 'Attendance Status';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 80;
 
     public static function form(Schema $schema): Schema
     {

@@ -24,15 +24,15 @@ use Filament\Tables\Table;
 
 class TenantResource extends Resource
 {
+    protected static ?string $cluster = UserAndAccessCluster::class;
+
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
 
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Tenant::class;
 
-    protected static ?string $cluster = UserAndAccessCluster::class;
-
-    protected static ?int $navigationSort = 1000;
+    protected static ?int $navigationSort = 30;
 
     protected static ?string $navigationLabel = 'Tenants';
 

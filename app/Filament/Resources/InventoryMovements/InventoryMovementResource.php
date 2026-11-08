@@ -12,15 +12,15 @@ use Filament\Tables\Table;
 
 class InventoryMovementResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     protected static ?string $model = InventoryMovement::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBookOpen;
 
     protected static ?string $navigationLabel = 'Stock Ledger';
 
-    protected static ?int $navigationSort = 200;
+    protected static ?int $navigationSort = 80;
 
     public static function form(Schema $schema): Schema
     {

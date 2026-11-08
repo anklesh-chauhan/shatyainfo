@@ -4,7 +4,7 @@ namespace App\Filament\Resources\CityPinCodes;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Filament\Exports\CityPinCodeExporter;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\CityPinCodes\Pages\CreateCityPinCode;
@@ -29,15 +29,15 @@ use Filament\Tables\Table;
 
 class CityPinCodeResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = CityPinCode::class;
 
-    protected static ?string $cluster = AddressConfigurationCluster::class;
+    protected static ?string $navigationLabel = 'Areas & Towns';
 
-    protected static ?string $navigationLabel = 'Area Town';
-
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 100;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 

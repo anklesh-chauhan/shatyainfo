@@ -14,7 +14,7 @@ class FollowpConfigurationCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Followup Config';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
     protected static ?string $navigationLabel = 'Followup Config';
 

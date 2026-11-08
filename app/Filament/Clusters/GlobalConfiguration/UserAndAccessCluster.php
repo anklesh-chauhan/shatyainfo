@@ -10,13 +10,13 @@ class UserAndAccessCluster extends Cluster
 {
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldCheck;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
 
-    protected static ?string $clusterBreadcrumb = 'User & Access';
+    protected static ?string $clusterBreadcrumb = 'Company & Access';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'User & Access';
+    protected static ?string $navigationLabel = 'Company & Access';
 
     protected static ?int $navigationSort = 10;
 }

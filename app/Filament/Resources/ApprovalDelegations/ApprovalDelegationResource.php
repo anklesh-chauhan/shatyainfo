@@ -18,15 +18,15 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ApprovalDelegationResource extends Resource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     protected static ?string $model = ApprovalDelegation::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserPlus;
-
-    protected static ?string $cluster = OperationalConfigCluster::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
     protected static ?string $recordTitleAttribute = 'module';
 
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 20;
 
     public static function form(Schema $schema): Schema
     {

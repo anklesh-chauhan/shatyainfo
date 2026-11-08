@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class WeekOffResource extends Resource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = WeekOff::class;
@@ -36,11 +38,9 @@ class WeekOffResource extends Resource
         'day_of_week',
     ];
 
-    protected static ?string $cluster = ShiftAndCalanderCluster::class;
-
     protected static ?string $navigationLabel = 'Week Offs';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 70;
 
     public static function form(Schema $schema): Schema
     {

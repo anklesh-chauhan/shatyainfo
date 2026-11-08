@@ -4,7 +4,7 @@ namespace App\Filament\Resources\States;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\States\Pages\CreateState;
 use App\Filament\Resources\States\Pages\EditState;
@@ -23,17 +23,17 @@ use Filament\Tables\Table;
 
 class StateResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = State::class;
 
-    protected static ?string $cluster = AddressConfigurationCluster::class;
-
-    protected static ?string $navigationLabel = 'State Master';
+    protected static ?string $navigationLabel = 'States';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 80;
 
     public static function form(Schema $schema): Schema
     {

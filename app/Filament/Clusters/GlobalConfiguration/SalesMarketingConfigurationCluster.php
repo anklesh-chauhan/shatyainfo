@@ -10,13 +10,13 @@ class SalesMarketingConfigurationCluster extends Cluster
 {
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
-    protected static ?string $clusterBreadcrumb = 'Sales & Marketing';
+    protected static ?string $clusterBreadcrumb = 'Field & Travel Setup';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Sales & Marketing';
+    protected static ?string $navigationLabel = 'Field & Travel Setup';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 20;
 }

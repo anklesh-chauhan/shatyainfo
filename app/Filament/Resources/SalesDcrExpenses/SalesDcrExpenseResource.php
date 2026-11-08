@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrExpenseResource extends Resource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = SalesDcrExpense::class;
@@ -31,11 +33,9 @@ class SalesDcrExpenseResource extends Resource
         'expenseType.name',
     ];
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+    protected static ?int $navigationSort = 60;
 
-    protected static ?int $navigationSort = 10;
-
-    protected static ?string $navigationLabel = 'Sales DCR Expenses';
+    protected static ?string $navigationLabel = 'DCR Expenses';
 
     public static function form(Schema $schema): Schema
     {

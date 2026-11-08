@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SalesDocumentPreferences;
 
 use App\Filament\Actions\ApprovalAction;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\SalesDocumentPreferenceResource\Pages;
 use App\Filament\Resources\SalesDocumentPreferences\Pages\EditSalesDocumentPreference;
@@ -23,15 +24,15 @@ use Filament\Tables\Table;
 
 class SalesDocumentPreferenceResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = SalesDocumentPreference::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
-
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 90;
 
     public static function form(Schema $schema): Schema
     {

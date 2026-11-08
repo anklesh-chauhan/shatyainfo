@@ -5,7 +5,6 @@ namespace App\Filament\Resources\TerritorySalesTargets;
 use App\Filament\Resources\TerritorySalesTargets\Pages\ManageTerritorySalesTargets;
 use App\Models\TerritorySalesTarget;
 use App\Services\Field\SalesPerformanceService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
@@ -22,11 +21,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class TerritorySalesTargetResource extends Resource
 {
+    protected static ?int $navigationSort = 90;
+
+    protected static ?string $navigationLabel = 'Territory Sales Targets';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     protected static ?string $model = TerritorySalesTarget::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBarSquare;
 
     public static function canViewAny(): bool
     {

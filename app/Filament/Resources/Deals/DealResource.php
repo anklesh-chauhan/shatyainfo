@@ -32,6 +32,10 @@ use Illuminate\Database\Eloquent\Builder;
 
 class DealResource extends BaseResource
 {
+    protected static ?string $navigationLabel = 'Deals';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasCustomerInteractionFields;
     use HasSafeGlobalSearch;
 
@@ -42,11 +46,9 @@ class DealResource extends BaseResource
      */
     protected static ?string $statusModel = DealStage::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
-
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 40;
 
     protected static ?string $recordTitleAttribute = 'reference_code';
 

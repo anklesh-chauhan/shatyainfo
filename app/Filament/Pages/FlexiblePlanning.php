@@ -20,20 +20,25 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 
 class FlexiblePlanning extends Page implements HasForms
 {
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
+
+    protected static ?int $navigationSort = 20;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     use InteractsWithForms;
 
     protected string $view = 'filament.pages.flexible-planning';
 
     protected static ?string $title = 'Daily and weekly intentions';
 
-    protected static ?string $navigationLabel = 'Flexible planning';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static ?string $navigationLabel = 'Flexible Planning';
 
     public ?array $data = [];
 

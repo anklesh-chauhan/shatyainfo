@@ -22,15 +22,15 @@ use Filament\Tables\Table;
 
 class RegionResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Region::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAsiaAustralia;
 
-    protected static ?string $cluster = CustomerConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 1001;
+    protected static ?int $navigationSort = 60;
 
     protected static ?string $navigationLabel = 'Regions';
 

@@ -23,15 +23,15 @@ use Filament\Tables\Table;
 
 class VisitTypeResource extends BaseResource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = VisitType::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 30;
 
     protected static ?string $navigationLabel = 'Visit Types';
 

@@ -10,13 +10,13 @@ class OrganizationAndCompanyCluster extends Cluster
 {
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedWrenchScrewdriver;
 
-    protected static ?string $clusterBreadcrumb = 'Organization & Company';
+    protected static ?string $clusterBreadcrumb = 'Onboarding & Support';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Organization & Company';
+    protected static ?string $navigationLabel = 'Onboarding & Support';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 80;
 }

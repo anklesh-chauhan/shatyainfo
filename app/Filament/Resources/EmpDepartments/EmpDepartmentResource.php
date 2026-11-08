@@ -4,7 +4,7 @@ namespace App\Filament\Resources\EmpDepartments;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmpDepartments\Pages\CreateEmpDeparment;
 use App\Filament\Resources\EmpDepartments\Pages\EditEmpDeparment;
@@ -42,17 +42,17 @@ use Illuminate\Support\Facades\Auth;
 
 class EmpDepartmentResource extends BaseResource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = EmpDepartment::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
-    protected static ?string $cluster = EmployeeManagementCluster::class;
-
     protected static ?string $navigationLabel = 'Departments';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 10;
 
     public static function form(Schema $schema): Schema
     {

@@ -5,7 +5,6 @@ namespace App\Filament\Resources\RcpaObservations;
 use App\Filament\Resources\RcpaObservations\Pages\ManageRcpaObservations;
 use App\Models\AccountMaster;
 use App\Models\RcpaObservation;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Resources\Resource;
@@ -18,11 +17,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class RcpaObservationResource extends Resource
 {
+    protected static ?int $navigationSort = 40;
+
+    protected static ?string $navigationLabel = 'RCPA Observations';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Samples';
+
     protected static ?string $model = RcpaObservation::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMagnifyingGlass;
 
     public static function canViewAny(): bool
     {

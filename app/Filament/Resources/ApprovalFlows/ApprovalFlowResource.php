@@ -18,11 +18,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ApprovalFlowResource extends Resource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     protected static ?string $model = ApprovalFlow::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
-
-    protected static ?string $cluster = OperationalConfigCluster::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;
 
     protected static ?string $recordTitleAttribute = 'module';
 

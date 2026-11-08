@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Cities;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Cities\Pages\CreateCity;
 use App\Filament\Resources\Cities\Pages\EditCity;
@@ -31,17 +31,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 class CityResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = City::class;
 
-    protected static ?string $cluster = AddressConfigurationCluster::class;
-
-    protected static ?string $navigationLabel = 'City Master';
+    protected static ?string $navigationLabel = 'Cities';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 90;
 
     public static function form(Schema $schema): Schema
     {

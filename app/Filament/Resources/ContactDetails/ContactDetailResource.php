@@ -31,17 +31,17 @@ use Filament\Tables\Table;
 
 class ContactDetailResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = ContactDetail::class;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
     protected static ?string $navigationLabel = 'Contacts';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 20;
 
     public static function form(Schema $schema): Schema
     {

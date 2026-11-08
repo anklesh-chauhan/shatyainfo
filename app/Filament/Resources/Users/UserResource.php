@@ -24,11 +24,13 @@ use Filament\Tables\Table;
 
 class UserResource extends Resource
 {
+    protected static ?int $navigationSort = 20;
+
+    protected static ?string $cluster = UserAndAccessCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = User::class;
-
-    protected static ?string $cluster = UserAndAccessCluster::class;
 
     protected static ?string $navigationLabel = 'User Management';
 

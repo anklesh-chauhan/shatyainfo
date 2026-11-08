@@ -24,17 +24,17 @@ use Filament\Tables\Table;
 
 class VisitPurposeResource extends BaseResource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = VisitPurpose::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFlag;
 
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+    protected static ?int $navigationSort = 40;
 
-    protected static ?int $navigationSort = 10;
-
-    protected static ?string $navigationLabel = 'Visit Puroposes';
+    protected static ?string $navigationLabel = 'Visit Purposes';
 
     public static function form(Schema $schema): Schema
     {

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Models\Employee;
 use App\Models\Tenant;
@@ -29,15 +30,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DataImport extends Page implements HasForms
 {
+    protected static ?string $cluster = OrganizationAndCompanyCluster::class;
+
     use InteractsWithForms;
 
     protected static ?string $navigationLabel = 'Data Import';
 
     protected static ?string $title = 'Data Import';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
-
-    protected static ?int $navigationSort = 90;
+    protected static ?int $navigationSort = 20;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowUpTray;
 

@@ -12,11 +12,11 @@ class OperationalConfigCluster extends Cluster
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCog6Tooth;
 
-    protected static ?string $clusterBreadcrumb = 'Operational Config';
+    protected static ?string $clusterBreadcrumb = 'Approvals & System';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Operational Config';
+    protected static ?string $navigationLabel = 'Approvals & System';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 70;
 }

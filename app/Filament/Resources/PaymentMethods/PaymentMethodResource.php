@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\PaymentMethods;
 
-use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\PaymentMethods\Pages\CreatePaymentMethod;
 use App\Filament\Resources\PaymentMethods\Pages\EditPaymentMethod;
@@ -17,13 +17,15 @@ use Filament\Tables\Table;
 
 class PaymentMethodResource extends BaseResource
 {
+    protected static ?int $navigationSort = 110;
+
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = PaymentMethod::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
-
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 
     public static function form(Schema $schema): Schema
     {

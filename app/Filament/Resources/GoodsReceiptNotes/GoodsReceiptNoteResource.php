@@ -18,15 +18,15 @@ use Filament\Tables\Table;
 
 class GoodsReceiptNoteResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     protected static ?string $model = GoodsReceiptNote::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBoxArrowDown;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowDownTray;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+    protected static ?string $navigationLabel = 'Goods Receipts (GRN)';
 
-    protected static ?string $navigationLabel = 'Goods Receipt (GRN)';
-
-    protected static ?int $navigationSort = 196;
+    protected static ?int $navigationSort = 40;
 
     public static function form(Schema $schema): Schema
     {

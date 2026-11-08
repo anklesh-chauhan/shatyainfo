@@ -7,7 +7,6 @@ use App\Models\SecondarySalesStatement;
 use App\Models\User;
 use App\Services\Field\SecondarySalesCorrectionService;
 use App\Services\Field\SecondarySalesService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\FileUpload;
@@ -30,11 +29,15 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class SecondarySalesStatementResource extends Resource
 {
+    protected static ?int $navigationSort = 10;
+
+    protected static ?string $navigationLabel = 'Sales Statements';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Secondary Sales';
+
     protected static ?string $model = SecondarySalesStatement::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
 
     public static function canViewAny(): bool
     {

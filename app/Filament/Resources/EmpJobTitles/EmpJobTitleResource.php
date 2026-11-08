@@ -4,7 +4,7 @@ namespace App\Filament\Resources\EmpJobTitles;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmpJobTitleResource\RelationManagers;
 use App\Filament\Resources\EmpJobTitles\Pages\CreateEmpJobTitle;
@@ -31,17 +31,17 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmpJobTitleResource extends BaseResource
 {
+    protected static ?int $navigationSort = 20;
+
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = EmpJobTitle::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase; // Changed icon to something more suitable for job titles
 
-    protected static ?string $cluster = EmployeeManagementCluster::class;
-
     protected static ?string $navigationLabel = 'Job Titles';
-
-    protected static ?int $navigationSort = 30; // Adjust sort order as needed, e.g., after Departments
 
     public static function form(Schema $schema): Schema
     {

@@ -18,11 +18,13 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TravelSegmentResource extends Resource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = TravelSegment::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
     protected static ?string $recordTitleAttribute = null;
 
@@ -31,9 +33,7 @@ class TravelSegmentResource extends Resource
         'toAccount.name',
     ];
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
-
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 50;
 
     protected static ?string $navigationLabel = 'Travel Segments';
 

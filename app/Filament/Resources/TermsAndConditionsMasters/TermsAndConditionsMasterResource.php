@@ -17,17 +17,17 @@ use Filament\Tables\Table;
 
 class TermsAndConditionsMasterResource extends BaseResource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = TermsAndConditionsMaster::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
-    protected static ?string $cluster = OperationalConfigCluster::class;
+    protected static ?int $navigationSort = 70;
 
-    protected static ?int $navigationSort = 40;
-
-    protected static ?string $navigationLabel = 'Terms & Cond.';
+    protected static ?string $navigationLabel = 'Terms & Conditions';
 
     public static function form(Schema $schema): Schema
     {

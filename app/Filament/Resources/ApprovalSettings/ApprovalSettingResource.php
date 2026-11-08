@@ -17,19 +17,19 @@ use Filament\Tables\Table;
 
 class ApprovalSettingResource extends BaseResource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = ApprovalSetting::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCog6Tooth;
-
-    protected static ?string $cluster = OperationalConfigCluster::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static bool $isGloballySearchable = false;
 
     protected static ?string $recordTitleAttribute = null;
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 30;
 
     public static function form(Schema $schema): Schema
     {

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class StandardFareChartResource extends Resource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = StandardFareChart::class;
@@ -32,11 +34,9 @@ class StandardFareChartResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
 
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+    protected static ?int $navigationSort = 60;
 
-    protected static ?int $navigationSort = 10;
-
-    protected static ?string $navigationLabel = 'SFC';
+    protected static ?string $navigationLabel = 'Standard Fare Charts';
 
     public static function form(Schema $schema): Schema
     {

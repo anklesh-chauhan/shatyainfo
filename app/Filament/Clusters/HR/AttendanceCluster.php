@@ -10,13 +10,13 @@ class AttendanceCluster extends Cluster
 {
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFingerPrint;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
     protected static ?string $clusterBreadcrumb = 'Attendance';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'HR';
+    protected static string|\UnitEnum|null $navigationGroup = 'HR & Attendance';
 
     protected static ?string $navigationLabel = 'Attendance';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 20;
 }

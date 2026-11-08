@@ -34,13 +34,15 @@ use Illuminate\Support\Facades\Auth;
 
 class PatchResource extends BaseResource
 {
+    protected static ?int $navigationSort = 50;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Patch::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     // Added a label for better readability in the navigation
     protected static ?string $navigationLabel = 'Patches';

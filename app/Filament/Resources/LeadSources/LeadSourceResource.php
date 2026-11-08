@@ -22,13 +22,13 @@ use Filament\Tables\Table;
 
 class LeadSourceResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = LeadSource::class;
 
-    protected static ?string $cluster = LeadConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 10;
 
     protected static ?string $navigationLabel = 'Lead Source';
 

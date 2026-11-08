@@ -39,6 +39,10 @@ use Illuminate\Support\Facades\Log;
 
 class QuoteResource extends BaseResource
 {
+    protected static ?string $navigationLabel = 'Quotes';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
     use SalesDocumentResourceTrait;
 
@@ -46,9 +50,7 @@ class QuoteResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
-
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 50;
 
     protected static function resolveModelClass(): string
     {

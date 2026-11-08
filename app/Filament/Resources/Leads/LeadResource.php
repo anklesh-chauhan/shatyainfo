@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Traits\AddressDetailsTrait;
 use App\Traits\HasCustomerInteractionFields;
 use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -51,6 +52,10 @@ use Illuminate\Support\Facades\Auth;
 
 class LeadResource extends BaseResource
 {
+    protected static ?string $navigationLabel = 'Leads';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use AddressDetailsTrait;
     use HasCustomerInteractionFields;
     use HasSafeGlobalSearch;
@@ -58,8 +63,6 @@ class LeadResource extends BaseResource
     protected static ?string $model = Lead::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserPlus;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     protected static ?int $navigationSort = 10;
 
@@ -272,7 +275,7 @@ class LeadResource extends BaseResource
                     EditAction::make(),
                     ApprovalAction::make(),
                     DeleteAction::make(),
-                    \Filament\Actions\Action::make('convert_to_deal')
+                    Action::make('convert_to_deal')
                         ->label('Convert to Deal')
                         ->icon('heroicon-o-arrow-right-circle')
                         ->color('success')
@@ -297,7 +300,7 @@ class LeadResource extends BaseResource
                                 ->send();
                         })
                         ->visible(fn ($record) => $record->status?->name !== 'Converted'),
-                    \Filament\Actions\Action::make('addFollowUp')
+                    Action::make('addFollowUp')
                         ->label('Add Follow-up')
                         ->icon('heroicon-o-plus')
                         ->schema([

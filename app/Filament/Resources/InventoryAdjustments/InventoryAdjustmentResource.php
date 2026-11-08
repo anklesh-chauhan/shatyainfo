@@ -18,15 +18,15 @@ use Filament\Tables\Table;
 
 class InventoryAdjustmentResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     protected static ?string $model = InventoryAdjustment::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
-
     protected static ?string $navigationLabel = 'Stock Adjustments';
 
-    protected static ?int $navigationSort = 197;
+    protected static ?int $navigationSort = 70;
 
     public static function form(Schema $schema): Schema
     {

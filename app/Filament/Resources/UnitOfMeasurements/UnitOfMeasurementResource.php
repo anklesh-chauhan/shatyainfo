@@ -22,15 +22,15 @@ use Filament\Tables\Table;
 
 class UnitOfMeasurementResource extends BaseResource
 {
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = UnitOfMeasurement::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedScale;
 
-    protected static ?string $cluster = ItemConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 1003;
+    protected static ?int $navigationSort = 40;
 
     protected static ?string $navigationLabel = 'Unit of Measurement';
 

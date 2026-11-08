@@ -14,14 +14,19 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 class InventoryTransferResource extends BaseResource
 {
-    protected static ?string $model = InventoryTransfer::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+    protected static ?int $navigationSort = 60;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
+    protected static ?string $model = InventoryTransfer::class;
 
     protected static ?string $navigationLabel = 'Stock Transfers';
 

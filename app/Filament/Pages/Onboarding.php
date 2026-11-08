@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Jobs\ProcessAccountImport;
 use App\Jobs\SeedTenantMasters;
@@ -30,6 +31,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class Onboarding extends Page
 {
+    protected static ?string $cluster = OrganizationAndCompanyCluster::class;
+
     use WithFileUploads;
 
     public mixed $companyLogo = null;
@@ -273,15 +276,13 @@ class Onboarding extends Page
         $this->step = 3;
     }
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedRocketLaunch;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected static ?string $navigationLabel = 'Setup Checklist';
 
     protected static ?string $title = 'Setup Checklist';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
-
-    protected static ?int $navigationSort = 80;
+    protected static ?int $navigationSort = 10;
 
     protected string $view = 'filament.pages.onboarding';
 

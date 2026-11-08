@@ -16,17 +16,17 @@ use Filament\Tables\Table;
 
 class CustomerPriceResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = CustomerPrice::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyRupee;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
+    protected static ?int $navigationSort = 80;
 
-    protected static ?int $navigationSort = 190;
-
-    protected static ?string $navigationLabel = 'Price & Discounts';
+    protected static ?string $navigationLabel = 'Prices & Discounts';
 
     protected static ?string $recordTitleAttribute = null;
 

@@ -133,7 +133,7 @@ test('onboarding redirects the owner inside the admin panel during master setup'
     $request = Request::create('/admin', 'GET');
     $request->setUserResolver(fn () => $user);
     $response = (new PromptCompanySetup)->handle($request, fn () => response('Dashboard'));
-    expect($response->getTargetUrl())->toContain('/admin/onboarding');
+    expect($response->getTargetUrl())->toBe(Onboarding::getUrl(panel: 'admin'));
 });
 
 function transactionalMasterProvisioner(): TenantProvisioner
@@ -312,8 +312,8 @@ test('initial provisioning uses five real migrations and renders setup without b
         ->and(Schema::connection('tenant')->hasTable('employees'))->toBeFalse()
         ->and(Schema::connection('tenant')->hasTable('visits'))->toBeFalse();
     $this->actingAs($user, 'web');
-    $this->get('http://new.shatyainfo.com/admin')->assertRedirect(route('filament.admin.pages.onboarding'));
-    $this->get('http://new.shatyainfo.com/admin/onboarding')->assertOk()->assertSee('We are configuring your account')->assertSee('0% complete');
+    $this->get('http://new.shatyainfo.com/admin')->assertRedirect(Onboarding::getUrl(panel: 'admin'));
+    $this->get(Onboarding::getUrl(panel: 'admin'))->assertOk()->assertSee('We are configuring your account')->assertSee('0% complete');
 });
 
 test('schema progress counts completed migrations and skips them on retry', function () {

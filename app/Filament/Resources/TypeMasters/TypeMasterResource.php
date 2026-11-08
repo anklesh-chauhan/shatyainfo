@@ -29,15 +29,15 @@ use Filament\Tables\Table;
 
 class TypeMasterResource extends BaseResource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = TypeMaster::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
-    protected static ?string $cluster = OperationalConfigCluster::class;
-
-    protected static ?int $navigationSort = 200;
+    protected static ?int $navigationSort = 80;
 
     public static function form(Schema $schema): Schema
     {

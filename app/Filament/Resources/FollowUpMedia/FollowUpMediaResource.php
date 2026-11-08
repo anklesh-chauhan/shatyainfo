@@ -4,7 +4,7 @@ namespace App\Filament\Resources\FollowUpMedia;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\FollowpConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUpMedia\Pages\CreateFollowUpMedia;
 use App\Filament\Resources\FollowUpMedia\Pages\EditFollowUpMedia;
@@ -22,17 +22,17 @@ use Filament\Tables\Table;
 
 class FollowUpMediaResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = FollowUpMedia::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChatBubbleLeftRight;
 
-    protected static ?string $cluster = FollowpConfigurationCluster::class;
-
     protected static ?string $navigationLabel = 'Media';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 50;
 
     public static function form(Schema $schema): Schema
     {

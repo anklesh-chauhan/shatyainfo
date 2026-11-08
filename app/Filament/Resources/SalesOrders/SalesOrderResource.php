@@ -32,6 +32,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SalesOrderResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
     use SalesDocumentResourceTrait;
 
@@ -39,9 +41,7 @@ class SalesOrderResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingCart;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
-
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 60;
 
     protected static ?string $navigationLabel = 'Sales Orders';
 

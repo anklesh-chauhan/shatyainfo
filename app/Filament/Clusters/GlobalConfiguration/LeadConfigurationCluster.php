@@ -10,13 +10,13 @@ class LeadConfigurationCluster extends Cluster
 {
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFunnel;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
 
-    protected static ?string $clusterBreadcrumb = 'Lead Config';
+    protected static ?string $clusterBreadcrumb = 'Sales & Marketing Setup';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Lead Config';
+    protected static ?string $navigationLabel = 'Sales & Marketing Setup';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 30;
 }

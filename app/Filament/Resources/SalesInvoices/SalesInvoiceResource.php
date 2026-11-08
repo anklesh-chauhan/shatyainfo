@@ -29,16 +29,18 @@ use Filament\Tables\Table;
 
 class SalesInvoiceResource extends BaseResource
 {
+    protected static ?string $navigationLabel = 'Sales Invoices';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
     use SalesDocumentResourceTrait;
 
     protected static ?string $model = SalesInvoice::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentCurrencyRupee;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales';
-
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 70;
 
     public static function form(Schema $schema): Schema
     {

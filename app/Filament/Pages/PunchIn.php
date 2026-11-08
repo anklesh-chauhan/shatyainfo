@@ -15,6 +15,10 @@ use Illuminate\Support\Facades\Request;
 
 class PunchIn extends Page
 {
+    protected static ?int $navigationSort = 20;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
     protected string $view = 'filament.pages.punch-in';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFingerPrint;

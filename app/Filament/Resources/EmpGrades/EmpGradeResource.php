@@ -4,7 +4,7 @@ namespace App\Filament\Resources\EmpGrades;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\EmpGradeResource\RelationManagers;
 use App\Filament\Resources\EmpGrades\Pages\CreateEmpGrade;
@@ -31,13 +31,13 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmpGradeResource extends BaseResource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = EmpGrade::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedStar; // Icon for grades
-
-    protected static ?string $cluster = EmployeeManagementCluster::class;
 
     protected static ?string $navigationLabel = 'Grades';
 

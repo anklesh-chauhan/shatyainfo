@@ -20,15 +20,15 @@ use Filament\Tables\Table;
 
 class PurchaseOrderResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     protected static ?string $model = PurchaseOrder::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingBag;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
-
     protected static ?string $navigationLabel = 'Purchase Orders';
 
-    protected static ?int $navigationSort = 195;
+    protected static ?int $navigationSort = 30;
 
     public static function form(Schema $schema): Schema
     {

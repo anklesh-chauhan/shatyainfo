@@ -18,17 +18,17 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ExpenseConfigurationResource extends Resource
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     protected static ?string $model = ExpenseConfiguration::class;
 
     protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+    protected static ?int $navigationSort = 80;
 
-    protected static ?int $navigationSort = 10;
-
-    protected static ?string $navigationLabel = 'Expense Config';
+    protected static ?string $navigationLabel = 'Expense Rules';
 
     public static function form(Schema $schema): Schema
     {

@@ -13,10 +13,8 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Throwable;
 
 trait HasSafeGlobalSearch
@@ -131,6 +129,11 @@ trait HasSafeGlobalSearch
     public static function getGlobalSearchResults(string $search): Collection
     {
         $results = new Collection;
+
+        if (! auth()->check() || ! static::canAccess()) {
+            return $results;
+        }
+
         $limit = static::$globalSearchResultsLimit ?? 5; // Default limit
 
         // Record-based search
@@ -203,39 +206,13 @@ trait HasSafeGlobalSearch
     // Eloquent query for global search with tenancy and permission filters
     public static function getGlobalSearchEloquentQuery(): Builder
     {
-        $model = static::getModel();
-        $instance = new $model;
+        if (! auth()->check() || ! static::canAccess()) {
+            $model = static::getModel();
 
-        $table = $instance->getTable();
-
-        $query = DB::connection('mysql')->table($table);
-
-        $eloquentQuery = $instance->newEloquentBuilder($query);
-        $eloquentQuery->setModel($instance);
-
-        if ($user = auth()->user()) {
-            $resourceClassName = class_basename(static::class);
-            $resourceNameOnly = str_replace('Resource', '', $resourceClassName);
-            $permissionName = "ViewAny:{$resourceNameOnly}";
-
-            $isSuperAdmin = $user->hasAnyRole(['admin', 'general_manager', 'marketing_manager']);
-
-            $canViewAny = false;
-
-            if (! $isSuperAdmin) {
-                try {
-                    $canViewAny = $user->hasPermissionTo($permissionName);
-                } catch (PermissionDoesNotExist) {
-                    $canViewAny = false;
-                }
-            }
-
-            if (! $isSuperAdmin && ! $canViewAny) {
-                $eloquentQuery->whereRaw('1 = 0');
-            }
+            return $model::query()->whereRaw('1 = 0');
         }
 
-        return $eloquentQuery;
+        return static::getEloquentQuery();
     }
 
     // Record-based search: Result title

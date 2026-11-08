@@ -22,17 +22,17 @@ use Filament\Tables\Table;
 
 class DepartmentResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Department::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice;
 
-    protected static ?string $cluster = CustomerConfigurationCluster::class;
+    protected static ?int $navigationSort = 40;
 
-    protected static ?int $navigationSort = 1001;
-
-    protected static ?string $navigationLabel = 'Deparments';
+    protected static ?string $navigationLabel = 'Departments';
 
     public static function form(Schema $schema): Schema
     {

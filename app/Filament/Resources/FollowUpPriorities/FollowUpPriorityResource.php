@@ -4,7 +4,7 @@ namespace App\Filament\Resources\FollowUpPriorities;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\FollowpConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUpPriorities\Pages\CreateFollowUpPriority;
 use App\Filament\Resources\FollowUpPriorities\Pages\EditFollowUpPriority;
@@ -22,17 +22,17 @@ use Filament\Tables\Table;
 
 class FollowUpPriorityResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = FollowUpPriority::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFlag;
 
-    protected static ?string $cluster = FollowpConfigurationCluster::class;
-
     protected static ?string $navigationLabel = 'Priorities';
 
-    protected static ?int $navigationSort = 21;
+    protected static ?int $navigationSort = 60;
 
     public static function form(Schema $schema): Schema
     {

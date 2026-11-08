@@ -14,7 +14,7 @@ class AddressConfigurationCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Address Config';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
     protected static ?string $navigationLabel = 'Address Config';
 

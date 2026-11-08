@@ -38,7 +38,7 @@ class LeaveBalanceResource extends Resource
         'leaveType.name',
     ];
 
-    protected static ?string $navigationLabel = 'Balances';
+    protected static ?string $navigationLabel = 'Leave Balances';
 
     public static function form(Schema $schema): Schema
     {

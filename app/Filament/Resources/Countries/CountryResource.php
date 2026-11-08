@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Countries;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Countries\Pages\CreateCountry;
 use App\Filament\Resources\Countries\Pages\EditCountry;
@@ -22,17 +22,17 @@ use Filament\Tables\Table;
 
 class CountryResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Country::class;
 
-    protected static ?string $cluster = AddressConfigurationCluster::class;
-
-    protected static ?string $navigationLabel = 'Country Master';
+    protected static ?string $navigationLabel = 'Countries';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAsiaAustralia;
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 70;
 
     public static function form(Schema $schema): Schema
     {

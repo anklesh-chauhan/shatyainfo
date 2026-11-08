@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FieldSyncRecoveries;
 
+use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Resources\FieldSyncRecoveries\Pages\ManageFieldSyncRecoveries;
 use App\Models\FieldSyncRecovery;
 use App\Models\ItemMaster;
@@ -11,7 +12,6 @@ use App\Services\Field\FieldPlanConflictService;
 use App\Services\Field\FieldReplacementService;
 use App\Services\Field\FieldSgipStockService;
 use App\Services\Field\FieldSyncRecoveryService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
@@ -31,11 +31,13 @@ use Illuminate\Support\Arr;
 
 class FieldSyncRecoveryResource extends Resource
 {
+    protected static ?int $navigationSort = 40;
+
+    protected static ?string $cluster = OrganizationAndCompanyCluster::class;
+
     protected static ?string $model = FieldSyncRecovery::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
 
     public static function canViewAny(): bool
     {

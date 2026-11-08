@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\JobRoles;
 
-use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\JobRoles\Pages\CreateJobRole;
 use App\Filament\Resources\JobRoles\Pages\EditJobRole;
 use App\Filament\Resources\JobRoles\Pages\ListJobRoles;
@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class JobRoleResource extends Resource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     protected static ?string $model = JobRole::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
@@ -29,11 +31,9 @@ class JobRoleResource extends Resource
         return ['name', 'code'];
     }
 
-    protected static ?string $cluster = EmployeeManagementCluster::class;
-
     protected static ?string $navigationLabel = 'Job Roles';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 40;
 
     public static function form(Schema $schema): Schema
     {

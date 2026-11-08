@@ -20,15 +20,20 @@ use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 class HrChangeRequestResource extends Resource
 {
-    protected static ?string $model = HrChangeRequest::class;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentCheck;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'HR';
+    protected static ?int $navigationSort = 40;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'HR & Attendance';
+
+    protected static ?string $model = HrChangeRequest::class;
 
     protected static ?string $navigationLabel = 'HR Change Requests';
 

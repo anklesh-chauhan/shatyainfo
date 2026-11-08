@@ -16,18 +16,23 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 class FieldTeamOnboarding extends Page implements HasForms
 {
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
+
+    protected static ?int $navigationSort = 60;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use InteractsWithForms;
 
     protected string $view = 'filament.pages.field-team-onboarding';
 
-    protected static ?string $navigationLabel = 'HQ and customer assignment';
+    protected static ?string $navigationLabel = 'HQ & Customer Assignments';
 
     protected static ?string $title = 'HQ and customer assignment';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
 
     public ?array $data = [];
 

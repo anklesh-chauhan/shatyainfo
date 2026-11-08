@@ -18,16 +18,18 @@ use Filament\Tables\Table;
 
 class SalesTourPlanResource extends BaseResource
 {
+    protected static ?int $navigationSort = 10;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     use HasApprovalWorkflow, HasSafeGlobalSearch, HasVisibilityScope;
 
     protected static ?string $model = SalesTourPlan::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
     // Added a label for better readability in the navigation
-    protected static ?string $navigationLabel = 'Sales Tour Plan';
+    protected static ?string $navigationLabel = 'Tour Plans';
 
     protected static ?string $recordTitleAttribute = null;
 

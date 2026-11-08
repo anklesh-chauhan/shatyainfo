@@ -23,6 +23,8 @@ use Filament\Support\Icons\Heroicon;
 
 class VisitPreferences extends Page implements HasForms
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use InteractsWithForms;
 
     protected string $view = 'filament.pages.visit-preferences';
@@ -32,8 +34,6 @@ class VisitPreferences extends Page implements HasForms
     protected static ?string $title = 'Visit Preferences';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
-
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 
     protected static ?int $navigationSort = 10;
 

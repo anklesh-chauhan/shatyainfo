@@ -8,13 +8,15 @@ use Filament\Support\Icons\Heroicon;
 
 class ReportsCluster extends Cluster
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Reports';
+
     protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
 
     protected static ?string $clusterBreadcrumb = 'Reports';
 
-    protected static ?string $navigationLabel = 'Reports';
+    protected static ?string $navigationLabel = 'All Reports';
 
     protected static ?int $navigationSort = 3;
 

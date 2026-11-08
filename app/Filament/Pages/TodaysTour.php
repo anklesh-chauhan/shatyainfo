@@ -26,6 +26,10 @@ use Illuminate\Support\Facades\Auth;
 
 class TodaysTour extends Page implements HasActions, HasForms
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
     use HasVisitManagement, InteractsWithActions, InteractsWithForms;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;

@@ -18,15 +18,15 @@ use Filament\Tables\Table;
 
 class DeliveryChallanResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     protected static ?string $model = DeliveryChallan::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
-
     protected static ?string $navigationLabel = 'Delivery Challans';
 
-    protected static ?int $navigationSort = 195;
+    protected static ?int $navigationSort = 50;
 
     public static function form(Schema $schema): Schema
     {

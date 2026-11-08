@@ -13,15 +13,15 @@ use Illuminate\Support\Facades\Auth;
 
 class SalesAssistant extends Page
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedSparkles;
 
     protected static ?string $navigationLabel = 'Sales Assistant';
 
     protected static ?string $title = 'Sales Assistant';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
-
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 60;
 
     protected string $view = 'filament.pages.sales-assistant';
 

@@ -23,11 +23,11 @@ use Throwable;
 
 class AiConfiguration extends Page implements HasForms
 {
-    use InteractsWithForms;
-
     protected static ?string $cluster = OperationalConfigCluster::class;
 
-    protected static ?int $navigationSort = 6;
+    use InteractsWithForms;
+
+    protected static ?int $navigationSort = 60;
 
     protected static ?string $navigationLabel = 'AI Configuration';
 

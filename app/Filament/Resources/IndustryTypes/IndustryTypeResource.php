@@ -22,13 +22,13 @@ use Filament\Tables\Table;
 
 class IndustryTypeResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = IndustryType::class;
 
-    protected static ?string $cluster = CustomerConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 30;
 
     protected static ?string $navigationLabel = 'Industry Types';
 

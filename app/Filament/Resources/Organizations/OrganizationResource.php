@@ -4,7 +4,7 @@ namespace App\Filament\Resources\Organizations;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
+use App\Filament\Clusters\GlobalConfiguration\UserAndAccessCluster;
 use App\Filament\Resources\AccountMasterBankDetailResource\RelationManagers\BankDetailRelationManager;
 use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
 use App\Filament\Resources\BaseResource;
@@ -45,17 +45,17 @@ use Illuminate\Validation\Rule;
 
 class OrganizationResource extends BaseResource
 {
+    protected static ?string $cluster = UserAndAccessCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Organization::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2; // More relevant icon
 
-    protected static ?string $cluster = OrganizationAndCompanyCluster::class;
-
     protected static ?string $navigationLabel = 'Organization Profile';
 
-    protected static ?int $navigationSort = 1000;
+    protected static ?int $navigationSort = 10;
 
     public static function form(Schema $schema): Schema
     {

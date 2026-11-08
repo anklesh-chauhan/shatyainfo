@@ -25,13 +25,15 @@ use Filament\Tables\Table;
 
 class TaxResource extends BaseResource
 {
+    protected static ?int $navigationSort = 70;
+
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Tax::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedReceiptPercent;
-
-    protected static ?string $cluster = ItemConfigurationCluster::class;
 
     public static function form(Schema $schema): Schema
     {

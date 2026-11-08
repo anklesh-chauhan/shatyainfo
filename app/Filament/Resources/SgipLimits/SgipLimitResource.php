@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SgipLimits;
 
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\SgipLimits\Pages\CreateSgipLimit;
 use App\Filament\Resources\SgipLimits\Pages\EditSgipLimit;
 use App\Filament\Resources\SgipLimits\Pages\ListSgipLimits;
@@ -19,13 +20,15 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SgipLimitResource extends Resource
 {
+    protected static ?int $navigationSort = 140;
+
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     protected static ?string $model = SgipLimit::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $recordTitleAttribute = 'item_type';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     public static function getGloballySearchableAttributes(): array
     {

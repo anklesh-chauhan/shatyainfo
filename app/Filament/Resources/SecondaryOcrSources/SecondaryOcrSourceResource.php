@@ -5,7 +5,6 @@ namespace App\Filament\Resources\SecondaryOcrSources;
 use App\Filament\Resources\SecondaryOcrSources\Pages\ManageSecondaryOcrSources;
 use App\Models\SecondaryOcrSource;
 use App\Services\Field\SecondaryOcrService;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Resources\Resource;
@@ -19,11 +18,15 @@ use Illuminate\Support\Facades\Storage;
 
 class SecondaryOcrSourceResource extends Resource
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static ?string $navigationLabel = 'OCR Sources';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Secondary Sales';
+
     protected static ?string $model = SecondaryOcrSource::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentMagnifyingGlass;
 
     public static function canViewAny(): bool
     {

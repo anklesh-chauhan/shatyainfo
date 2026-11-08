@@ -23,15 +23,15 @@ use Filament\Tables\Table;
 
 class PackagingTypeResource extends BaseResource
 {
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = PackagingType::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
-    protected static ?string $cluster = ItemConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 1003;
+    protected static ?int $navigationSort = 30;
 
     public static function form(Schema $schema): Schema
     {

@@ -26,15 +26,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 class LeadActivityResource extends BaseResource
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static ?string $navigationLabel = 'Lead Activities';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = LeadActivity::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBolt;
-
-    protected static ?string $navigationParentItem = 'Lead';
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales & Marketing';
 
     public static function form(Schema $schema): Schema
     {

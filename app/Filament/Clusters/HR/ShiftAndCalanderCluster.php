@@ -12,11 +12,11 @@ class ShiftAndCalanderCluster extends Cluster
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
-    protected static ?string $clusterBreadcrumb = 'Shift & Calanders';
+    protected static ?string $clusterBreadcrumb = 'HR Setup';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'HR';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Shift & Calanders';
+    protected static ?string $navigationLabel = 'HR Setup';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 60;
 }

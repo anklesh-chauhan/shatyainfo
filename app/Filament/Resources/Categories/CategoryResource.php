@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Categories;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\GlobalConfiguration\ItemConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Categories\Pages\CreateCategory;
 use App\Filament\Resources\Categories\Pages\EditCategory;
@@ -32,17 +33,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 class CategoryResource extends BaseResource
 {
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Category::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedFolder;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+    protected static ?int $navigationSort = 10;
 
-    protected static ?int $navigationSort = 201;
-
-    protected static ?string $navigationLabel = 'Category';
+    protected static ?string $navigationLabel = 'Categories';
 
     public static function form(Schema $schema): Schema
     {

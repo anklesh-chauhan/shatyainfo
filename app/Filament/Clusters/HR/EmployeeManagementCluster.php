@@ -14,9 +14,9 @@ class EmployeeManagementCluster extends Cluster
 
     protected static ?string $clusterBreadcrumb = 'Employee Management';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'HR';
+    protected static string|\UnitEnum|null $navigationGroup = 'HR & Attendance';
 
-    protected static ?string $navigationLabel = 'Employee Management';
+    protected static ?string $navigationLabel = 'Employees & Organization';
 
     protected static ?int $navigationSort = 10;
 }

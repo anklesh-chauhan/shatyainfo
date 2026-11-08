@@ -4,7 +4,7 @@ namespace App\Filament\Resources\AddressTypes;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\AddressConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\CustomerConfigurationCluster;
 use App\Filament\Resources\AddressTypes\Pages\CreateAddressType;
 use App\Filament\Resources\AddressTypes\Pages\EditAddressType;
 use App\Filament\Resources\AddressTypes\Pages\ListAddressTypes;
@@ -22,15 +22,13 @@ use Filament\Tables\Table;
 
 class AddressTypeResource extends BaseResource
 {
+    protected static ?string $cluster = CustomerConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = AddressType::class;
 
-    protected static ?string $cluster = AddressConfigurationCluster::class;
-
-    protected static ?string $navigationParentItem = 'Address Config';
-
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 110;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 

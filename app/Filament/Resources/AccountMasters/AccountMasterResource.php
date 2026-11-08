@@ -38,6 +38,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AccountMasterResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use CreateAccountMasterTrait;
     use HasSafeGlobalSearch;
     use HasVisibilityScope;
@@ -46,11 +48,9 @@ class AccountMasterResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
+    protected static ?int $navigationSort = 10;
 
-    protected static ?int $navigationSort = 190;
-
-    protected static ?string $navigationLabel = 'Account Masters';
+    protected static ?string $navigationLabel = 'Accounts';
 
     public static function form(Schema $schema): Schema
     {

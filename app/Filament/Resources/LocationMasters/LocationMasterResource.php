@@ -35,15 +35,17 @@ use Filament\Tables\Table;
 
 class LocationMasterResource extends BaseResource
 {
+    protected static ?string $navigationLabel = 'Locations';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     use AddressDetailsTrait, HasSafeGlobalSearch;
 
     protected static ?string $model = LocationMaster::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
-
-    protected static ?int $navigationSort = 200;
+    protected static ?int $navigationSort = 90;
 
     public static function form(Schema $schema): Schema
     {

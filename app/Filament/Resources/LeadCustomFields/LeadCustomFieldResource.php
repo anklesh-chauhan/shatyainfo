@@ -23,17 +23,17 @@ use Filament\Tables\Table;
 
 class LeadCustomFieldResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = LeadCustomField::class;
-
-    protected static ?string $cluster = LeadConfigurationCluster::class;
 
     protected static ?string $navigationLabel = 'Lead Custom Fields';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 30;
 
     public static function form(Schema $schema): Schema
     {

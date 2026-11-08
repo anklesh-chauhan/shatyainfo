@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\FieldPlanningMode;
+use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
 use App\Models\FieldPlanningRevision;
 use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldPlanningSettingsService;
@@ -23,19 +24,19 @@ use Livewire\Attributes\Locked;
 
 class FieldPlanningPreferences extends Page implements HasForms
 {
+    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
+
     use InteractsWithForms;
 
     protected string $view = 'filament.pages.field-planning-preferences';
 
-    protected static ?string $navigationLabel = 'Field planning';
+    protected static ?string $navigationLabel = 'Planning Rules';
 
     protected static ?string $title = 'Field planning proposals';
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
-
-    protected static ?int $navigationSort = 24;
+    protected static ?int $navigationSort = 20;
 
     public ?array $data = [];
 

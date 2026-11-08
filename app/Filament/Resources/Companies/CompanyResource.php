@@ -26,19 +26,17 @@ use Filament\Tables\Table;
 
 class CompanyResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = Company::class;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Contacts & Companies';
-
-    protected static ?string $navigationParentItem = 'Contacts';
-
     protected static ?string $navigationLabel = 'Companies';
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingStorefront;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 30;
 
     public static function form(Schema $schema): Schema
     {

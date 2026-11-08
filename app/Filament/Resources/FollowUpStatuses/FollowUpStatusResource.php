@@ -4,7 +4,7 @@ namespace App\Filament\Resources\FollowUpStatuses;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Clusters\GlobalConfiguration\FollowpConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\FollowUpStatuses\Pages\CreateFollowUpStatus;
 use App\Filament\Resources\FollowUpStatuses\Pages\EditFollowUpStatus;
@@ -22,17 +22,17 @@ use Filament\Tables\Table;
 
 class FollowUpStatusResource extends BaseResource
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = FollowUpStatus::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckCircle;
 
-    protected static ?string $cluster = FollowpConfigurationCluster::class;
-
     protected static ?string $navigationLabel = 'Status';
 
-    protected static ?int $navigationSort = 23;
+    protected static ?int $navigationSort = 80;
 
     public static function form(Schema $schema): Schema
     {

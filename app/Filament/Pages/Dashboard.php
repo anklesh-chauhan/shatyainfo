@@ -30,6 +30,10 @@ class Dashboard extends BaseDashboard
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedHome;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
+    protected static ?int $navigationSort = 10;
+
     public function booted(): void
     {
         $period = is_array($this->filters) ? ($this->filters['period'] ?? null) : null;

@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\SkuUnitConversions;
 
+use App\Filament\Clusters\GlobalConfiguration\ItemConfigurationCluster;
 use App\Filament\Resources\SkuUnitConversions\Pages\ManageSkuUnitConversions;
 use App\Models\SkuUnitConversion;
-use BackedEnum;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -18,11 +18,13 @@ use Illuminate\Validation\Rule;
 
 class SkuUnitConversionResource extends Resource
 {
+    protected static ?int $navigationSort = 60;
+
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     protected static ?string $model = SkuUnitConversion::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowsRightLeft;
 
     public static function canViewAny(): bool
     {

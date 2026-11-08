@@ -4,6 +4,7 @@ namespace App\Filament\Resources\TenantUsers;
 
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
+use App\Filament\Clusters\GlobalConfiguration\UserAndAccessCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\TenantUsers\Pages\CreateTenantUser;
 use App\Filament\Resources\TenantUsers\Pages\EditTenantUser;
@@ -22,6 +23,8 @@ use Filament\Tables\Table;
 
 class TenantUserResource extends BaseResource
 {
+    protected static ?string $cluster = UserAndAccessCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = TenantUser::class;
@@ -37,13 +40,9 @@ class TenantUserResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Config';
+    protected static ?int $navigationSort = 40;
 
-    protected static ?string $navigationParentItem = 'User Management';
-
-    protected static ?int $navigationSort = 1000;
-
-    protected static ?string $navigationLabel = 'Tenants Users';
+    protected static ?string $navigationLabel = 'Tenant Users';
 
     public static function form(Schema $schema): Schema
     {

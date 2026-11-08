@@ -20,6 +20,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ApprovalResource extends Resource
 {
+    protected static ?int $navigationSort = 50;
+
+    protected static ?string $navigationLabel = 'Approval Register';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'My Workspace';
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = Approval::class;
@@ -34,8 +40,6 @@ class ApprovalResource extends Resource
         'requester.name',
         'requester.email',
     ];
-
-    protected static ?string $navigationParentItem = 'My Approvals';
 
     public static function form(Schema $schema): Schema
     {

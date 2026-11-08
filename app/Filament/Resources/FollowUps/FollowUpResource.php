@@ -26,19 +26,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 class FollowUpResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Sales & CRM';
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = FollowUp::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPath;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChatBubbleLeftRight;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Sales & Marketing';
+    protected static ?int $navigationSort = 20;
 
-    protected static ?string $navigationParentItem = 'Leads';
-
-    protected static ?int $navigationSort = 1;
-
-    protected static ?string $navigationLabel = 'Follow ups';
+    protected static ?string $navigationLabel = 'Follow-ups';
 
     public static function form(Schema $schema): Schema
     {

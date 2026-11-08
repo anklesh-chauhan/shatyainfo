@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Models\SecondarySalesPreference;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -15,19 +16,19 @@ use Filament\Support\Icons\Heroicon;
 
 class SecondarySalesPreferences extends Page implements HasForms
 {
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use InteractsWithForms;
 
     protected string $view = 'filament.pages.secondary-sales-preferences';
 
-    protected static ?string $navigationLabel = 'Secondary sales rules';
+    protected static ?string $navigationLabel = 'Secondary Sales Rules';
 
     protected static ?string $title = 'Secondary sales stock-balance rules';
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedScale;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'SFA Operations';
-
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 120;
 
     public ?array $data = [];
 

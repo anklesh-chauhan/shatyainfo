@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\GlobalSearch\BusinessSearchProvider;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\MyQuickLinks;
 use App\Filament\Resources\Employees\EmployeeResource;
@@ -15,6 +16,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Assets\Css;
@@ -22,6 +24,7 @@ use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Platform;
 use Filament\Support\Facades\FilamentAsset;
+use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -42,7 +45,7 @@ class AdminPanelProvider extends PanelProvider
 
         return $panel
             ->default()
-            ->globalSearch(true)
+            ->globalSearch(BusinessSearchProvider::class)
             ->topbar(true)
             ->renderHook(PanelsRenderHook::TOPBAR_LOGO_AFTER, fn () => view('filament.components.topbar-quick-links'))
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
@@ -109,6 +112,18 @@ class AdminPanelProvider extends PanelProvider
                 PromptCompanySetup::class,
             ])
             ->viteTheme('resources/css/app.css')
+            ->navigationGroups([
+                NavigationGroup::make()->label('My Workspace')->icon(Heroicon::OutlinedHome),
+                NavigationGroup::make()->label('Field Operations')->icon(Heroicon::OutlinedMap)->collapsed(),
+                NavigationGroup::make()->label('Customers & Territories')->icon(Heroicon::OutlinedUsers)->collapsed(),
+                NavigationGroup::make()->label('Sales & CRM')->icon(Heroicon::OutlinedBriefcase)->collapsed(),
+                NavigationGroup::make()->label('Secondary Sales')->icon(Heroicon::OutlinedDocumentChartBar)->collapsed(),
+                NavigationGroup::make()->label('Marketing & Samples')->icon(Heroicon::OutlinedMegaphone)->collapsed(),
+                NavigationGroup::make()->label('Inventory & Purchasing')->icon(Heroicon::OutlinedCube)->collapsed(),
+                NavigationGroup::make()->label('HR & Attendance')->icon(Heroicon::OutlinedUserGroup)->collapsed(),
+                NavigationGroup::make()->label('Reports')->icon(Heroicon::OutlinedChartBar)->collapsed(),
+                NavigationGroup::make()->label('Settings & Administration')->icon(Heroicon::OutlinedCog6Tooth)->collapsed(),
+            ])
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('15rem')
             ->authGuard('web');

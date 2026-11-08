@@ -23,17 +23,17 @@ use Filament\Support\Icons\Heroicon;
 
 class IntegrationSettings extends Page implements HasForms
 {
-    use InteractsWithForms;
-
     protected static ?string $cluster = OperationalConfigCluster::class;
 
-    protected static ?int $navigationSort = 5;
+    use InteractsWithForms;
+
+    protected static ?int $navigationSort = 50;
 
     protected static ?string $navigationLabel = 'Integrations';
 
     protected static ?string $title = 'API Integrations';
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedWrenchScrewdriver;
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedPuzzlePiece;
 
     protected string $view = 'filament.pages.integration-settings';
 

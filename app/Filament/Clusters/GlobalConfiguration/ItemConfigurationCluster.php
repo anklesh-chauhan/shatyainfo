@@ -12,11 +12,11 @@ class ItemConfigurationCluster extends Cluster
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
 
-    protected static ?string $clusterBreadcrumb = 'Item Config';
+    protected static ?string $clusterBreadcrumb = 'Product & Inventory Setup';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Global Configuration';
+    protected static string|\UnitEnum|null $navigationGroup = 'Settings & Administration';
 
-    protected static ?string $navigationLabel = 'Item Config';
+    protected static ?string $navigationLabel = 'Product & Inventory Setup';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 50;
 }

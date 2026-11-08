@@ -28,15 +28,15 @@ use Filament\Tables\Table;
 
 class NumberSeriesResource extends BaseResource
 {
+    protected static ?string $cluster = OperationalConfigCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = NumberSeries::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedHashtag;
 
-    protected static ?string $cluster = OperationalConfigCluster::class;
-
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 40;
 
     protected static ?string $navigationLabel = 'Number Series';
 

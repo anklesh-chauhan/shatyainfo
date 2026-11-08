@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\LeaveRules;
 
-use App\Filament\Clusters\HR\LeaveManagementCluster;
+use App\Filament\Clusters\HR\ShiftAndCalanderCluster;
 use App\Filament\Resources\LeaveRules\Pages\CreateLeaveRule;
 use App\Filament\Resources\LeaveRules\Pages\EditLeaveRule;
 use App\Filament\Resources\LeaveRules\Pages\ListLeaveRules;
@@ -20,15 +20,15 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveRuleResource extends Resource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     protected static ?string $model = LeaveRule::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $cluster = LeaveManagementCluster::class;
-
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 110;
 
     protected static ?string $navigationLabel = 'Rules';
 

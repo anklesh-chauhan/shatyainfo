@@ -34,13 +34,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class TerritoryResource extends BaseResource
 {
+    protected static ?int $navigationSort = 40;
+
+    protected static ?string $navigationLabel = 'Territories';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers & Territories';
+
     use HasSafeGlobalSearch, HasVisibilityScope;
 
     protected static ?string $model = Territory::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAsiaAustralia;
 
     protected static ?string $recordTitleAttribute = 'name';
 

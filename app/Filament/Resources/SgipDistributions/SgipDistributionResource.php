@@ -18,6 +18,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SgipDistributionResource extends Resource
 {
+    protected static ?int $navigationSort = 70;
+
+    protected static ?string $navigationLabel = 'SGIP Distributions';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Samples';
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = SgipDistribution::class;
@@ -34,8 +40,6 @@ class SgipDistributionResource extends Resource
         'user.email',
         'approval_status',
     ];
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     public static function form(Schema $schema): Schema
     {

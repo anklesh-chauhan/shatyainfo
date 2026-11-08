@@ -17,6 +17,8 @@ use Filament\Tables\Table;
 
 class ShiftMasterResource extends BaseResource
 {
+    protected static ?string $cluster = ShiftAndCalanderCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = ShiftMaster::class;
@@ -25,11 +27,9 @@ class ShiftMasterResource extends BaseResource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $cluster = ShiftAndCalanderCluster::class;
-
     protected static ?string $navigationLabel = 'Shift Master';
 
-    protected static ?int $navigationSort = 30;
+    protected static ?int $navigationSort = 50;
 
     public static function form(Schema $schema): Schema
     {

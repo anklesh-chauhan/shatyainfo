@@ -17,15 +17,15 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class MarketingCampaignResource extends Resource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Samples';
+
     protected static ?string $model = MarketingCampaign::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
-
     protected static ?string $navigationLabel = 'Marketing Campaigns';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 10;
 
     public static function form(Schema $schema): Schema
     {

@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\PaymentTerms;
 
-use App\Filament\Clusters\GlobalConfiguration\SalesMarketingConfigurationCluster;
+use App\Filament\Clusters\GlobalConfiguration\LeadConfigurationCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\PaymentTerms\Pages\CreatePaymentTerm;
 use App\Filament\Resources\PaymentTerms\Pages\EditPaymentTerm;
@@ -17,13 +17,15 @@ use Filament\Tables\Table;
 
 class PaymentTermResource extends BaseResource
 {
+    protected static ?int $navigationSort = 100;
+
+    protected static ?string $cluster = LeadConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = PaymentTerm::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
-
-    protected static ?string $cluster = SalesMarketingConfigurationCluster::class;
 
     public static function form(Schema $schema): Schema
     {

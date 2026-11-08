@@ -22,15 +22,15 @@ use Filament\Tables\Table;
 
 class ItemBrandResource extends BaseResource
 {
+    protected static ?string $cluster = ItemConfigurationCluster::class;
+
     use HasSafeGlobalSearch;
 
     protected static ?string $model = ItemBrand::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
-    protected static ?string $cluster = ItemConfigurationCluster::class;
-
-    protected static ?int $navigationSort = 1003;
+    protected static ?int $navigationSort = 20;
 
     protected static ?string $navigationLabel = 'Item Brands';
 

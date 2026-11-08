@@ -27,6 +27,8 @@ use Filament\Tables\Table;
 
 class ItemMasterResource extends BaseResource
 {
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory & Purchasing';
+
     use HasSafeGlobalSearch;
     use ItemMasterTableTrait;
     use ItemMasterTrait;
@@ -35,11 +37,9 @@ class ItemMasterResource extends BaseResource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Items & Inventory';
+    protected static ?int $navigationSort = 10;
 
-    protected static ?int $navigationSort = 198;
-
-    protected static ?string $navigationLabel = 'Item Master';
+    protected static ?string $navigationLabel = 'Items';
 
     public static function form(Schema $schema): Schema
     {

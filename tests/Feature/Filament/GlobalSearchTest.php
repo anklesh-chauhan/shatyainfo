@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\GlobalSearch\BusinessSearchProvider;
 use App\Filament\Resources\ApprovalFlows\ApprovalFlowResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Territories\TerritoryResource;
@@ -25,7 +26,7 @@ it('binds ctrl+k to the sidebar search field', function () {
         ->toContain('$store.sidebar?.open()');
 });
 
-it('searches every admin resource without querying missing columns', function () {
+it('searches the configured admin catalog without querying missing columns', function () {
     $this->actingAs(reportingUser('Meera'));
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
@@ -35,17 +36,8 @@ it('searches every admin resource without querying missing columns', function ()
         $queries[] = $query->sql;
     });
 
-    $failures = [];
-
-    foreach (Filament::getPanel('admin')->getResources() as $resource) {
-        try {
-            $resource::getGlobalSearchResults('meera');
-        } catch (Throwable $exception) {
-            $failures[] = class_basename($resource).': '.$exception->getMessage();
-        }
-    }
-
-    expect($failures)->toBeEmpty();
+    expect(Filament::getPanel('admin')->getGlobalSearchProvider())->toBeInstanceOf(BusinessSearchProvider::class);
+    Filament::getPanel('admin')->getGlobalSearchProvider()->getResults('meera');
     expect(implode("\n", $queries))->not->toMatch('/`[A-Z]/');
 });
 

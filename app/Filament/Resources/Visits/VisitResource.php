@@ -18,11 +18,13 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class VisitResource extends BaseResource
 {
+    protected static ?int $navigationSort = 30;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
+
     protected static ?string $model = Visit::class;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Marketing & Field Sales';
 
     protected static ?string $navigationLabel = 'Visits';
 
