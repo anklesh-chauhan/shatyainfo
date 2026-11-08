@@ -1,11 +1,14 @@
 <?php
 
 use App\Enums\FieldPlanningMode;
+use App\Models\NumberSeries;
 use App\Models\Visit;
 use App\Models\VisitPreference;
 use App\Services\Field\FieldDcrService;
 use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldPlanningSettingsService;
+use App\Services\Field\FieldVisitService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -101,4 +104,21 @@ it('blocks Admin model creation when its automatically attached DCR is locked', 
         'employee_id' => $this->rep->id, 'visit_date' => today(), 'visit_type' => 'unplanned']))
         ->toThrow(ValidationException::class);
     expect(Visit::query()->count())->toBe(0);
+});
+
+it('reserves formatted visit numbers atomically and rolls the counter back when opening fails', function () {
+    $series = NumberSeries::query()->create(['model_type' => Visit::class, 'type_master_id' => null,
+        'Prefix' => 'VIS-', 'Suffix' => '-X', 'next_number' => 41]);
+    $collision = Visit::withoutEvents(fn () => Visit::query()->create(['document_number' => 'VIS-41-X',
+        'employee_id' => $this->rep->id, 'visit_date' => today(), 'visit_type' => 'unplanned', 'visit_status' => 'draft']));
+    expect(fn () => app(FieldVisitService::class)->openDirect($this->rep, $this->call))->toThrow(QueryException::class);
+    expect((int) $series->fresh()->next_number)->toBe(41)
+        ->and(Visit::query()->where('client_call_id', $this->call['client_call_id'])->exists())->toBeFalse();
+    Visit::query()->whereKey($collision->id)->update(['document_number' => 'SEED-COLLISION']);
+    $this->postJson('/api/v1/visits/direct', $this->call)->assertSuccessful()->assertJsonPath('data.document_number', 'VIS-41-X');
+    $this->postJson('/api/v1/visits/direct', $this->call)->assertSuccessful()->assertJsonPath('data.document_number', 'VIS-41-X');
+    expect((int) $series->fresh()->next_number)->toBe(42);
+    $this->postJson('/api/v1/visits/direct', [...$this->call, 'client_call_id' => (string) Str::uuid()])
+        ->assertSuccessful()->assertJsonPath('data.document_number', 'VIS-42-X');
+    expect((int) $series->fresh()->next_number)->toBe(43);
 });

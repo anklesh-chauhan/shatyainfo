@@ -36,6 +36,18 @@ class FieldVisitService
         return $visit;
     }
 
+    private function reserveVisitNumber(): string
+    {
+        $series = NumberSeries::query()->lockForUpdate()->firstOrCreate(
+            ['model_type' => Visit::class, 'type_master_id' => null],
+            ['next_number' => 1, 'Prefix' => '', 'Suffix' => ''],
+        );
+        $number = $series->Prefix.$series->next_number.$series->Suffix;
+        $series->increment('next_number');
+
+        return $number;
+    }
+
     public function openDirect(User $user, array $data): Visit
     {
         abort_unless($user->can('create', Visit::class), 403);
@@ -63,7 +75,7 @@ class FieldVisitService
             $dcr = app(FieldDcrService::class)->forDate($user, $data['date']);
             app(FieldDcrService::class)->assertEditable($dcr);
             $visit = Visit::create([
-                'document_number' => NumberSeries::getNextNumber(Visit::class),
+                'document_number' => $this->reserveVisitNumber(),
                 'client_call_id' => $data['client_call_id'],
                 'employee_id' => $user->id,
                 'reporting_manager_id' => $user->reporting_manager_id,
@@ -74,14 +86,13 @@ class FieldVisitService
                 'visit_status' => 'draft', 'approval_status' => 'pending',
                 'unplanned_reason' => $data['unplanned_reason'] ?? null,
             ]);
-            NumberSeries::incrementNextNumber(Visit::class);
             $visit->visitables()->create(['visitable_type' => AccountMaster::class, 'visitable_id' => $account->id]);
             foreach (VisitFeedbackQuestion::query()->where('is_active', true)->get() as $question) {
                 $visit->feedbacks()->create(['visit_feedback_question_id' => $question->id]);
             }
 
             return $visit->fresh(['territory', 'patch', 'media.tags', 'visitables.visitable']);
-        });
+        }, attempts: 5);
     }
 
     public function openPlanned(User $user, int $detailId, int $patchId, int $companyId): Visit
@@ -108,7 +119,7 @@ class FieldVisitService
             }
 
             $visit = Visit::create([
-                'document_number' => NumberSeries::getNextNumber(Visit::class),
+                'document_number' => $this->reserveVisitNumber(),
                 'employee_id' => $user->id,
                 'reporting_manager_id' => $user->reporting_manager_id,
                 'sales_tour_plan_id' => $detail->sales_tour_plan_id,
@@ -122,7 +133,6 @@ class FieldVisitService
                 'remarks' => $detail->remarks,
                 'is_joint_work' => ! empty($detail->joint_with),
             ]);
-            NumberSeries::incrementNextNumber(Visit::class);
             $visit->visitables()->create([
                 'visitable_type' => AccountMaster::class,
                 'visitable_id' => $companyId,

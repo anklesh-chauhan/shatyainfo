@@ -68,7 +68,7 @@ class FieldFlexiblePlanningService
             $entry->fill([...$values, 'version' => ($entry->version ?? 0) + 1, 'history' => $history])->save();
 
             return $entry->load(['account', 'patch', 'visits']);
-        });
+        }, attempts: 5);
     }
 
     public function executable(User $user, int $id, int $version, int $accountId, string $date): FlexiblePlanEntry

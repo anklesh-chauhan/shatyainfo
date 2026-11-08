@@ -10,6 +10,7 @@ use App\Services\Field\FieldPlanConflictService;
 use App\Services\Field\FieldReplacementService;
 use App\Services\Field\FieldSyncRecoveryService;
 use Closure;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -72,6 +73,9 @@ class FieldIdempotency
                     'replacement' => app(FieldReplacementService::class)->apply($request, $recovery),
                     default => $next($request),
                 };
+                if ($request->is('api/v1/visits/direct') && ($response->exception ?? null) instanceof DeadlockException) {
+                    throw $response->exception;
+                }
                 if (! $response->isSuccessful()) {
                     throw new HttpResponseException($response);
                 }
@@ -85,7 +89,7 @@ class FieldIdempotency
                 }
 
                 return $response;
-            });
+            }, attempts: $request->is('api/v1/visits/direct') ? 5 : 1);
         } catch (HttpResponseException $error) {
             if (in_array($error->getResponse()->getStatusCode(), [409, 422], true)) {
                 app(FieldSyncRecoveryService::class)->recordFailure($request, $key, $hash, $files, $error->getResponse()->getContent());

@@ -297,7 +297,7 @@ test('ambiguous approvers fail without leaving partial approval records', functi
     approvalUser('Other Manager', $fixture['managerRole'], $fixture['territory']);
     approvalSingleStep($fixture, ['can_skip' => true]);
     expect(fn () => app(ApprovalService::class)->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id))
-        ->toThrow(LogicException::class, 'Multiple approvers match');
+        ->toThrow(LogicException::class, 'Choose a named approver for this step.');
     $this->assertDatabaseCount('approvals', 0);
     $this->assertDatabaseCount('approval_steps', 0);
     $this->assertDatabaseCount('approval_activities', 0);
