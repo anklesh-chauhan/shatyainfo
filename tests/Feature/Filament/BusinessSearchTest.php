@@ -1,7 +1,9 @@
 <?php
 
+use App\Filament\Clusters\HR\AttendanceCluster;
 use App\Filament\GlobalSearch\BusinessSearchProvider;
 use App\Filament\Resources\AccountMasters\AccountMasterResource;
+use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
 use App\Models\ContactDetail;
 use App\Models\ItemMaster;
 use App\Models\User;
@@ -113,4 +115,24 @@ it('matches a full contact name across name columns and searches mobile numbers'
     expect($byPhone)->toHaveCount(1);
     expect($byName->first()->title)->toBe('Anjali Patel');
     expect($byPhone->first()->details['Phone'])->toBe('9876543210');
+});
+
+it('finds accessible menu names separately from business records', function (): void {
+    foreach (['ViewAny:DailyAttendance', 'ViewAny:SalesTourPlan'] as $permission) {
+        $this->user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    $attendance = $this->search->getResults('attendance')->getCategories()->get('Menus');
+    $tourPlans = $this->search->getResults('tour plan')->getCategories()->get('Menus');
+
+    expect($attendance->first()->title)->toBe('Attendance');
+    expect($attendance->first()->url)->toBe(AttendanceCluster::getUrl());
+    expect($tourPlans->first()->title)->toBe('Tour Plans');
+    expect($tourPlans->first()->url)->toBe(SalesTourPlanResource::getUrl('index'));
+    expect($this->search->getResults('tour plans')->getCategories()->get('Menus')->first()->url)->toBe(SalesTourPlanResource::getUrl('index'));
+});
+
+it('does not suggest inaccessible or hidden menu entries', function (): void {
+    expect($this->search->getResults('tour plan')->getCategories()->get('Menus', collect()))->toBeEmpty();
+    expect($this->search->getResults('My quick links')->getCategories()->get('Menus', collect()))->toBeEmpty();
 });

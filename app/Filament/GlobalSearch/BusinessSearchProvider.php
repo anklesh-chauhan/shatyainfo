@@ -3,6 +3,7 @@
 namespace App\Filament\GlobalSearch;
 
 use App\Models;
+use App\Support\TopbarLinks;
 use BackedEnum;
 use DateTimeInterface;
 use Filament\Facades\Filament;
@@ -13,6 +14,7 @@ use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class BusinessSearchProvider implements GlobalSearchProvider
@@ -48,6 +50,11 @@ class BusinessSearchProvider implements GlobalSearchProvider
         $search = trim($query);
         if (! Filament::auth()->check() || mb_strlen($search) < 2) {
             return $results;
+        }
+
+        $menus = $this->menuResults($search);
+        if ($menus->isNotEmpty()) {
+            $results->category('Menus', $menus);
         }
 
         $resources = collect(Filament::getResources())->keyBy(fn (string $resource): string => $resource::getModel());
@@ -115,6 +122,42 @@ class BusinessSearchProvider implements GlobalSearchProvider
         }
 
         return $results;
+    }
+
+    /** @return Collection<int, GlobalSearchResult> */
+    protected function menuResults(string $search): Collection
+    {
+        $panel = Filament::getCurrentPanel();
+        $links = app(TopbarLinks::class)->catalog();
+
+        foreach ($panel->getClusters() as $cluster) {
+            if ($cluster::shouldRegisterNavigation() && $cluster::canAccess()) {
+                $links[$cluster] = ['label' => $cluster::getNavigationLabel(), 'url' => $cluster::getUrl(panel: $panel->getId())];
+            }
+        }
+
+        $phrase = Str::singular(mb_strtolower($search));
+        $words = preg_split('/\s+/u', $phrase, flags: PREG_SPLIT_NO_EMPTY);
+
+        return collect($links)
+            ->filter(function (array $link) use ($words): bool {
+                $label = Str::singular(mb_strtolower($link['label']));
+                foreach ($words as $word) {
+                    if (! str_contains($label, $word)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->sortBy(function (array $link) use ($phrase): array {
+                $label = Str::singular(mb_strtolower($link['label']));
+
+                return [$label === $phrase ? 0 : (str_starts_with($label, $phrase) ? 1 : 2), $label];
+            })
+            ->unique('url')->take(5)
+            ->map(fn (array $link): GlobalSearchResult => new GlobalSearchResult(title: $link['label'], url: $link['url'], details: ['Type' => 'Menu']))
+            ->values();
     }
 
     protected function matching(Builder $query, string $field, string $search): Builder
