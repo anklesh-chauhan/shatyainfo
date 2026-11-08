@@ -27,6 +27,7 @@ class ReviewFieldSyncRecoveryRequest extends FormRequest
             'note' => ['required', 'string', 'min:5', 'max:2000'],
             'confirmed_no_pending_obligation' => ['sometimes', 'boolean'],
             'confirmed_replacement' => ['sometimes', 'boolean'],
+            'confirmed_actual_visit' => ['sometimes', 'boolean'],
             'review_token' => ['sometimes', 'nullable', 'string', 'size:64'],
         ];
     }

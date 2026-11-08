@@ -110,6 +110,21 @@ it('does not partially save HQ or assignments when customer visibility fails', f
     expect(fn () => $this->onboarding->save($this->admin, [...$this->setup, 'account_ids' => [$this->doctor->id, 999999]]))->toThrow(HttpException::class);
     expect(FieldUserHq::query()->count())->toBe(0)->and($this->doctor->fresh()->owner_id)->toBe($this->admin->id);
 });
+it('reloads the selected representative HQ and allows HQ-only onboarding without transferring unselected customers', function () {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Livewire::test(FieldTeamOnboarding::class)->fillForm($this->setup)->call('save')
+        ->assertHasNoFormErrors()->assertSet('data.account_ids', []);
+    $newHq = reportingLocation('New review HQ');
+    $page = Livewire::test(FieldTeamOnboarding::class)->set('data.user_id', $this->rep->id)
+        ->assertSet('data.location_master_id', $this->hq->id);
+    $page->fillForm([...$this->setup, 'location_master_id' => $newHq->id, 'account_ids' => [], 'calls_per_month' => 9])
+        ->call('save')->assertHasNoFormErrors()->assertNotified();
+    expect(FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id)->toBe($newHq->id)
+        ->and($this->doctor->fresh()->owner_id)->toBe($this->rep->id)
+        ->and($this->doctor->callTargets()->sole()->calls_per_month)->toBe(2);
+    Livewire::test(FieldCoverage::class)->set('userId', $this->rep->id)->assertSee('New review HQ')->assertSee('Doctor One');
+});
+
 it('renders onboarding and coverage and saves the representative setup through Admin', function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Livewire::test(FieldTeamOnboarding::class)->assertSuccessful()->fillForm($this->setup)->call('save')->assertHasNoFormErrors()->assertNotified();

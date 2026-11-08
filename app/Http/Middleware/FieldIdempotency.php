@@ -6,6 +6,7 @@ use App\Models\FieldSyncReceipt;
 use App\Models\FieldSyncRecovery;
 use App\Models\User;
 use App\Services\Field\FieldConflictResolutionService;
+use App\Services\Field\FieldPlanConflictService;
 use App\Services\Field\FieldReplacementService;
 use App\Services\Field\FieldSyncRecoveryService;
 use Closure;
@@ -60,12 +61,13 @@ class FieldIdempotency
                 $recovery = FieldSyncRecovery::query()->where('user_id', $user->id)->where('operation_id', $key)->lockForUpdate()->first();
                 if ($recovery) {
                     abort_unless(hash_equals($recovery->request_hash, $hash), 409, 'This failed operation is bound to its original request. Retry without changing its payload or attachments.');
-                    if ($recovery->resolution_mode !== 'keep_server' && $recovery->status === 'approved' && $recovery->expires_at?->isFuture()
+                    if (! in_array($recovery->resolution_mode, ['keep_server', 'accept_unplanned'], true) && $recovery->status === 'approved' && $recovery->expires_at?->isFuture()
                         && User::query()->find($recovery->reviewer_id)?->can('Review:FieldSyncRecovery')) {
                         $request->attributes->set('field_reporting_recovery', ['user_id' => $user->id, 'date' => $recovery->report_date?->toDateString(), 'captured_date' => $recovery->captured_at?->toDateString()]);
                     }
                 }
                 $response = match ($recovery?->resolution_mode) {
+                    'accept_unplanned' => app(FieldPlanConflictService::class)->apply($request, $recovery),
                     'keep_server' => app(FieldConflictResolutionService::class)->acknowledge($request, $recovery),
                     'replacement' => app(FieldReplacementService::class)->apply($request, $recovery),
                     default => $next($request),

@@ -25,7 +25,8 @@ class RequestFieldSyncRecoveryRequest extends FormRequest
         return [
             'reviewer_id' => ['required', 'integer', 'exists:users,id'],
             'reason' => ['required', 'string', 'min:5', 'max:2000'],
-            'resolution_mode' => ['sometimes', 'in:retry_original,keep_server,replacement'],
+            'resolution_mode' => ['sometimes', 'in:retry_original,keep_server,replacement,accept_unplanned'],
+            'confirmed_actual_visit' => ['sometimes', 'boolean'],
             'confirmed_no_pending_obligation' => ['sometimes', 'boolean'],
             'confirmed_replacement' => ['sometimes', 'boolean'],
             'replacement' => ['required_if:resolution_mode,replacement', 'array:items,sample_issue_id,change_description,description,change_delivery_date,delivery_date'],

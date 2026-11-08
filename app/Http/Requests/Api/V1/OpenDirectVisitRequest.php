@@ -18,6 +18,7 @@ class OpenDirectVisitRequest extends FormRequest
             'client_call_id' => ['required', 'uuid'],
             'company_id' => ['required', 'integer', 'min:1'],
             'date' => ['required', 'date_format:Y-m-d'],
+            'captured_at' => ['sometimes', 'date'],
             'flexible_plan_entry_id' => ['nullable', 'integer', 'min:1', 'required_with:flexible_plan_version'],
             'flexible_plan_version' => ['nullable', 'integer', 'min:1', 'required_with:flexible_plan_entry_id'],
             'unplanned_reason' => ['nullable', 'string', 'max:2000'],

@@ -45,6 +45,9 @@ class FieldVisitService
             $existing = Visit::query()->where('client_call_id', $data['client_call_id'])->first();
             if ($existing) {
                 abort_unless((int) $existing->employee_id === (int) $user->id, 404);
+                if (app(FieldPlanConflictService::class)->matchesResolvedTarget($user, $existing, $data)) {
+                    return $existing->load(['territory', 'patch', 'media.tags', 'visitables.visitable']);
+                }
                 abort_unless($existing->visit_date->toDateString() === $data['date']
                     && (int) $existing->primaryCompany()?->id === (int) $data['company_id']
                     && (int) $existing->flexible_plan_entry_id === (int) ($data['flexible_plan_entry_id'] ?? 0)

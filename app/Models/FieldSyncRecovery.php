@@ -19,6 +19,11 @@ class FieldSyncRecovery extends Model
         return $this->belongsTo(User::class, 'reviewer_id');
     }
 
+    public function resolvedVisit(): BelongsTo
+    {
+        return $this->belongsTo(Visit::class, 'resolved_visit_id');
+    }
+
     public function reviewToken(): string
     {
         return hash('sha256', json_encode([$this->id, $this->reviewer_id, $this->reason, $this->requested_at?->toIso8601String(),
@@ -37,7 +42,7 @@ class FieldSyncRecovery extends Model
     {
         static::updating(function (self $record): void {
             abort_if($record->isDirty(['user_id', 'operation_id', 'request_hash', 'path', 'report_date', 'captured_at', 'snapshot']), 409, 'The failed request evidence is permanent. Retry its original operation.');
-            abort_if($record->getOriginal('recovered_at') && $record->isDirty(['resolution_mode', 'resolution_snapshot', 'replacement_event_id', 'replacement_payload', 'amended_at']), 409, 'Retain the completed resolution and its server evidence.');
+            abort_if($record->getOriginal('recovered_at') && $record->isDirty(['resolution_mode', 'resolution_snapshot', 'resolved_visit_id', 'replacement_event_id', 'replacement_payload', 'amended_at']), 409, 'Retain the completed resolution and its server evidence.');
         });
         static::deleting(fn () => abort(409, 'Retain synchronization recovery history.'));
     }

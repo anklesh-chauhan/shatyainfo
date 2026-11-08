@@ -42,6 +42,10 @@ class FieldSyncRecoveryService
         } catch (\Throwable) {
         }
         $date = $time?->toDateString();
+        if ($request->is('api/v1/visits/direct')) {
+            $input = $request->input('date');
+            $date = is_string($input) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $input) && $time?->toDateString() === $input ? $input : null;
+        }
         if ($request->is('api/v1/field-expense-events')) {
             try {
                 $input = $request->input('date');
@@ -73,7 +77,7 @@ class FieldSyncRecoveryService
 
     private function supported(Request $request): bool
     {
-        return $request->isMethod('POST') && (in_array($request->path(), ['api/v1/field-visit-events', 'api/v1/field-dcr-events', 'api/v1/rcpa-observations', 'api/v1/field-expense-events'], true)
+        return $request->isMethod('POST') && (in_array($request->path(), ['api/v1/field-visit-events', 'api/v1/field-dcr-events', 'api/v1/rcpa-observations', 'api/v1/field-expense-events', 'api/v1/visits/direct'], true)
             || preg_match('~^api/v1/dcrs/\d+/expenses(?:/\d+/receipt)?$~', $request->path()));
     }
 
@@ -94,7 +98,11 @@ class FieldSyncRecoveryService
             $mode = $data['resolution_mode'] ?? 'retry_original';
             $snapshot = null;
             $replacement = ['replacement_event_id' => null, 'replacement_payload' => null, 'amended_at' => null];
-            if (in_array($mode, ['keep_server', 'replacement'], true)) {
+            if ($mode === FieldPlanConflictService::MODE) {
+                abort_unless(($data['confirmed_actual_visit'] ?? false) === true, 422, 'Confirm the captured visit occurred and should be accepted as unplanned.');
+                abort_if($record->recovered_at, 409, 'This call is already resolved. Retain its recorded resolution.');
+                $snapshot = app(FieldPlanConflictService::class)->snapshot($record, $data['reason']);
+            } elseif (in_array($mode, ['keep_server', 'replacement'], true)) {
                 $conflicts = app(FieldConflictResolutionService::class);
                 abort_unless($conflicts->eligible($record), 409, 'This operation cannot request conflict resolution.');
                 if ($mode === 'replacement') {
@@ -137,11 +145,14 @@ class FieldSyncRecoveryService
             $record = FieldSyncRecovery::query()->lockForUpdate()->findOrFail($record->id);
             abort_unless((int) $record->reviewer_id === (int) $user->id && $user->can('Review:FieldSyncRecovery'), 403);
             abort_unless($record->status === 'pending_review', 409, 'This request has already been reviewed.');
-            if (in_array($record->resolution_mode, ['keep_server', 'replacement'], true) && ! $record->recovered_at) {
+            if (in_array($record->resolution_mode, ['keep_server', 'replacement', FieldPlanConflictService::MODE], true) && ! $record->recovered_at) {
                 abort_unless(hash_equals($record->reviewToken(), (string) ($data['review_token'] ?? '')), 409, 'This review request changed. Refresh and inspect its current evidence before deciding.');
             }
             if ($data['decision'] === 'approved') {
-                if ($record->resolution_mode === 'replacement' && ! $record->recovered_at) {
+                if ($record->resolution_mode === FieldPlanConflictService::MODE && ! $record->recovered_at) {
+                    abort_unless(($data['confirmed_actual_visit'] ?? false) === true, 422, 'Verify the actual visit and its acceptance as unplanned before approval.');
+                    app(FieldPlanConflictService::class)->assertUnchanged($record);
+                } elseif ($record->resolution_mode === 'replacement' && ! $record->recovered_at) {
                     abort_unless(($data['confirmed_replacement'] ?? false) === true, 422, 'Verify that the corrected transaction matches the physical distribution or customer order before approval.');
                     app(FieldReplacementService::class)->assertReviewable($record);
                 } elseif ($record->resolution_mode === 'keep_server' && ! $record->recovered_at) {
@@ -169,7 +180,7 @@ class FieldSyncRecoveryService
         $records = FieldSyncRecovery::query()->where('user_id', $dcr->user_id)->whereDate('report_date', $dcr->dcr_date)->whereNotNull('requested_at')->get();
 
         return $records->isNotEmpty() && $records->every(fn ($record) => $record->status === 'recovered')
-            && $records->contains(fn ($record) => $record->expires_at?->isFuture());
+            && $records->contains(fn ($record) => $record->resolution_mode !== FieldPlanConflictService::MODE && $record->expires_at?->isFuture());
     }
 
     public function hasPendingReview(SalesDcr $dcr): bool

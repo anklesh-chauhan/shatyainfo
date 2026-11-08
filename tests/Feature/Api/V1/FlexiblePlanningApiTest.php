@@ -155,3 +155,24 @@ it('filters the Admin team review by current HQ without granting write access to
     expect(fn () => $page->call('cancelIntention', $entry['id'], $entry['version']))->toThrow(ModelNotFoundException::class);
     expect(FlexiblePlanEntry::query()->findOrFail($entry['id'])->status)->toBe('active');
 });
+
+it('combines missed and patch review filters and shows an empty filtered view without changing totals', function () {
+    $patch = reportingPatch(reportingTerritory('Review territory'), 'Review patch');
+    $this->doctor->patches()->attach($patch->id);
+    $this->postJson('/api/v1/flexible-plans', [...$this->proposal, 'patch_id' => $patch->id])->assertSuccessful();
+    $unpatched = reportingDoctor($this->rep, 'Patchless missed doctor');
+    $cancelled = reportingDoctor($this->rep, 'Cancelled review doctor');
+    $this->postJson('/api/v1/flexible-plans', [...$this->proposal, 'client_plan_id' => (string) Str::uuid(), 'account_id' => $unpatched->id])->assertSuccessful();
+    $this->postJson('/api/v1/flexible-plans', [...$this->proposal, 'client_plan_id' => (string) Str::uuid(), 'account_id' => $cancelled->id, 'status' => 'cancelled'])->assertSuccessful();
+    $this->travel(1)->days();
+    $this->actingAs($this->rep);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $page = Livewire::test(FlexiblePlanning::class)->set('weekStart', '2026-11-08')
+        ->set('statusFilter', 'missed')->assertSee('Planned Doctor')->assertSee('Patchless missed doctor')
+        ->assertDontSee('Cancelled review doctor')->assertSee('Intended 2')->assertSee('Missed 2');
+    $page->set('patchFilter', $patch->id)->assertSee('Planned Doctor')->assertDontSee('Patchless missed doctor')
+        ->set('statusFilter', 'completed')->assertSee('No intentions in this view.')->assertSee('Missed 2')
+        ->set('patchFilter', null)->set('statusFilter', 'cancelled')->assertSee('Cancelled review doctor')
+        ->assertDontSee('Patchless missed doctor');
+    expect(FlexiblePlanEntry::query()->count())->toBe(3)->and(Visit::query()->count())->toBe(0);
+});

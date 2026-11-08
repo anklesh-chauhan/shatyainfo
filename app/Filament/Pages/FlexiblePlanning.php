@@ -45,6 +45,8 @@ class FlexiblePlanning extends Page implements HasForms
 
     public ?int $hqFilter = null;
 
+    public string $statusFilter = '';
+
     public static function canAccess(): bool
     {
         return (bool) auth()->user()?->can('ViewAny:AccountMaster') || FieldTeamOnboardingService::canManage(auth()->user());

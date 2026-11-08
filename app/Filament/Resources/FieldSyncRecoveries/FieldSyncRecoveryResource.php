@@ -7,6 +7,7 @@ use App\Models\FieldSyncRecovery;
 use App\Models\ItemMaster;
 use App\Models\User;
 use App\Services\Field\FieldConflictResolutionService;
+use App\Services\Field\FieldPlanConflictService;
 use App\Services\Field\FieldReplacementService;
 use App\Services\Field\FieldSgipStockService;
 use App\Services\Field\FieldSyncRecoveryService;
@@ -113,15 +114,23 @@ class FieldSyncRecoveryResource extends Resource
                         $replacement['sample_issue_id'] = empty($replacement['sample_issue_id']) ? null : (int) $replacement['sample_issue_id'];
                         app(FieldSyncRecoveryService::class)->requestReview(auth()->user(), $record, [...$data, 'resolution_mode' => 'replacement', 'replacement' => $replacement]);
                     }),
+                Action::make('acceptPlanCapture')->label('Request unplanned acceptance')->visible(fn (FieldSyncRecovery $record) => (int) $record->user_id === (int) auth()->id() && app(FieldPlanConflictService::class)->eligible($record))
+                    ->modalDescription('Ask a manager to verify the actual captured call and accept it as unplanned. The original intention/version and all evidence remain in the audit. The plan is not reactivated or rewritten; current policy and DCR locks still apply.')
+                    ->schema([
+                        Select::make('reviewer_id')->label('Authorized manager')->options(fn () => User::query()->where('id', '!=', auth()->id())->get()->filter(fn ($user) => $user->can('Review:FieldSyncRecovery'))->pluck('name', 'id'))->required(),
+                        Textarea::make('reason')->label('Actual visit evidence and reason for unplanned acceptance')->required()->minLength(5)->maxLength(2000),
+                        Checkbox::make('confirmed_actual_visit')->label('This visit occurred and should be reviewed for acceptance as unplanned.')->accepted(),
+                    ])->action(fn (FieldSyncRecovery $record, array $data) => app(FieldSyncRecoveryService::class)->requestReview(auth()->user(), $record, [...$data, 'resolution_mode' => FieldPlanConflictService::MODE])),
                 Action::make('review')->label('Review resolution')->visible(fn (FieldSyncRecovery $record) => $record->status === 'pending_review' && (int) $record->reviewer_id === (int) auth()->id() && auth()->user()->can('Review:FieldSyncRecovery'))
                     ->schema([
                         Hidden::make('review_token')->default(fn (FieldSyncRecovery $record) => $record->reviewToken()),
                         Textarea::make('review_snapshot')->label('Server record captured for review')->default(fn (FieldSyncRecovery $record) => json_encode($record->resolution_snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE))->disabled()->dehydrated(false),
                         Textarea::make('review_replacement')->label('Exact corrected fields to post')->default(fn (FieldSyncRecovery $record) => json_encode($record->replacement_payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE))->rows(10)->visible(fn (FieldSyncRecovery $record) => $record->resolution_mode === 'replacement')->disabled()->dehydrated(false),
                         Select::make('decision')->options(fn (FieldSyncRecovery $record) => ['approved' => match ($record->resolution_mode) {
-                            'replacement' => 'Authorize corrected replacement for seven days', 'keep_server' => 'Keep server record; do not post failed changes', default => 'Authorize this exact retry for seven days'
+                            'accept_unplanned' => 'Accept actual captured call as unplanned for seven days', 'replacement' => 'Authorize corrected replacement for seven days', 'keep_server' => 'Keep server record; do not post failed changes', default => 'Authorize this exact retry for seven days'
                         }, 'rejected' => 'Reject request'])->required(),
                         Textarea::make('note')->label('Review reason')->required()->minLength(5)->maxLength(2000),
+                        Checkbox::make('confirmed_actual_visit')->label('I verified the actual visit and approve its acceptance as unplanned while retaining the original intention evidence.')->visible(fn (FieldSyncRecovery $record) => $record->resolution_mode === FieldPlanConflictService::MODE && ! $record->recovered_at),
                         Checkbox::make('confirmed_no_pending_obligation')->label('I verified that physical samples and customer order obligations are reconciled. Required when approving keep-server resolution.')->visible(fn (FieldSyncRecovery $record) => $record->resolution_mode === 'keep_server' && ! $record->recovered_at),
                         Checkbox::make('confirmed_replacement')->label('I verified the proposed correction against the actual distribution or customer order.')->visible(fn (FieldSyncRecovery $record) => $record->resolution_mode === 'replacement' && ! $record->recovered_at),
                     ])->action(fn (FieldSyncRecovery $record, array $data) => app(FieldSyncRecoveryService::class)->review(auth()->user(), $record, $data)),

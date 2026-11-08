@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\ReviewFieldSyncRecoveryRequest;
 use App\Models\FieldSyncRecovery;
 use App\Models\User;
 use App\Services\Field\FieldConflictResolutionService;
+use App\Services\Field\FieldPlanConflictService;
 use App\Services\Field\FieldSyncRecoveryService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,7 @@ class FieldSyncRecoveryController extends Controller
         $page = $query->with(['user:id,name', 'reviewer:id,name'])->latest('id')->paginate(100);
         $page->setCollection($page->getCollection()->map(fn ($record) => [...$record->toArray(),
             'review_token' => $record->reviewToken(),
+            'can_request_plan_resolution' => (int) $record->user_id === (int) $user->id && app(FieldPlanConflictService::class)->eligible($record),
             'can_review' => $record->status === 'pending_review' && (int) $record->reviewer_id === (int) $user->id && $user->can('Review:FieldSyncRecovery'),
             'can_request_resolution' => (int) $record->user_id === (int) $user->id && app(FieldConflictResolutionService::class)->eligible($record),
             'can_request_replacement' => (int) $record->user_id === (int) $user->id && app(FieldConflictResolutionService::class)->eligible($record),
