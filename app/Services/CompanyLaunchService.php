@@ -60,6 +60,13 @@ class CompanyLaunchService
         return $id ? FieldPlanningRevision::query()->find($id) : null;
     }
 
+    public function requiresHq(?FieldPlanningRevision $revision = null): bool
+    {
+        $revision ??= $this->proposal(Organization::query()->first()) ?? app(FieldPlanningService::class)->active();
+
+        return $revision?->mode !== FieldPlanningMode::DirectDcr;
+    }
+
     /** @return array<string, mixed> */
     public function readiness(?array $employeeIds = null, bool $activeOnly = false): array
     {
@@ -102,7 +109,7 @@ class CompanyLaunchService
             } elseif (! $user->can('Create:Visit') || ! $user->can('ViewAny:AccountMaster') || ! $user->can('View:AccountMaster')) {
                 $issues['permissions'] = 'Grant visit creation and customer list access.';
             }
-            if (! $hq?->location?->is_active) {
+            if ($this->requiresHq($revision) && ! $hq?->location?->is_active) {
                 $issues['hq'] = 'Assign an active HQ.';
             }
             if ($customerCount === 0) {

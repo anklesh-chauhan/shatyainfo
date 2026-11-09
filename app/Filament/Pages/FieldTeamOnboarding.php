@@ -6,6 +6,7 @@ use App\Models\AccountMaster;
 use App\Models\FieldUserHq;
 use App\Models\LocationMaster;
 use App\Models\User;
+use App\Services\CompanyLaunchService;
 use App\Services\Field\FieldTeamOnboardingService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -54,13 +55,16 @@ class FieldTeamOnboarding extends Page implements HasForms
     public function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Field representative setup')->description('Assign an HQ and customers without territory, patch or position setup. Changes take effect now; previous customer ownership remains in history.')
+            Section::make('Field representative setup')->description(fn (): string => app(CompanyLaunchService::class)->requiresHq()
+                ? 'Assign an HQ and customers without territory, patch or position setup. Changes take effect now; previous customer ownership remains in history.'
+                : 'Assign customers for Direct DCR. HQ, territories and patches are optional. Changes take effect now; previous customer ownership remains in history.')
                 ->schema([
                     Select::make('user_id')->label('Representative')->options(fn () => User::query()->orderBy('name')->pluck('name', 'id'))->searchable()->required()->live()->afterStateUpdated(function ($state, Set $set): void {
                         $set('location_master_id', FieldUserHq::query()->where('user_id', $state)->value('location_master_id'));
                     }),
                     Select::make('location_master_id')->label('HQ')->options(fn () => LocationMaster::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
-                        ->searchable()->required()
+                        ->searchable()->required(fn (): bool => app(CompanyLaunchService::class)->requiresHq())
+                        ->helperText(fn (): ?string => app(CompanyLaunchService::class)->requiresHq() ? null : 'Optional for Direct DCR. Leave blank to keep any existing HQ assignment.')
                         ->createOptionForm([TextInput::make('name')->required()->maxLength(255), TextInput::make('location_code')->required()->maxLength(50)->unique('location_masters', 'location_code')])
                         ->createOptionUsing(function (array $data): int {
                             abort_unless(static::canAccess() && auth()->user()->can('create', LocationMaster::class), 403);
@@ -81,7 +85,7 @@ class FieldTeamOnboarding extends Page implements HasForms
     {
         abort_unless(static::canAccess(), 403);
         $result = app(FieldTeamOnboardingService::class)->save(auth()->user(), $this->form->getState());
-        Notification::make()->title('HQ saved; '.$result['assigned_customers'].' customers assigned')->success()->send();
+        Notification::make()->title($result['assigned_customers'].' customers assigned')->success()->send();
         $this->data['account_ids'] = [];
     }
 }

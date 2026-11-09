@@ -66,6 +66,62 @@ it('validates and stores the company profile timezone', function () {
     expect($this->organization->fresh()->timezone)->toBe('Asia/Kolkata');
 });
 
+it('launches Direct DCR without an HQ while still requiring assigned customers', function () {
+    $this->launch->saveWorkflow('direct_dcr', 0);
+    FieldUserHq::query()->where('user_id', $this->rep->id)->delete();
+    $member = $this->launch->readiness([$this->rep->employee->id])['members'][0];
+    expect($member['ready'])->toBeTrue()->and($member['hq'])->toBeNull();
+    $revision = $this->launch->proposal($this->organization->fresh());
+    $this->doctor->update(['owner_id' => $this->admin->id]);
+    $member = $this->launch->readiness([$this->rep->employee->id])['members'][0];
+    expect($member['issue_details'])->toHaveKey('customers')->not->toHaveKey('hq');
+    expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))->toThrow(ValidationException::class);
+    $this->doctor->update(['owner_id' => $this->rep->id]);
+    $this->launch->launch([$this->rep->employee->id], $revision->id);
+    expect($this->launch->forUser($this->rep)['launched'])->toBeTrue()
+        ->and($this->launch->forUser($this->rep)['hq_name'])->toBeNull();
+});
+
+it('retains mandatory HQ checks for other working methods', function (string $mode) {
+    $this->launch->saveWorkflow($mode, 0);
+    FieldUserHq::query()->where('user_id', $this->rep->id)->delete();
+    $member = $this->launch->readiness([$this->rep->employee->id])['members'][0];
+    expect($member['issue_details'])->toHaveKey('hq');
+    expect(fn () => app(FieldTeamOnboardingService::class)->save($this->admin, [
+        'user_id' => $this->rep->id, 'location_master_id' => null,
+        'account_ids' => [$this->doctor->id], 'calls_per_month' => 2,
+    ]))->toThrow(ValidationException::class);
+})->with(['flexible', 'formal_mtp']);
+
+it('assigns customers through Admin without an HQ for a saved Direct DCR proposal', function () {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    foreach (['ViewAny:AccountMaster', 'Update:AccountMaster'] as $permission) {
+        $this->admin->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $this->launch->saveWorkflow('direct_dcr', 0);
+    FieldUserHq::query()->where('user_id', $this->rep->id)->delete();
+    $this->doctor->update(['owner_id' => $this->admin->id]);
+    Livewire::test(FieldTeamOnboarding::class)
+        ->assertSee('HQ, territories and patches are optional')
+        ->fillForm(['user_id' => $this->rep->id, 'location_master_id' => null,
+            'account_ids' => [$this->doctor->id], 'calls_per_month' => 2])
+        ->call('save')->assertHasNoFormErrors()->assertNotified();
+    expect($this->doctor->fresh()->owner_id)->toBe($this->rep->id)
+        ->and($this->doctor->callTargets()->sole()->calls_per_month)->toBe(2)
+        ->and(FieldUserHq::query()->where('user_id', $this->rep->id)->exists())->toBeFalse();
+});
+
+it('preserves an existing HQ when it is left blank during Direct DCR customer assignment', function () {
+    $this->admin->givePermissionTo(Permission::findOrCreate('Update:AccountMaster', 'web'));
+    $this->launch->saveWorkflow('direct_dcr', 0);
+    $hq = FieldUserHq::query()->where('user_id', $this->rep->id)->sole();
+    $result = app(FieldTeamOnboardingService::class)->save($this->admin, [
+        'user_id' => $this->rep->id, 'account_ids' => [$this->doctor->id], 'calls_per_month' => 2,
+    ]);
+    expect($result['hq_id'])->toBe($hq->id)
+        ->and($hq->fresh()->location_master_id)->toBe($hq->location_master_id);
+});
+
 it('resolves a single reporting manager and falls back when the position is ambiguous', function () {
     $manager = reportingUser('First HQ Manager');
     $other = reportingUser('Other HQ Manager');
@@ -167,8 +223,8 @@ it('requires formal planning geography but not for direct reporting', function (
     expect($this->launch->readiness([$this->rep->employee->id])['ready_count'])->toBe(1);
 });
 
-it('rejects missing login inactive HQ and revoked permissions', function () {
-    $this->launch->saveWorkflow('direct_dcr', 0);
+it('rejects missing HQ and revoked permissions for flexible planning', function () {
+    $this->launch->saveWorkflow('flexible', 0);
     $this->rep->revokePermissionTo('Create:Visit');
     FieldUserHq::query()->where('user_id', $this->rep->id)->delete();
     $review = $this->launch->readiness([$this->rep->employee->id]);

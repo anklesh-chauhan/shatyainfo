@@ -358,7 +358,7 @@ class Onboarding extends Page
     {
         app(CompanyOnboardingService::class)->authorize();
         if (in_array($issue, ['hq', 'customers'], true) && $member['user_id'] && FieldTeamOnboarding::canAccess()) {
-            return ['label' => 'Assign HQ and customers', 'url' => FieldTeamOnboarding::getUrl(['representative' => $member['user_id']], panel: 'admin')];
+            return ['label' => app(CompanyLaunchService::class)->requiresHq() ? 'Assign HQ and customers' : 'Assign customers', 'url' => FieldTeamOnboarding::getUrl(['representative' => $member['user_id']], panel: 'admin')];
         }
         $resource = match ($issue) {
             'employee', 'login', 'territory' => EmployeeResource::class,

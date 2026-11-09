@@ -17,8 +17,13 @@
     @else
         @php
             $checklist = $this->checklist();
+            $directDcr = $workflow === 'direct_dcr';
             $titles = ['A great place to start.', 'Tell us about your company.', 'Choose your working method.', 'Bring your team together.', 'Prepare your customers.', 'Choose how approvals work.', 'Launch your first team.'];
             $descriptions = ['Prepare one HQ first, then bring the rest of your team onboard.', 'These details help your team recognize your workspace.', 'Choose how MRs plan visits. DCR approvals are configured separately.', 'Add employees, login access and HQ assignments.', 'Import customers and assign them to your MRs.', 'Confirm reporting approvals independently of visit planning.', 'Select the MRs to launch. Other teams can remain in preparation.'];
+            if ($directDcr) {
+                $descriptions[0] = 'Prepare your first team, then bring the rest onboard.';
+                $descriptions[3] = 'Add employees and login access. HQ assignment is optional for Direct DCR.';
+            }
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -27,7 +32,7 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Working method', 'Team and HQs', 'Customers', 'Reporting rules', 'Review and launch'] as $label)
+                    @foreach (['Company information', 'Working method', $directDcr ? 'Team' : 'Team and HQs', 'Customers', 'Reporting rules', 'Review and launch'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
@@ -91,7 +96,8 @@
                     @livewire(\App\Filament\Pages\DataImport::class, ['embedded' => true], key('onboarding-employee-import'))
                     <a class="setup-option" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('create', panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">＋</span><span><strong>Add an employee</strong><small>Enter a team member’s details yourself.</small></span><span aria-hidden="true">→</span></a>
                     <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
-                    <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Assign HQs and customers →</a>
+                    <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Assign customers' : 'Assign HQs and customers' }} →</a>
+                    @if ($directDcr)<p class="setup-hint">HQ, territories and patches are optional for Direct DCR. Assign customers to each MR before launch so they can report visits.</p>@endif
                     @if ($workflow === 'formal_mtp')
                         @include('filament.pages.partials.onboarding-territory-import')
                         <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
@@ -99,7 +105,7 @@
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Save and continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
                     <h2>Customers and assignments</h2>
-                    <p>Prepare the customers for your first HQ. You can import the rest later.</p>
+                    <p>{{ $directDcr ? 'Prepare the customers for your first team.' : 'Prepare the customers for your first HQ.' }} You can import the rest later.</p>
                     @include('filament.pages.partials.onboarding-account-import')
                     <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Assign customers to MRs and review monthly call targets →</a>
                     <details class="setup-optional" @if ($workflow === 'formal_mtp') open @endif><summary>{{ $workflow === 'formal_mtp' ? 'Prepare patches for monthly planning' : 'Optional field routes and additional modules' }}</summary>
@@ -162,7 +168,7 @@
                     </div>
                     @foreach ($readiness['members'] as $member)
                         <div class="setup-note" wire:key="launch-member-{{ $member['employee_id'] }}">
-                            <label><input type="checkbox" wire:model="launchMembers" value="{{ $member['employee_id'] }}"> <strong>{{ $member['name'] }}</strong> — {{ $member['hq'] ?? 'HQ not assigned' }} · {{ $member['customers'] }} customers {{ $member['launched'] ? '· Already launched' : '' }}</label>
+                            <label><input type="checkbox" wire:model="launchMembers" value="{{ $member['employee_id'] }}"> <strong>{{ $member['name'] }}</strong> — {{ $member['hq'] ?? ($directDcr ? 'HQ optional' : 'HQ not assigned') }} · {{ $member['customers'] }} customers {{ $member['launched'] ? '· Already launched' : '' }}</label>
                             @foreach ($member['issue_details'] as $code => $issue)
                                 <p>{{ $issue }}
                                     @if ($action = $this->readinessAction($code, $member))
@@ -172,7 +178,7 @@
                             @endforeach
                         </div>
                     @endforeach
-                    <p class="setup-hint"><a href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Fix HQ/customer assignments</a> · <a href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review employees and login access</a></p>
+                    <p class="setup-hint"><a href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Review customer assignments' : 'Fix HQ/customer assignments' }}</a> · <a href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review employees and login access</a></p>
                     <details class="setup-optional">
                         <summary>Team launch history</summary>
                         @forelse ($this->launchHistory() as $event)

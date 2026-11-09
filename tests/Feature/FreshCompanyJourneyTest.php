@@ -19,7 +19,7 @@ use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
-it('launches one HQ and completes its first reporting day', function (string $mode) {
+it('launches one team and completes its first reporting day', function (string $mode) {
     expect(Organization::query()->count())->toBe(0);
     $admin = reportingUser('Fresh Company Administrator');
     $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
@@ -37,15 +37,17 @@ it('launches one HQ and completes its first reporting day', function (string $mo
         $rep->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $doctor = reportingDoctor($rep, 'Fresh HQ Doctor');
-    FieldUserHq::query()->create(['user_id' => $rep->id,
-        'location_master_id' => reportingLocation('Fresh HQ')->id, 'updated_by' => $admin->id]);
-    $territory = reportingTerritory('Fresh Territory');
-    $patch = reportingPatch($territory, 'Fresh Patch');
-    $patch->companies()->attach($doctor->id);
-    $role = JobRole::query()->create(['name' => 'Fresh MR', 'code' => 'FRESH-MR', 'level' => 1]);
-    $position = Position::query()->create(['name' => 'Fresh MR', 'code' => 'FRESH-POS', 'job_role_id' => $role->id]);
-    $position->territories()->attach($territory->id);
-    $rep->employee->positions()->attach($position->id, ['is_primary' => true]);
+    if ($mode !== 'direct_dcr') {
+        FieldUserHq::query()->create(['user_id' => $rep->id,
+            'location_master_id' => reportingLocation('Fresh HQ')->id, 'updated_by' => $admin->id]);
+        $territory = reportingTerritory('Fresh Territory');
+        $patch = reportingPatch($territory, 'Fresh Patch');
+        $patch->companies()->attach($doctor->id);
+        $role = JobRole::query()->create(['name' => 'Fresh MR', 'code' => 'FRESH-MR', 'level' => 1]);
+        $position = Position::query()->create(['name' => 'Fresh MR', 'code' => 'FRESH-POS', 'job_role_id' => $role->id]);
+        $position->territories()->attach($territory->id);
+        $rep->employee->positions()->attach($position->id, ['is_primary' => true]);
+    }
     $launch = app(CompanyLaunchService::class);
     $launch->saveWorkflow($mode, 0);
     app(OnboardingApprovalService::class)->saveDraft(['required' => 'no']);
