@@ -16,6 +16,7 @@ use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -153,6 +154,21 @@ it('previews employee rows without saving them', function () {
             ->assertDontSee('How to import employees')
             ->assertDontSee('Employees & Reporting Hierarchy columns')
             ->assertDontSee('Back to setup checklist');
+    });
+});
+
+it('invalidates employee confirmation through the actual file removal method', function () {
+    withDataImportTenant(function (): void {
+        Storage::fake('local');
+        $upload = UploadedFile::fake()->createWithContent('preview.csv',
+            "employee_id,first_name,last_name,mobile_number\nPREVIEW1,Preview,Rep,9000000123\n");
+        $page = livewire(DataImport::class)->fillForm(['file' => $upload])
+            ->call('previewEmployees')->assertHasNoErrors()->assertSee('Confirm import');
+        $fileKey = array_key_first($page->get('data.file'));
+        $page->call('callSchemaComponentMethod', 'form.file', 'removeUploadedFile', [$fileKey])
+            ->assertSet('employeePreview', null)->assertSet('employeePreviewHash', null);
+        $page->call('$refresh')->assertDontSee('Confirm import');
+        expect(Employee::query()->where('employee_id', 'PREVIEW1')->exists())->toBeFalse();
     });
 });
 

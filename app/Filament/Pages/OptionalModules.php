@@ -11,6 +11,8 @@ class OptionalModules extends Page
 {
     protected static ?string $cluster = OrganizationAndCompanyCluster::class;
 
+    protected static ?int $navigationSort = 30;
+
     public array $reviewed = [];
 
     public static function canAccess(): bool

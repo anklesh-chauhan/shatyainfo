@@ -152,6 +152,9 @@ class DataImport extends Page implements HasForms
             ->components([
                 Hidden::make('resource')->default(EmployeeResource::class),
                 FileUpload::make('file')
+                    ->afterStateUpdated(function (): void {
+                        $this->clearEmployeePreview();
+                    })
                     ->label('Excel or CSV file')
                     ->disk('local')
                     ->directory('data-imports')

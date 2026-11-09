@@ -200,6 +200,16 @@ Results are Unassisted, Assisted or Blocked. Capture the participant's wording a
 
 Session completion requires each role to finish its applicable tasks unassisted after any necessary fixes, with the first-day reporting outcome reconciled in Admin and mobile. Automated test results and the seeded device harness do not substitute for this observed session. Status remains awaiting participants.
 
+### Online save/resume and import-preview checks
+
+The user supplied the Hester online company workspace and explicitly requested agent-run testing. The signed-in company setup form was tested with a temporary value in the initially blank Legal name field. The draft acknowledged saving, Save and continue later returned to the dashboard, Continue setup restored the value, and it remained present after sign-out and the user's subsequent sign-in. The temporary value was then cleared and the cleaned draft acknowledged saving. The company workflow remained unselected.
+
+The next online check uploaded synthetic employee CSVs through Data Import. A missing manager position produced the expected row 2 correction message. A corrected two-row file with the manager after the MR produced zero file errors and a confirmation preview. Confirmation was not submitted. The uploaded file was removed and the browser returned to setup. Evidence is stored locally in storage/app/setup-resume-online.png, storage/app/setup-resume-online-cleaned.png and storage/app/online-import-corrected-preview.png.
+
+Two usability issues were found and fixed locally. Optional Modules had no navigation sort, causing Onboarding & Support to open there before the setup checklist. It now follows setup and imports. Removing an uploaded employee file also left the old confirmation visible because Filament's removal method updates state without rendering the page. The field now invalidates the server preview through its state hook, and the preview visibility follows the Livewire file/preview state.
+
+DataImportTest and OptionalModuleTest passed 18 tests with 99 assertions, including the real schema-component file-removal method. Pint and whitespace checks passed. These fixes require deployment before online retesting. This evidence is agent-run functional testing; the administrator/manager/MR participant usability gate remains open.
+
 Verification passed 24 module/launch tests with 121 assertions. The final targeted settings-page and navigation run passed three tests with 21 assertions, covering missing configuration, required review, authorization, repeated activation and resource menu visibility. Counts overlap. Pint and whitespace checks passed.
 
 Build a guided launch experience for a new Indian pharma company, prioritising 26–100 medical representatives (MRs) while supporting larger organisations. A company administrator should be able to prepare one HQ, launch its team and see an MR complete the first daily call report (DCR) without developer assistance.

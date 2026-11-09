@@ -73,7 +73,7 @@
     </form>
 
     @if ($employeePreview !== null)
-        <section class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+        <section x-show="$wire.employeePreview !== null && Object.keys($wire.data.file ?? {}).length > 0" class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <h2 class="text-base font-semibold text-gray-950 dark:text-white">Review before importing</h2>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ $employeePreview['count'] }} employee rows · {{ count($employeePreview['errors']) }} file errors. Nothing has been saved.</p>
             @if ($employeePreview['errors'] !== [])
