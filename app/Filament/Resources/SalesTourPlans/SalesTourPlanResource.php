@@ -9,6 +9,8 @@ use App\Filament\Resources\SalesTourPlans\Pages\ListSalesTourPlans;
 use App\Filament\Resources\SalesTourPlans\Schemas\SalesTourPlanForm;
 use App\Filament\Resources\SalesTourPlans\Tables\SalesTourPlansTable;
 use App\Models\SalesTourPlan;
+use App\Services\Field\FieldPlanningService;
+use App\Services\Field\FieldTeamOnboardingService;
 use App\Traits\HasApprovalWorkflow;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\HasVisibilityScope;
@@ -32,6 +34,14 @@ class SalesTourPlanResource extends BaseResource
     protected static ?string $navigationLabel = 'Tour Plans';
 
     protected static ?string $recordTitleAttribute = null;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation() && (
+            FieldTeamOnboardingService::canManage(auth()->user())
+            || ! app(FieldPlanningService::class)->capabilities()['supports_direct_calls']
+        );
+    }
 
     public static function form(Schema $schema): Schema
     {

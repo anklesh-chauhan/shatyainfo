@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Onboarding;
 use App\Filament\Widgets\CompanySetupReminder;
@@ -7,11 +8,14 @@ use App\Http\Middleware\PromptCompanySetup;
 use App\Models\Organization;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\CompanyOnboardingService;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
@@ -45,7 +49,7 @@ it('shows a continue setup reminder until completion and retains checklist acces
     $organization->update(['metadata' => ['company_setup' => ['completed' => true]]]);
     expect((new Dashboard)->getVisibleWidgets())->not->toContain(CompanySetupReminder::class)
         ->and(Onboarding::canAccess())->toBeTrue()
-        ->and(Onboarding::getNavigationGroup())->toBe('Global Configuration');
+        ->and(Onboarding::getCluster())->toBe(OrganizationAndCompanyCluster::class);
 });
 
 it('hides the reminder from users without setup access and outside a tenant', function () {
@@ -104,4 +108,21 @@ it('allows pending setup to reach the dashboard once the account is configured',
     Tenant::current()->forceFill(['master_setup_status' => 'pending']);
     $response = app(PromptCompanySetup::class)->handle($request, fn () => response('Dashboard'));
     expect($response->getStatusCode())->toBe(302);
+});
+
+it('saves an incomplete first-company draft and allows deferring to the dashboard', function () {
+    Livewire::test(Onboarding::class)->call('next')->set('organization.name', '')
+        ->call('skip')->assertHasNoErrors()->assertRedirect('/admin');
+    expect(Organization::query()->count())->toBe(0);
+    $request = Request::create('/admin', 'GET');
+    $request->setUserResolver(fn () => auth()->user());
+    $route = new Route('GET', '/admin', fn () => null);
+    $route->name('filament.admin.pages.dashboard');
+    $request->setRouteResolver(fn () => $route);
+    $response = app(PromptCompanySetup::class)->handle($request, fn () => response('Dashboard'));
+    expect($response->getStatusCode())->toBe(200);
+    Livewire::test(Onboarding::class)->assertSet('step', 1)->assertSet('organization.name', '');
+    $this->actingAs(User::factory()->create());
+    expect(fn () => app(CompanyOnboardingService::class)->draft())
+        ->toThrow(HttpException::class);
 });

@@ -293,10 +293,13 @@ it('shows persistent escaped row errors in the import notification', function ()
         $message = 'Unknown position <MISSING>. No rows were saved.';
         $this->mock(ResourceCsvImporter::class)->shouldReceive('import')->once()
             ->andReturn(new ImportResult(failed: [['row' => 2, 'message' => $message]]));
+        app(ResourceCsvImporter::class)->shouldReceive('previewEmployees')->once()
+            ->andReturn(['count' => 1, 'rows' => [], 'errors' => []]);
         $upload = UploadedFile::fake()->createWithContent('employees.csv', "employee_id,first_name\nEMP004,Asha\n");
 
         Livewire::test(DataImport::class)
             ->fillForm(['resource' => EmployeeResource::class, 'file' => $upload])
+            ->call('previewEmployees')
             ->call('import')
             ->assertHasNoFormErrors()
             ->assertNotified(Notification::make()

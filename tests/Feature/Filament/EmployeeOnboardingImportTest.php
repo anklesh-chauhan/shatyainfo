@@ -96,6 +96,36 @@ it('rolls back the whole employee file when a row is invalid', function () {
     }
 });
 
+it('previews and safely reruns a corrected import for 100 representatives and their manager', function () {
+    $path = tempnam(sys_get_temp_dir(), 'employee-team-');
+    $header = "employee_id,first_name,last_name,mobile_number,job_role,position,position_code,is_primary_position,reports_to_position_code,reports_to_employee_code\n";
+    $rows = [];
+    foreach (range(1, 100) as $index) {
+        $rows[] = "MR{$index},Rep,{$index},9000000".sprintf('%03d', $index).",Sales Representative,MR {$index},P{$index},Yes,MANAGER,MGR";
+    }
+    $rows[] = 'MGR,Area,Manager,9000000200,Area Sales Manager,Area Manager,MANAGER,Yes,,';
+    $importer = app(ResourceCsvImporter::class);
+    $module = app(ResourceImportCatalog::class)->findByModel(Employee::class);
+    try {
+        $incorrect = $rows;
+        $incorrect[99] = str_replace('MANAGER,MGR', 'MISSING,UNKNOWN', $incorrect[99]);
+        $incorrect[] = str_replace('MR1,Rep,', 'MR1,Conflicting,', $rows[0]);
+        file_put_contents($path, $header.implode("\n", $incorrect));
+        $preview = $importer->previewEmployees($module, $path);
+        expect(array_column($preview['errors'], 'row'))->toBe([101, 101, 103])
+            ->and(Employee::query()->count())->toBe(0);
+        file_put_contents($path, $header.implode("\n", $rows));
+        expect($importer->previewEmployees($module, $path)['errors'])->toBe([]);
+        $first = $importer->import($module, $path);
+        expect($first->failed)->toBe([])->and($first->created)->toBe(101);
+        $repeat = $importer->import($module, $path);
+        expect($repeat->failed)->toBe([])->and($repeat->updated)->toBe(101)
+            ->and(Employee::query()->count())->toBe(101);
+    } finally {
+        unlink($path);
+    }
+});
+
 it('does not let an unauthorized user import employees', function () {
     $this->actingAs(User::factory()->create());
     expect(fn () => app(EmployeeOnboardingImporter::class)->importRow([

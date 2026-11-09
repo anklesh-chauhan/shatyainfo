@@ -44,7 +44,11 @@ class FieldTeamOnboarding extends Page implements HasForms
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
-        $this->form->fill(['account_ids' => [], 'calls_per_month' => 2]);
+        $representative = request()->query('representative');
+        $user = is_scalar($representative) && ctype_digit((string) $representative)
+            ? User::query()->find((int) $representative) : null;
+        $this->form->fill(['account_ids' => [], 'calls_per_month' => 2, 'user_id' => $user?->id,
+            'location_master_id' => $user ? FieldUserHq::query()->where('user_id', $user->id)->value('location_master_id') : null]);
     }
 
     public function form(Schema $schema): Schema

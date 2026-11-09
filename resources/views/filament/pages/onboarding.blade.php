@@ -17,8 +17,8 @@
     @else
         @php
             $checklist = $this->checklist();
-            $titles = ['A great place to start.', 'Tell us about your company.', 'Map your territories.', 'Bring your team together.', 'Prepare your workspace.', 'Choose how approvals work.', 'Ready for your first day.'];
-            $descriptions = ['A few simple steps to make this workspace yours.', 'These details help your team recognize your workspace.', 'Create the territory hierarchy your team will work in.', 'Add employees and give everyone a place in your organization.', 'Optionally import accounts, field routes, products, shift assignments and holidays. You can complete these later.', 'Set approval levels and approvers for the modules your team uses.', 'Review your setup, then open your workspace.'];
+            $titles = ['A great place to start.', 'Tell us about your company.', 'Choose your working method.', 'Bring your team together.', 'Prepare your customers.', 'Choose how approvals work.', 'Launch your first team.'];
+            $descriptions = ['Prepare one HQ first, then bring the rest of your team onboard.', 'These details help your team recognize your workspace.', 'Choose how MRs plan visits. DCR approvals are configured separately.', 'Add employees, login access and HQ assignments.', 'Import customers and assign them to your MRs.', 'Confirm reporting approvals independently of visit planning.', 'Select the MRs to launch. Other teams can remain in preparation.'];
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -27,7 +27,7 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Territories', 'Add employees', 'Optional imports', 'Approvals', 'Review & finish'] as $label)
+                    @foreach (['Company information', 'Working method', 'Team and HQs', 'Customers', 'Reporting rules', 'Review and launch'] as $label)
                         <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
@@ -35,12 +35,17 @@
             </aside>
             <section class="setup-content" aria-label="Current setup step" wire:key="setup-step-{{ $step }}">
                 <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 6' }}</p>
+                <p class="setup-hint">Text changes are saved when you leave a field. Drafts are private to your login. Uploads must be saved separately.</p>
+                <p wire:loading role="status">Saving changes…</p>
+                @if ($draftSaved)<p wire:loading.remove wire:dirty.remove role="status">Draft saved. You can return after signing in again.</p>@endif
+                <p wire:dirty role="status">Unsaved changes.</p>
+                @if ($step <= 2)<button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Save and continue later</button>@endif
                 @if ($errors->any())<div class="setup-error" role="alert"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
                 @if ($step === 0)
                     <div class="setup-welcome-art" aria-hidden="true"><span>✦</span><span>✓</span><span>＋</span></div>
                     <h2>Let’s set things up</h2>
                     <p>Start with your company details. Then add your employees and review how your team is organized.</p>
-                    <div class="setup-note">You can continue later after saving your company information.</div>
+                    <div class="setup-note">You can save an incomplete draft and continue later.</div>
                     <div class="setup-actions"><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Get started</x-filament::button></div>
                 @elseif ($step === 1)
                     <h2>Company information</h2><p>Confirm the details below to personalize your workspace.</p>
@@ -55,35 +60,49 @@
                             <p wire:loading wire:target="companyLogo" role="status">Uploading logo…</p>
                         </div>
                         @foreach (['name' => 'Company name', 'email' => 'Company email', 'phone' => 'Phone number'] as $field => $label)
-                            <div class="setup-field"><label for="org-{{ $field }}">{{ $label }}</label><x-filament::input.wrapper :valid="! $errors->has('organization.'.$field)"><x-filament::input id="org-{{ $field }}" type="{{ $field === 'email' ? 'email' : ($field === 'phone' ? 'tel' : 'text') }}" wire:model="organization.{{ $field }}" required maxlength="{{ $field === 'phone' ? 30 : 255 }}" /></x-filament::input.wrapper></div>
+                            <div class="setup-field"><label for="org-{{ $field }}">{{ $label }}</label><x-filament::input.wrapper :valid="! $errors->has('organization.'.$field)"><x-filament::input id="org-{{ $field }}" type="{{ $field === 'email' ? 'email' : ($field === 'phone' ? 'tel' : 'text') }}" wire:model.live.blur="organization.{{ $field }}" required maxlength="{{ $field === 'phone' ? 30 : 255 }}" /></x-filament::input.wrapper></div>
                         @endforeach
-                        <div class="setup-field"><label for="org-date-format">Date display format</label><x-filament::input.wrapper :valid="! $errors->has('organization.date_format')"><x-filament::input.select id="org-date-format" wire:model="organization.date_format" required>@foreach (\App\Services\DateFormatService::FORMATS as $format => $label)<option value="{{ $format }}">{{ $label }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper><p class="setup-hint">Used across your workspace, reports and field app. You can change it later in Organization Profile.</p>@error('organization.date_format')<p role="alert">{{ $message }}</p>@enderror</div>
-                        <div class="setup-field"><label for="uses-divisions">Does your company use divisions?</label><x-filament::input.wrapper><x-filament::input.select id="uses-divisions" wire:model="organization.uses_divisions"><option value="1">Yes, use divisions</option><option value="0">No divisions</option></x-filament::input.select></x-filament::input.wrapper><p class="setup-hint">No makes division links optional for territories. Existing divisions and links are kept.</p></div>
+                        <div class="setup-field"><label for="org-date-format">Date display format</label><x-filament::input.wrapper :valid="! $errors->has('organization.date_format')"><x-filament::input.select id="org-date-format" wire:model.live.blur="organization.date_format" required>@foreach (\App\Services\DateFormatService::FORMATS as $format => $label)<option value="{{ $format }}">{{ $label }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper><p class="setup-hint">Used across your workspace, reports and field app. You can change it later in Organization Profile.</p>@error('organization.date_format')<p role="alert">{{ $message }}</p>@enderror</div>
+                        <div class="setup-field"><label for="org-timezone">Company timezone</label><x-filament::input.wrapper :valid="! $errors->has('organization.timezone')"><x-filament::input.select id="org-timezone" wire:model.live="organization.timezone" required>@foreach (\DateTimeZone::listIdentifiers() as $timezone)<option value="{{ $timezone }}">{{ $timezone === 'Asia/Kolkata' ? 'India — Asia/Kolkata (IST)' : $timezone }}</option>@endforeach</x-filament::input.select></x-filament::input.wrapper><p class="setup-hint">Confirm your company profile timezone. India is preselected for new companies.</p>@error('organization.timezone')<p role="alert">{{ $message }}</p>@enderror</div>
+                        <div class="setup-field"><label for="uses-divisions">Does your company use divisions?</label><x-filament::input.wrapper><x-filament::input.select id="uses-divisions" wire:model.live.blur="organization.uses_divisions"><option value="1">Yes, use divisions</option><option value="0">No divisions</option></x-filament::input.select></x-filament::input.wrapper><p class="setup-hint">No makes division links optional for territories. Existing divisions and links are kept.</p></div>
                         <p class="setup-hint">Additional company details (optional)</p>
-                        <div class="setup-field"><label for="org-legal_name">Legal name</label><x-filament::input.wrapper :valid="! $errors->has('organization.legal_name')"><x-filament::input id="org-legal_name" type="text" wire:model="organization.legal_name" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-gst_number">GST number</label><x-filament::input.wrapper :valid="! $errors->has('organization.gst_number')"><x-filament::input id="org-gst_number" type="text" wire:model="organization.gst_number" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-registration_number">Registration number</label><x-filament::input.wrapper :valid="! $errors->has('organization.registration_number')"><x-filament::input id="org-registration_number" type="text" wire:model="organization.registration_number" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-website">Website</label><x-filament::input.wrapper :valid="! $errors->has('organization.website')"><x-filament::input id="org-website" type="url" wire:model="organization.website" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-contact_person">Contact person</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person')"><x-filament::input id="org-contact_person" type="text" wire:model="organization.contact_person" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-contact_person_email">Contact person email</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person_email')"><x-filament::input id="org-contact_person_email" type="email" wire:model="organization.contact_person_email" maxlength="255" /></x-filament::input.wrapper></div>
-                        <div class="setup-field"><label for="org-contact_person_phone">Contact person phone</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person_phone')"><x-filament::input id="org-contact_person_phone" type="tel" wire:model="organization.contact_person_phone" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-legal_name">Legal name</label><x-filament::input.wrapper :valid="! $errors->has('organization.legal_name')"><x-filament::input id="org-legal_name" type="text" wire:model.live.blur="organization.legal_name" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-gst_number">GST number</label><x-filament::input.wrapper :valid="! $errors->has('organization.gst_number')"><x-filament::input id="org-gst_number" type="text" wire:model.live.blur="organization.gst_number" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-registration_number">Registration number</label><x-filament::input.wrapper :valid="! $errors->has('organization.registration_number')"><x-filament::input id="org-registration_number" type="text" wire:model.live.blur="organization.registration_number" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-website">Website</label><x-filament::input.wrapper :valid="! $errors->has('organization.website')"><x-filament::input id="org-website" type="url" wire:model.live.blur="organization.website" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-contact_person">Contact person</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person')"><x-filament::input id="org-contact_person" type="text" wire:model.live.blur="organization.contact_person" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-contact_person_email">Contact person email</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person_email')"><x-filament::input id="org-contact_person_email" type="email" wire:model.live.blur="organization.contact_person_email" maxlength="255" /></x-filament::input.wrapper></div>
+                        <div class="setup-field"><label for="org-contact_person_phone">Contact person phone</label><x-filament::input.wrapper :valid="! $errors->has('organization.contact_person_phone')"><x-filament::input id="org-contact_person_phone" type="tel" wire:model.live.blur="organization.contact_person_phone" maxlength="255" /></x-filament::input.wrapper></div>
                         <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button type="submit" wire:loading.attr="disabled" size="lg">Save and continue</x-filament::button></div>
                     </form>
                 @elseif ($step === 2)
-                    @include('filament.pages.partials.onboarding-territory-import')
-                    <a class="setup-option" href="{{ \App\Filament\Resources\Territories\TerritoryResource::getUrl('create', panel: 'admin') }}"><span><strong>Add manually</strong><small>Create a territory in the existing admin page, then return here.</small></span></a>
-                    <p class="setup-hint"><a class="setup-review-link" href="{{ \App\Filament\Resources\Territories\TerritoryResource::getUrl('index', panel: 'admin') }}">Manage territories →</a></p>
-                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skipTerritories">Set up later</button><x-filament::button wire:click="next" wire:loading.attr="disabled">Continue to employees</x-filament::button></div></div>
+                    <h2>How does your field team plan doctor visits?</h2>
+                    <form wire:submit="saveWorkflow" class="setup-form">
+                        @foreach (\App\Services\CompanyLaunchService::workflows() as $value => $option)
+                            <label class="setup-option"><input type="radio" wire:model.live="workflow" value="{{ $value }}"><span><strong>{{ $option['label'] }}</strong><small>{{ $option['description'] }}</small></span></label>
+                        @endforeach
+                        @if ($workflow)
+                            <div class="setup-note">{{ $workflow === 'formal_mtp' ? 'MRs will open their approved monthly plan. Territories and patches are needed.' : 'MRs can start visits from their assigned customers. Detailed territories and patches are optional.' }} DCR approval choices are made in Reporting rules. This proposal takes effect only when you launch a team.</div>
+                        @endif
+                        <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button type="submit" wire:loading.attr="disabled">Save and continue</x-filament::button></div>
+                    </form>
                 @elseif ($step === 3)
                     <h2>Who’s joining your workspace?</h2><p>Add employees one at a time, or bring your whole team in with an Excel file.</p>
                     @livewire(\App\Filament\Pages\DataImport::class, ['embedded' => true], key('onboarding-employee-import'))
                     <a class="setup-option" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('create', panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">＋</span><span><strong>Add an employee</strong><small>Enter a team member’s details yourself.</small></span><span aria-hidden="true">→</span></a>
                     <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
-                    <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
-                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
+                    <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Assign HQs and customers →</a>
+                    @if ($workflow === 'formal_mtp')
+                        @include('filament.pages.partials.onboarding-territory-import')
+                        <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
+                    @endif
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Save and continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
                 @elseif ($step === 4)
-                    <h2>Optional setup imports</h2>
-                    <p>Add accounts, field routes, products and HR setup. You can complete any of these imports later.</p>
+                    <h2>Customers and assignments</h2>
+                    <p>Prepare the customers for your first HQ. You can import the rest later.</p>
+                    @include('filament.pages.partials.onboarding-account-import')
+                    <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Assign customers to MRs and review monthly call targets →</a>
+                    <details class="setup-optional" @if ($workflow === 'formal_mtp') open @endif><summary>{{ $workflow === 'formal_mtp' ? 'Prepare patches for monthly planning' : 'Optional field routes and additional modules' }}</summary>
                     @if (\App\Filament\Pages\FieldTravelImport::canAccess())
                         @livewire(\App\Filament\Pages\FieldTravelImport::class, ['embedded' => true], key('onboarding-field-import'))
                     @else
@@ -92,9 +111,9 @@
                             <p class="setup-note">Import access requires permission to create patches or standard fares. You can skip this step and ask your administrator to complete it later.</p>
                         </section>
                     @endif
-                    @include('filament.pages.partials.onboarding-account-import')
                     @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'products'], key('onboarding-product-import'))
                     @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hr'], key('onboarding-hr-import'))
+                    </details>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
                 @elseif ($step === 5)
                     <h2>Does your team need approvals?</h2>
@@ -132,10 +151,39 @@
                                 @endforeach
                             @endif
                         @endif
-                        <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip">Continue later</button><x-filament::button type="submit" wire:loading.attr="disabled">Review setup</x-filament::button></div></div>
+                        <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button type="submit" wire:loading.attr="disabled">Review setup</x-filament::button></div></div>
                     </form>
                 @else
-                    <div class="setup-success-icon" aria-hidden="true">✓</div><h2>Your workspace is taking shape</h2><p>Check your team’s details and reporting managers before you finish.</p>
+                    <h2>Choose the team to launch</h2><p>Selected MRs are recorded as launched. Missing requirements are checked again before launch. Planning and approval settings apply to the whole company; existing permissions continue to control access.</p>
+                    @php($readiness = $this->launchReadiness())
+                    <div class="setup-note">{{ $readiness['ready_count'] }} MRs pass the current setup checks. {{ $readiness['launched_count'] }} already launched.
+                        @if ($readiness['approval_check_pending'])<p>Approval routes will be applied and checked for each selected MR at launch.</p>@endif
+                        @foreach ($readiness['blockers'] as $blocker)<p>{{ $blocker }}</p>@endforeach
+                    </div>
+                    @foreach ($readiness['members'] as $member)
+                        <div class="setup-note" wire:key="launch-member-{{ $member['employee_id'] }}">
+                            <label><input type="checkbox" wire:model="launchMembers" value="{{ $member['employee_id'] }}"> <strong>{{ $member['name'] }}</strong> — {{ $member['hq'] ?? 'HQ not assigned' }} · {{ $member['customers'] }} customers {{ $member['launched'] ? '· Already launched' : '' }}</label>
+                            @foreach ($member['issue_details'] as $code => $issue)
+                                <p>{{ $issue }}
+                                    @if ($action = $this->readinessAction($code, $member))
+                                        <a class="setup-review-link" href="{{ $action['url'] }}">{{ $action['label'] }} →</a>
+                                    @endif
+                                </p>
+                            @endforeach
+                        </div>
+                    @endforeach
+                    <p class="setup-hint"><a href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">Fix HQ/customer assignments</a> · <a href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review employees and login access</a></p>
+                    <details class="setup-optional">
+                        <summary>Team launch history</summary>
+                        @forelse ($this->launchHistory() as $event)
+                            <div class="setup-note">
+                                <p><strong>{{ $event['actor_name'] }}</strong> · {{ $event['launched_at'] }} · {{ \App\Services\CompanyLaunchService::workflows()[$event['mode']]['label'] }} · Policy revision {{ $event['policy_version'] }}</p>
+                                <ul>@foreach ($event['members'] as $launchedMember)<li>{{ $launchedMember['name'] }} — {{ $launchedMember['hq'] ?? 'HQ not recorded' }}</li>@endforeach</ul>
+                            </div>
+                        @empty
+                            <p>No team launches recorded yet.</p>
+                        @endforelse
+                    </details>
                     <dl class="setup-review"><div><dt>Company</dt><dd>{{ $organization['name'] }}</dd></div><div><dt>Company uses divisions</dt><dd>{{ $this->usesDivisions() ? 'Yes' : 'No' }}</dd></div><div><dt>Territories</dt><dd>{{ $checklist['territory_count'] ?: 'Set up later' }}</dd></div><div><dt>Employees without territory assignments</dt><dd>{{ $checklist['unassigned_territory_count'] }}</dd></div><div><dt>Employees</dt><dd>{{ $checklist['employee_count'] }} added</dd></div><div><dt>Accounts</dt><dd>{{ $checklist['account_count'] ?: 'Set up later' }}</dd></div><div><dt>Patches</dt><dd>{{ $checklist['patch_count'] ?: 'Set up later' }}</dd></div><div><dt>Standard fare routes</dt><dd>{{ $checklist['fare_count'] ?: 'Set up later' }}</dd></div><div><dt>Organization structure</dt><dd>{{ $checklist['unit_count'] ? $checklist['unit_count'].' units' : 'Set up later' }}</dd></div></dl>
                     <div class="setup-note">
                         <h3>Approval setup</h3>
@@ -152,7 +200,7 @@
                         @endif
                     </div>
                     <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
-                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Open my workspace</x-filament::button></div>
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Launch selected team</x-filament::button></div>
                 @endif
                 @if ($step >= 5)
                     <p class="setup-hint"><a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalSettings\ApprovalSettingResource::getUrl('index', panel: 'admin') }}">Approval Settings</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalFlows\ApprovalFlowResource::getUrl('index', panel: 'admin') }}">Approval Flows</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalDelegations\ApprovalDelegationResource::getUrl('index', panel: 'admin') }}">Approval Delegations</a></p>

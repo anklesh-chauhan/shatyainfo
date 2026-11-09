@@ -2,21 +2,26 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\Concerns\HasApprovalLockUI;
+use App\Filament\Resources\Concerns\HasSendForApprovalAction;
+use App\Services\OptionalModuleService;
+use App\Traits\HasApprovalWorkflow;
 use App\Traits\HasSafeGlobalSearch;
 use Filament\Resources\Resource;
-use App\Filament\Resources\Concerns\HasSendForApprovalAction;
-use App\Filament\Resources\Concerns\HasApprovalLockUI;
-use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use App\Traits\HasApprovalWorkflow;
 
 abstract class BaseResource extends Resource
 {
-    use HasSafeGlobalSearch;
-    use HasSendForApprovalAction;
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(OptionalModuleService::class)->navigationEnabled(static::permissionKey());
+    }
+
     use HasApprovalLockUI;
     use HasApprovalWorkflow;
+    use HasSafeGlobalSearch;
+    use HasSendForApprovalAction;
 
     protected static function permissionKey(): string
     {

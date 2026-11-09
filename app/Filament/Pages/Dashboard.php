@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\CompanySetupReminder;
 use App\Filament\Widgets\FieldActivityStatsWidget;
+use App\Filament\Widgets\FieldWorkspace;
 use App\Jobs\ProcessDailyAttendanceJob;
 use App\Models\AttendancePunch;
 use App\Models\DailyAttendance;
@@ -79,6 +80,7 @@ class Dashboard extends BaseDashboard
     {
         return [
             CompanySetupReminder::class,
+            FieldWorkspace::class,
             FieldActivityStatsWidget::class,
             ...app(DashboardLayout::class)->chartWidgets(Auth::user() instanceof User ? Auth::user() : null),
         ];

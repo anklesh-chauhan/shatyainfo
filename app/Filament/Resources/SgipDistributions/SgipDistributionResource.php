@@ -8,6 +8,7 @@ use App\Filament\Resources\SgipDistributions\Pages\ListSgipDistributions;
 use App\Filament\Resources\SgipDistributions\Schemas\SgipDistributionForm;
 use App\Filament\Resources\SgipDistributions\Tables\SgipDistributionsTable;
 use App\Models\SgipDistribution;
+use App\Services\OptionalModuleService;
 use App\Traits\HasRelatedGlobalSearch;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -18,6 +19,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SgipDistributionResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(OptionalModuleService::class)->navigationEnabled('SgipDistribution');
+    }
+
     protected static ?int $navigationSort = 70;
 
     protected static ?string $navigationLabel = 'SGIP Distributions';

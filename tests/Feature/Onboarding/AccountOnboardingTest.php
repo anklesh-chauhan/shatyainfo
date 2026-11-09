@@ -78,6 +78,22 @@ it('previews without writes and imports relationships in any order with safe rer
     expect($this->organization->fresh()->metadata['company_setup']['accounts_reviewed'])->toBeTrue();
 });
 
+it('corrects and reruns a 100-customer batch without duplicate accounts', function () {
+    $base = accountImportRows()[0]['data'];
+    $rows = array_map(fn (int $index): array => [
+        'line' => $index + 1,
+        'data' => [...$base, 'external_reference' => 'TEAM:'.$index, 'name' => 'Customer '.$index],
+    ], range(1, 100));
+    $incorrect = $rows;
+    $incorrect[99]['data']['external_reference'] = $rows[0]['data']['external_reference'];
+    expect($this->service->preview($incorrect)['errors'])->not->toBeEmpty()
+        ->and(AccountMaster::query()->count())->toBe(0);
+    expect($this->service->preview($rows)['errors'])->toBe([]);
+    expect($this->service->import($rows))->toBe(['created' => 100, 'updated' => 0])
+        ->and($this->service->import($rows))->toBe(['created' => 0, 'updated' => 100])
+        ->and(AccountMaster::query()->count())->toBe(100);
+});
+
 it('imports custom account codes and keeps automatic generation available', function () {
     $this->service->import(accountImportRows(['account_code' => 'MY-0023']));
     $account = AccountMaster::where('external_reference', 'ERP:0001')->sole();
@@ -245,7 +261,7 @@ it('supports preview and confirmation in company setup and invalidates changed u
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $csv = 'external_reference,name,account_type,owner_email'."\n".'ERP:0001,Import Doctor One,Import Doctor,'.auth()->user()->email."\n";
-        $page = Livewire::test(Onboarding::class)->assertSet('step', 4)->assertSee('Import account masters')
+        $page = Livewire::test(Onboarding::class, ['importSection' => 'accounts'])->assertSee('Import account masters')
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', $csv))
             ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review before importing');
         $this->assertDatabaseCount('account_masters', 0);
@@ -253,12 +269,12 @@ it('supports preview and confirmation in company setup and invalidates changed u
         $page->call('importAccounts')->assertHasNoErrors();
         Queue::assertPushed(ProcessAccountImport::class, 1);
         $this->assertDatabaseCount('account_masters', 0);
-        Livewire::test(Onboarding::class)->assertSee('Account import queued');
+        Livewire::test(Onboarding::class, ['importSection' => 'accounts'])->assertSee('Account import queued');
         $job = Queue::pushed(ProcessAccountImport::class)->first();
         expect($job->connection)->toBe('database');
         $job->handle($this->service);
         $page->call('refreshAccountImport')->assertSee('1 accounts created');
-        Livewire::test(Onboarding::class)->assertSee('1 accounts created');
+        Livewire::test(Onboarding::class, ['importSection' => 'accounts'])->assertSee('1 accounts created');
         $this->assertDatabaseCount('account_masters', 1);
         $page->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', str_replace('Import Doctor,', 'Missing Type,', $csv)))
             ->call('previewAccounts')->assertSee('Nothing has been imported')->call('downloadAccountErrors')->assertFileDownloaded('account-import-errors.csv');
@@ -457,7 +473,7 @@ it('keeps a full workbook preview on the server and downloads every error withou
         );
         $service->shouldReceive('import')->once()->with($rows, Mockery::type('callable'))->andReturn(['created' => 500, 'updated' => 0]);
         app()->instance(AccountOnboardingService::class, $service);
-        $page = Livewire::test(Onboarding::class)
+        $page = Livewire::test(Onboarding::class, ['importSection' => 'accounts'])
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
             ->call('previewAccounts')->assertHasNoErrors()->assertSee('Confirm import')->assertSee('Working… Previewing file')
             ->assertSet('accountPreview.row_count', 500)->assertSet('accountPreview.error_count', 250);
@@ -471,7 +487,7 @@ it('keeps a full workbook preview on the server and downloads every error withou
         expect($csv)->toContain('SAMPLE:ACC0499')->and(substr_count(trim($csv), "\n"))->toBe(250);
         expect($page->effects)->not->toHaveKey('html');
         $page->call('importAccounts')->assertStatus(422);
-        $page = Livewire::test(Onboarding::class)
+        $page = Livewire::test(Onboarding::class, ['importSection' => 'accounts'])
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
             ->call('previewAccounts')->assertHasNoErrors()
             ->call('showAccountPreviewPage', 10)

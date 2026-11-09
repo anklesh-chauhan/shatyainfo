@@ -3,6 +3,7 @@
 namespace App\Services\DataImport;
 
 use App\Models\Employee;
+use App\Models\Position;
 use App\Models\Tenant;
 use App\Models\User;
 use BackedEnum;
@@ -60,7 +61,7 @@ class ResourceCsvImporter
             return ['count' => 0, 'rows' => [], 'errors' => $errors];
         }
 
-        $count = 0;
+        $sourceRows = [];
         $rows = [];
         foreach ($reader->getRecords() as $offset => $record) {
             $row = [];
@@ -70,11 +71,12 @@ class ResourceCsvImporter
             if (collect($row)->every(fn (mixed $value): bool => blank($value))) {
                 continue;
             }
-            $count++;
+            $line = $offset + 1;
+            $sourceRows[$line] = $row;
             if (count($rows) < 5) {
                 $code = (string) ($row['employee_id'] ?? '');
                 $rows[] = [
-                    'line' => is_int($offset) ? $offset + 1 : $count + 1,
+                    'line' => $line,
                     'employee' => $code,
                     'name' => trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? '')),
                     'position' => (string) ($row['position_code'] ?? ''),
@@ -84,11 +86,64 @@ class ResourceCsvImporter
             }
         }
 
+        $count = count($sourceRows);
         if ($count === 0) {
             $errors[] = ['row' => 1, 'message' => 'The file has no employee rows.'];
         }
 
-        return ['count' => $count, 'rows' => $rows, 'errors' => $errors];
+        return ['count' => $count, 'rows' => $rows, 'errors' => [...$errors, ...$this->employeeReferenceErrors($sourceRows)]];
+    }
+
+    private function employeeReferenceErrors(array $rows): array
+    {
+        $positions = [];
+        $employeeCodes = [];
+        $managerCodes = [];
+        foreach ($rows as $row) {
+            if (filled($row['position_code'] ?? null)) {
+                $positions[strtolower($row['position_code'])] = true;
+            }
+            if (filled($row['employee_id'] ?? null)) {
+                $employeeCodes[strtolower($row['employee_id'])] = true;
+            }
+            if (filled($row['reports_to_employee_code'] ?? null)) {
+                $managerCodes[] = $row['reports_to_employee_code'];
+            }
+        }
+        $parentCodes = array_filter(array_column($rows, 'reports_to_position_code'));
+        foreach (Position::query()->whereIn('code', array_unique($parentCodes))->pluck('code') as $code) {
+            $positions[strtolower($code)] = true;
+        }
+        foreach (Employee::query()->whereIn('employee_id', array_unique($managerCodes))->pluck('employee_id') as $code) {
+            $employeeCodes[strtolower($code)] = true;
+        }
+
+        $errors = [];
+        $seen = [];
+        foreach ($rows as $line => $row) {
+            $code = strtolower($row['employee_id'] ?? '');
+            if ($code === '') {
+                $errors[] = ['row' => $line, 'message' => 'Enter an employee code.'];
+            }
+            foreach (['first_name', 'last_name', 'mobile_number', 'email'] as $field) {
+                $value = $row[$field] ?? '';
+                if ($code === '' || blank($value)) {
+                    continue;
+                }
+                if (isset($seen[$code][$field]) && $seen[$code][$field] !== $value) {
+                    $errors[] = ['row' => $line, 'message' => 'Conflicting '.$field.' for employee '.$row['employee_id'].'. Use the same details on every row for this employee.'];
+                }
+                $seen[$code][$field] ??= $value;
+            }
+            foreach (['reports_to_position_code' => $positions, 'reports_to_employee_code' => $employeeCodes] as $field => $knownCodes) {
+                $reference = $row[$field] ?? '';
+                if (filled($reference) && ! isset($knownCodes[strtolower($reference)])) {
+                    $errors[] = ['row' => $line, 'message' => $field.' '.$reference.' was not found in this file or company. Check the code or add the missing record.'];
+                }
+            }
+        }
+
+        return $errors;
     }
 
     public function import(ImportableModule $module, string $path): ImportResult

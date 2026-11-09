@@ -3,18 +3,26 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
+use App\Filament\Resources\ApprovalFlows\ApprovalFlowResource;
+use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
+use App\Filament\Resources\Patches\PatchResource;
+use App\Filament\Resources\Users\UserResource;
 use App\Jobs\ProcessAccountImport;
 use App\Jobs\SeedTenantMasters;
+use App\Models\Employee;
 use App\Models\Organization;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Services\AccountOnboardingService;
 use App\Services\Approval\OnboardingApprovalService;
+use App\Services\CompanyLaunchService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\AccountImportTemplate;
 use App\Services\DataImport\ImportDownloadResponse;
 use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\DateFormatService;
+use App\Services\Field\FieldPlanningSettingsService;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -288,6 +296,97 @@ class Onboarding extends Page
 
     public array $organization = [];
 
+    #[Locked]
+    public bool $draftSaved = false;
+
+    public function saveDraft(bool $deferred = false): void
+    {
+        app(CompanyOnboardingService::class)->saveDraft([
+            'step' => $this->step,
+            'organization' => array_map(fn ($value): mixed => is_scalar($value) || $value === null ? (string) $value : $value, $this->organization),
+            'workflow' => $this->workflow,
+            'workflow_version' => $this->workflowVersion,
+            'approval' => $this->approval,
+            'deferred' => $deferred,
+        ]);
+        $this->draftSaved = true;
+    }
+
+    public function updatedOrganization(): void
+    {
+        $this->saveDraft();
+    }
+
+    public function updatedWorkflow(): void
+    {
+        $this->saveDraft();
+    }
+
+    public string $workflow = '';
+
+    public array $launchMembers = [];
+
+    #[Locked]
+    public int $workflowVersion = 0;
+
+    #[Locked]
+    public int $workflowRevisionId = 0;
+
+    public function saveWorkflow(): void
+    {
+        app(CompanyLaunchService::class)->saveWorkflow($this->workflow, $this->workflowVersion);
+        $revision = app(FieldPlanningSettingsService::class)->latest(auth()->user());
+        $this->workflowVersion = $revision->version;
+        $this->workflowRevisionId = $revision->id;
+        $this->step = 3;
+        $this->saveDraft();
+        Notification::make()->title('Working method saved for launch')->success()->send();
+    }
+
+    public function launchReadiness(): array
+    {
+        return app(CompanyLaunchService::class)->readiness();
+    }
+
+    public function launchHistory(): array
+    {
+        return app(CompanyLaunchService::class)->history();
+    }
+
+    /** @return array{label: string, url: string}|null */
+    public function readinessAction(string $issue, array $member): ?array
+    {
+        app(CompanyOnboardingService::class)->authorize();
+        if (in_array($issue, ['hq', 'customers'], true) && $member['user_id'] && FieldTeamOnboarding::canAccess()) {
+            return ['label' => 'Assign HQ and customers', 'url' => FieldTeamOnboarding::getUrl(['representative' => $member['user_id']], panel: 'admin')];
+        }
+        $resource = match ($issue) {
+            'employee', 'login', 'territory' => EmployeeResource::class,
+            'permissions', 'visibility' => UserResource::class,
+            'patch' => PatchResource::class,
+            'approvals' => ApprovalFlowResource::class,
+            default => null,
+        };
+        if (! $resource || ! $resource::canViewAny()) {
+            return null;
+        }
+        $record = match ($issue) {
+            'employee', 'login', 'territory' => Employee::query()->find($member['employee_id']),
+            'permissions', 'visibility' => User::query()->find($member['user_id']),
+            default => null,
+        };
+
+        return ['label' => match ($issue) {
+            'employee', 'login' => 'Review employee and login',
+            'territory' => 'Review employee positions',
+            'permissions', 'visibility' => 'Review user access',
+            'patch' => 'Manage patches',
+            default => 'Review approval flows',
+        }, 'url' => $record && $resource::canEdit($record)
+            ? $resource::getUrl('edit', ['record' => $record], panel: 'admin')
+            : $resource::getUrl('index', panel: 'admin')];
+    }
+
     public array $approval = [];
 
     #[Locked]
@@ -312,6 +411,7 @@ class Onboarding extends Page
                 $this->approval['overrides'][$module] = array_merge($this->approval['common'], ['custom' => true]);
             }
         }
+        $this->saveDraft();
     }
 
     public function reviewApprovals(): void
@@ -320,6 +420,7 @@ class Onboarding extends Page
         abort_unless(Tenant::current()->accountIsConfigured(), 409);
         $this->approvalReview = $this->approvalSetup()->saveDraft($this->approval);
         $this->step = 6;
+        $this->saveDraft();
     }
 
     public function approvalAlreadyApplied(): bool
@@ -410,8 +511,13 @@ class Onboarding extends Page
     protected function loadOrganization(): void
     {
         $organization = app(CompanyOnboardingService::class)->organization();
+        $revision = app(CompanyLaunchService::class)->proposal($organization);
+        $this->workflow = $revision?->mode->value ?? '';
+        $this->workflowRevisionId = $revision?->id ?? 0;
+        $this->workflowVersion = app(FieldPlanningSettingsService::class)->latest(auth()->user())?->version ?? 0;
         $this->organization = [
             'date_format' => app(DateFormatService::class)->dateFormat(),
+            'timezone' => $organization?->timezone ?: 'Asia/Kolkata',
             'uses_divisions' => (int) ($organization?->metadata['uses_divisions'] ?? true),
             'name' => $organization?->name ?? Tenant::current()?->name,
             'email' => $organization?->email ?? auth()->user()->email,
@@ -429,7 +535,7 @@ class Onboarding extends Page
             $this->approval['required'] = 'existing';
         }
         if ($organization?->metadata['company_setup']['organization_saved'] ?? false) {
-            $this->step = ($organization?->metadata['company_setup']['territories_reviewed'] ?? false) ? 3 : 2;
+            $this->step = $revision ? 3 : 2;
         }
         if ($organization?->metadata['company_setup']['employees_reviewed'] ?? false) {
             $this->step = 4;
@@ -441,6 +547,35 @@ class Onboarding extends Page
             $this->approvalReview = ['required' => 'existing', 'flows' => []];
             $this->step = 6;
         }
+        if (($organization?->metadata['company_setup']['approvals_draft']['required'] ?? '') !== '' && $this->step === 5) {
+            try {
+                $this->approvalReview = $this->approvalSetup()->review($this->approval);
+                $this->step = 6;
+            } catch (ValidationException $exception) {
+                $this->addError('approval', 'Your saved approval setup needs attention. Review the approvers before continuing.');
+            }
+        }
+        if (! $revision && ($organization?->metadata['company_setup']['organization_saved'] ?? false)) {
+            $this->step = 2;
+        }
+        $draft = app(CompanyOnboardingService::class)->draft();
+        if ($draft !== []) {
+            $this->organization = array_replace($this->organization, array_intersect_key($draft['organization'], $this->organization));
+            $this->workflow = $draft['workflow'] ?? '';
+            $this->approval = $draft['approval'];
+            $this->step = min(5, $draft['step']);
+            if ($this->step > 2 && $this->workflow !== $revision?->mode->value) {
+                $this->step = 2;
+            }
+            if ($this->approvalSetup()->hasExistingConfiguration() || $this->approvalAlreadyApplied()) {
+                $this->approval['required'] = 'existing';
+            }
+            if ($draft['workflow_version'] !== $this->workflowVersion) {
+                $this->step = 2;
+                $this->addError('workflow', 'The working method changed since your draft. Review and save your choice again.');
+            }
+            $this->draftSaved = true;
+        }
     }
 
     public function reviewFieldTravel(): void
@@ -448,6 +583,7 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->mark('field_travel_reviewed');
         $this->resetErrorBag();
         $this->step = 5;
+        $this->saveDraft();
     }
 
     public function next(): void
@@ -459,13 +595,7 @@ class Onboarding extends Page
         if ($this->step === 0) {
             $this->step = 1;
         } elseif ($this->step === 2) {
-            if (! $service->checklist()['territory_count']) {
-                $this->addError('territories', 'Add territories or choose Set up later.');
-
-                return;
-            }
-            $service->mark('territories_reviewed');
-            $this->step = 3;
+            $this->saveWorkflow();
         } elseif ($this->step === 3) {
             $checklist = $service->checklist();
             if (! $checklist['company'] || ! $checklist['employees']) {
@@ -476,6 +606,7 @@ class Onboarding extends Page
             $service->mark('employees_reviewed');
             $this->step = 4;
         }
+        $this->saveDraft();
     }
 
     public function back(): void
@@ -483,6 +614,7 @@ class Onboarding extends Page
         app(CompanyOnboardingService::class)->authorize();
         $this->resetErrorBag();
         $this->step = max(0, $this->step - 1);
+        $this->saveDraft();
     }
 
     public function saveOrganization(): void
@@ -494,6 +626,7 @@ class Onboarding extends Page
             'companyLogo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,gif,webp', 'max:2048'],
             'organization.name' => ['required', 'string', 'max:255'],
             'organization.date_format' => ['required', Rule::in(array_keys(DateFormatService::FORMATS))],
+            'organization.timezone' => ['required', 'timezone'],
             'organization.uses_divisions' => ['required', 'boolean'],
             'organization.email' => ['required', 'email', 'max:255'],
             'organization.phone' => ['required', 'string', 'max:30'],
@@ -517,6 +650,7 @@ class Onboarding extends Page
             $this->reset('companyLogo');
         }
         $this->step = 2;
+        $this->saveDraft();
         Notification::make()->title('Company information saved')->success()->send();
     }
 
@@ -534,13 +668,18 @@ class Onboarding extends Page
 
     public function finish(): void
     {
-        app(CompanyOnboardingService::class)->finish();
+        app(CompanyLaunchService::class)->launch($this->launchMembers, $this->workflowRevisionId);
+        app(CompanyOnboardingService::class)->forgetDraft();
+        Notification::make()->title('Selected team launched')->success()->send();
         $this->redirect('/admin');
     }
 
     public function skip(): void
     {
-        app(CompanyOnboardingService::class)->mark('deferred');
+        $this->saveDraft(deferred: true);
+        if (app(CompanyOnboardingService::class)->organization()) {
+            app(CompanyOnboardingService::class)->mark('deferred');
+        }
         $this->redirect('/admin');
     }
 }

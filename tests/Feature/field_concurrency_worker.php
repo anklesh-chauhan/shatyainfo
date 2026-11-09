@@ -1,9 +1,16 @@
 <?php
 
+use App\Models\Organization;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Services\CompanyLaunchService;
+use App\Services\CompanyOnboardingService;
+use App\Services\DateFormatService;
+use App\Services\OptionalModuleService;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -22,6 +29,19 @@ if (User::query()->getConnection()->getDatabaseName() !== 'it_erp_testing') {
     throw new RuntimeException('Unexpected worker database.');
 }
 $job = json_decode(file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR);
+if (($job['mode'] ?? '') === 'company_isolation') {
+    require __DIR__.'/company_isolation_support.php';
+}
+if (($job['mode'] ?? '') === 'company_launch') {
+    config(['multitenancy.switch_tenant_tasks' => [], 'database.connections.tenant' => config('database.connections.mysql')]);
+    $connection = $app->make('db')->connection('mysql');
+    $app->make('db')->connection('tenant')->setPdo($connection->getPdo())->setReadPdo($connection->getPdo());
+    $app->make('db')->setDefaultConnection('tenant');
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99997, 'name' => 'Isolated launch acceptance', 'master_setup_status' => 'ready']);
+    $tenant->makeCurrent();
+    auth()->setUser(User::query()->findOrFail($job['actor_id']));
+}
 file_put_contents($job['ready'], 'ready');
 $deadline = microtime(true) + 60;
 while (! file_exists($job['gate'])) {
@@ -57,7 +77,56 @@ $send = function (array $spec) use ($job, $kernel, &$samples): array {
 
     return $data ?? [];
 };
-if (($job['mode'] ?? '') === 'mixed') {
+if (($job['mode'] ?? '') === 'company_isolation') {
+    $start = microtime(true);
+    foreach (range(1, 10) as $cycle) {
+        foreach ($job['companies'] as $company) {
+            selectIsolationCompany($company);
+            auth()->setUser(User::query()->findOrFail($job['actor_id']));
+            $service = app(CompanyOnboardingService::class);
+            $expected = $company['name'].'-'.$job['actor_id'];
+            if ($service->draft()['organization']['name'] !== $expected
+                || app(DateFormatService::class)->dateFormat() !== $company['format']
+                || app(OptionalModuleService::class)->capabilities()['enabled']['expenses'] !== $company['expenses']
+                || app(CompanyLaunchService::class)->forUser(auth()->user())['company_name'] !== $company['name']) {
+                throw new RuntimeException('Cross-company state mismatch.');
+            }
+            $service->saveDraft(['step' => 1, 'organization' => ['name' => $expected],
+                'workflow' => '', 'workflow_version' => 0, 'approval' => []]);
+            $connection = app('db')->connection();
+            $connection->transaction(function () use ($company): void {
+                $organization = Organization::query()->lockForUpdate()->firstOrFail();
+                if ($organization->name !== $company['name']) {
+                    throw new RuntimeException('Wrong company write target.');
+                }
+                $metadata = $organization->metadata;
+                $metadata['isolation_writes'] = ($metadata['isolation_writes'] ?? 0) + 1;
+                $organization->update(['metadata' => $metadata]);
+            }, 3);
+            Tenant::forgetCurrent();
+            if (app('db')->getDefaultConnection() !== 'mysql'
+                || config('database.connections.tenant.database') !== null) {
+                throw new RuntimeException('Company connection was not reset.');
+            }
+        }
+    }
+    $samples[] = ['kind' => 'company_isolation', 'start' => $start, 'end' => microtime(true),
+        'status' => 200, 'writes_per_company' => 10];
+} elseif (($job['mode'] ?? '') === 'company_launch') {
+    $start = microtime(true);
+    $errors = [];
+    try {
+        $app->make(CompanyLaunchService::class)->launch($job['employee_ids'], $job['revision_id']);
+        $status = 200;
+    } catch (ValidationException $exception) {
+        $status = 422;
+        $errors = $exception->errors();
+    } finally {
+        Tenant::forgetCurrent();
+    }
+    $samples[] = ['kind' => 'company_launch', 'start' => $start, 'end' => microtime(true),
+        'status' => $status, 'employee_ids' => $job['employee_ids'], 'errors' => $errors];
+} elseif (($job['mode'] ?? '') === 'mixed') {
     $began = microtime(true);
     $until = $began + $job['duration_seconds'];
     $cycle = 0;

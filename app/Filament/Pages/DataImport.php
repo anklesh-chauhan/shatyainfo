@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\EmployeeImportTemplate;
 use App\Services\DataImport\ImportableModule;
+use App\Services\DataImport\ImportDownloadResponse;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
 use Filament\Forms\Components\FileUpload;
@@ -200,7 +201,7 @@ class DataImport extends Page implements HasForms
 
         $csv = $importer->exampleCsv($module);
         if ($module->modelClass === Employee::class) {
-            return response()->streamDownload(function (): void {
+            return ImportDownloadResponse::from(response()->streamDownload(function (): void {
                 $path = tempnam(sys_get_temp_dir(), 'employee-template-');
                 try {
                     app(EmployeeImportTemplate::class)->write($path);
@@ -208,7 +209,7 @@ class DataImport extends Page implements HasForms
                 } finally {
                     unlink($path);
                 }
-            }, 'employees-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+            }, 'employees-import.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']));
         }
         $filename = str($module->label)->slug().'-import.csv';
 

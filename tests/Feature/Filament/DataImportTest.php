@@ -17,6 +17,7 @@ use App\Services\DataImport\ResourceImportCatalog;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Livewire\livewire;
@@ -119,7 +120,7 @@ it('builds an example csv for the selected module', function () {
 it('shows the data import page', function () {
     withDataImportTenant(function (): void {
         livewire(DataImport::class)
-            ->assertSee('Onboarding data imports')
+            ->assertSee('Existing records are matched using the identifiers in each template.')
             ->assertSee('Module')
             ->assertSee('Territories & Divisions')
             ->assertSee('Opening Leave Balances')
@@ -210,6 +211,9 @@ function withDataImportTenant(Closure $callback): void
     $tenant->makeCurrent();
     try {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+        foreach (['Create:Patch', 'Create:StandardFareChart', 'Create:TravelSegment'] as $permission) {
+            auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        }
         Organization::create(['name' => 'Import Company', 'metadata' => ['company_setup' => ['organization_saved' => true]]]);
         $callback();
     } finally {

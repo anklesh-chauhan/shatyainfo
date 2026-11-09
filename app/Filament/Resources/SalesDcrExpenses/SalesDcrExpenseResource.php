@@ -8,6 +8,7 @@ use App\Filament\Resources\SalesDcrExpenses\Pages\ListSalesDcrExpenses;
 use App\Filament\Resources\SalesDcrExpenses\Schemas\SalesDcrExpenseForm;
 use App\Filament\Resources\SalesDcrExpenses\Tables\SalesDcrExpensesTable;
 use App\Models\SalesDcrExpense;
+use App\Services\OptionalModuleService;
 use App\Traits\HasRelatedGlobalSearch;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -18,6 +19,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrExpenseResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(OptionalModuleService::class)->navigationEnabled('SalesDcrExpense');
+    }
+
     protected static string|\UnitEnum|null $navigationGroup = 'Field Operations';
 
     use HasRelatedGlobalSearch;

@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveBalances\Pages\ListLeaveBalances;
 use App\Filament\Resources\LeaveBalances\Schemas\LeaveBalanceForm;
 use App\Filament\Resources\LeaveBalances\Tables\LeaveBalancesTable;
 use App\Models\LeaveBalance;
+use App\Services\OptionalModuleService;
 use App\Traits\HasRelatedGlobalSearch;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,6 +20,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveBalanceResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(OptionalModuleService::class)->navigationEnabled('LeaveBalance');
+    }
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = LeaveBalance::class;

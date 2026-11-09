@@ -336,6 +336,41 @@ class ApprovalService
         return $user;
     }
 
+    public function validateRouteFor(User $requester, string $module, ?int $territoryId = null): void
+    {
+        if (! ApprovalSetting::moduleRequiresApproval($module)) {
+            return;
+        }
+
+        $flow = $this->resolveApprovalFlow($module, $territoryId, 0);
+        $resolved = 0;
+        foreach ($flow->steps as $step) {
+            if (! $step->jobRole) {
+                if ($step->can_skip) {
+                    continue;
+                }
+                throw new LogicException('An approval step has no job role.');
+            }
+            $candidates = $this->matchingApprovers($step->job_role_id, $territoryId, $step->territory_scope, $requester->id)
+                ->when($step->approver_user_id, fn (Builder $query) => $query->whereKey($step->approver_user_id))
+                ->limit(2)->get();
+            if ($candidates->isEmpty() && $step->can_skip) {
+                continue;
+            }
+            if ($candidates->count() !== 1) {
+                throw new LogicException('Choose one active approver for each required step, excluding the MR.');
+            }
+            $approver = $this->resolveDelegatedApprover($candidates->first(), $module);
+            if ($approver->is($requester)) {
+                throw new LogicException('The MR cannot approve their own report through delegation.');
+            }
+            $resolved++;
+        }
+        if ($resolved === 0) {
+            throw new LogicException('No approval steps resolve for this MR.');
+        }
+    }
+
     public function approverCandidates(int $jobRoleId, ?int $territoryId, string $territoryScope): Collection
     {
         return $this->matchingApprovers($jobRoleId, $territoryId, $territoryScope)->with('employee')->orderBy('name')->get();
@@ -356,11 +391,12 @@ class ApprovalService
         return $candidates->first();
     }
 
-    private function matchingApprovers(int $jobRoleId, ?int $territoryId, string $territoryScope): Builder
+    private function matchingApprovers(int $jobRoleId, ?int $territoryId, string $territoryScope, ?int $requesterId = null): Builder
     {
         $territoryIds = $this->resolveTerritoryIds($territoryId, $territoryScope);
+
         return User::query()
-            ->whereKeyNot(Auth::id())
+            ->whereKeyNot($requesterId ?? Auth::id())
             ->whereHas('employee', fn ($employeeQuery) => $employeeQuery
                 ->where('is_active', true)
                 ->whereHas('positions', fn ($positionQuery) => $positionQuery

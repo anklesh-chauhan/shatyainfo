@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Models\BaseModel;
+use App\Models\User;
 use App\Services\OrganizationalUnitService;
 use App\Services\PositionService;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,9 +12,9 @@ use Illuminate\Support\Facades\Schema;
 
 trait HasVisibilityScope
 {
-    public function scopeApplyVisibility(Builder $query, string $model): Builder
+    public function scopeApplyVisibility(Builder $query, string $model, ?User $actor = null): Builder
     {
-        $user = Auth::user();
+        $user = $actor ?? Auth::user();
 
         if (! $user) {
             return $query->whereRaw('1 = 0');

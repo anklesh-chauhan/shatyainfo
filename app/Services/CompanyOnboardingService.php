@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AccountMaster;
 use App\Models\Employee;
+use App\Models\IntegrationSetting;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
 use App\Models\Patch;
@@ -19,6 +20,45 @@ use Illuminate\Validation\ValidationException;
 
 class CompanyOnboardingService
 {
+    private function draftKey(): string
+    {
+        return 'company_setup_draft:'.(Tenant::current()?->getKey() ?? 'standalone').':'.auth()->id();
+    }
+
+    public function draft(): array
+    {
+        $this->authorize();
+
+        return IntegrationSetting::query()->where('provider', $this->draftKey())->first()?->credentials ?? [];
+    }
+
+    public function saveDraft(array $draft): void
+    {
+        $this->authorize();
+        abort_unless(Tenant::current()?->accountIsConfigured() ?? true, 409);
+        $draft = Validator::make($draft, [
+            'step' => ['required', 'integer', 'between:0,6'],
+            'organization' => ['required', 'array'],
+            'organization.*' => ['nullable', 'string', 'max:255'],
+            'workflow' => ['nullable', Rule::in(array_keys(CompanyLaunchService::workflows()))],
+            'workflow_version' => ['required', 'integer', 'min:0'],
+            'approval' => ['present', 'array'],
+            'deferred' => ['sometimes', 'boolean'],
+        ])->validate();
+        if (strlen(json_encode($draft, JSON_THROW_ON_ERROR)) > 65536) {
+            throw ValidationException::withMessages(['draft' => 'The setup draft is too large to save.']);
+        }
+        IntegrationSetting::query()->updateOrCreate(['provider' => $this->draftKey()], [
+            'is_enabled' => false, 'credentials' => $draft,
+        ]);
+    }
+
+    public function forgetDraft(): void
+    {
+        $this->authorize();
+        IntegrationSetting::query()->where('provider', $this->draftKey())->delete();
+    }
+
     /** @return array<string, bool|int> */
     public function checklist(): array
     {
@@ -80,6 +120,7 @@ class CompanyOnboardingService
             'name' => ['required', 'string', 'max:255'],
             'uses_divisions' => ['sometimes', 'boolean'],
             'date_format' => ['sometimes', 'required', Rule::in(array_keys(DateFormatService::FORMATS))],
+            'timezone' => ['sometimes', 'required', 'timezone'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:30'],
             'legal_name' => ['nullable', 'string', 'max:255'],

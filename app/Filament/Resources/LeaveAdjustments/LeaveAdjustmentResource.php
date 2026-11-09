@@ -9,6 +9,7 @@ use App\Filament\Resources\LeaveAdjustments\Pages\ListLeaveAdjustments;
 use App\Filament\Resources\LeaveAdjustments\Schemas\LeaveAdjustmentForm;
 use App\Filament\Resources\LeaveAdjustments\Tables\LeaveAdjustmentsTable;
 use App\Models\LeaveAdjustment;
+use App\Services\OptionalModuleService;
 use App\Traits\HasRelatedGlobalSearch;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -19,6 +20,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveAdjustmentResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(OptionalModuleService::class)->navigationEnabled('LeaveAdjustment');
+    }
+
     use HasRelatedGlobalSearch;
 
     protected static ?string $model = LeaveAdjustment::class;

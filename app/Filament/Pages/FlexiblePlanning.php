@@ -52,6 +52,12 @@ class FlexiblePlanning extends Page implements HasForms
 
     public string $statusFilter = '';
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && app(FieldPlanningService::class)->capabilities()['supports_flexible_plans'];
+    }
+
     public static function canAccess(): bool
     {
         return (bool) auth()->user()?->can('ViewAny:AccountMaster') || FieldTeamOnboardingService::canManage(auth()->user());
