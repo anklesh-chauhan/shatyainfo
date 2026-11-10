@@ -96,6 +96,9 @@
                     @livewire(\App\Filament\Pages\DataImport::class, ['embedded' => true], key('onboarding-employee-import'))
                     <a class="setup-option" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('create', panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">＋</span><span><strong>Add an employee</strong><small>Enter a team member’s details yourself.</small></span><span aria-hidden="true">→</span></a>
                     <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
+                    <details class="setup-optional"><summary>{{ $directDcr ? 'Import HQ locations (optional)' : 'Import HQ locations' }}</summary>
+                        @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hqs'], key('onboarding-hq-import'))
+                    </details>
                     <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Assign customers' : 'Assign HQs and customers' }} →</a>
                     @if ($directDcr)<p class="setup-hint">HQ, territories and patches are optional for Direct DCR. Assign customers to each MR before launch so they can report visits.</p>@endif
                     @if ($workflow === 'formal_mtp')

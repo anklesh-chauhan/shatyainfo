@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use OpenSpout\Reader\XLSX\Reader;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -57,10 +58,83 @@ function optionalImportRows(array ...$data): array
     return array_map(fn ($row, $index) => ['line' => $index + 2, 'data' => $row], $data, array_keys($data));
 }
 
+function allowHqImports(): void
+{
+    foreach (['Create:LocationMaster', 'Update:LocationMaster'] as $permission) {
+        auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+}
+
+it('previews HQs without writes and imports stable codes with safe reruns and optional fields', function () {
+    allowHqImports();
+    $rows = optionalImportRows(['location_code' => 'HQ-AHD', 'name' => 'Ahmedabad HQ', 'latitude' => '23.0225', 'longitude' => '72.5714', 'description' => 'Base office']);
+    $before = NumberSeries::count();
+    $preview = $this->importer->preview('hqs', $rows);
+    expect($preview['errors'])->toBe([])->and(LocationMaster::count())->toBe(0)->and(NumberSeries::count())->toBe($before);
+    expect($this->importer->import('hqs', $rows, $preview['fingerprint'])['created'])->toBe(1);
+    $hq = LocationMaster::where('location_code', 'HQ-AHD')->sole();
+    expect((bool) $hq->is_active)->toBeTrue()->and((float) $hq->latitude)->toBe(23.0225);
+    $preview = $this->importer->preview('hqs', $rows);
+    expect($this->importer->import('hqs', $rows, $preview['fingerprint'])['unchanged'])->toBe(1);
+    $changed = optionalImportRows(['location_code' => 'HQ-AHD', 'name' => 'Ahmedabad Central HQ', 'is_active' => 'no']);
+    $preview = $this->importer->preview('hqs', $changed);
+    expect($this->importer->import('hqs', $changed, $preview['fingerprint'])['updated'])->toBe(1);
+    expect(LocationMaster::count())->toBe(1)->and($hq->fresh()->name)->toBe('Ahmedabad Central HQ')
+        ->and((bool) $hq->fresh()->is_active)->toBeFalse()->and($hq->fresh()->description)->toBe('Base office')
+        ->and((float) $hq->fresh()->longitude)->toBe(72.5714);
+    $preview = $this->importer->preview('hqs', $changed);
+    expect($this->importer->import('hqs', $changed, $preview['fingerprint'])['unchanged'])->toBe(1);
+});
+
+it('rejects duplicate HQ codes and invalid coordinates without partial imports', function () {
+    allowHqImports();
+    $rows = optionalImportRows(['location_code' => 'HQ-ONE', 'name' => 'One'], ['location_code' => 'hq-one', 'name' => 'Duplicate'],
+        ['location_code' => 'HQ-TWO', 'name' => 'Two', 'latitude' => '91', 'longitude' => '72']);
+    $preview = $this->importer->preview('hqs', $rows);
+    expect($preview['errors'])->toHaveCount(2);
+    expect(fn () => $this->importer->import('hqs', $rows, $preview['fingerprint']))->toThrow(ValidationException::class);
+    expect(LocationMaster::count())->toBe(0);
+    $preview = $this->importer->preview('hqs', optionalImportRows(['location_code' => 'HQ-ONE', 'name' => 'One', 'latitude' => '23']));
+    expect($preview['errors'])->toHaveCount(1);
+});
+
+it('requires location permissions again when a reviewed HQ upload is confirmed', function () {
+    $rows = optionalImportRows(['location_code' => 'HQ-ONE', 'name' => 'One']);
+    expect(fn () => $this->importer->preview('hqs', $rows))->toThrow(HttpException::class);
+    allowHqImports();
+    $preview = $this->importer->preview('hqs', $rows);
+    auth()->user()->revokePermissionTo('Create:LocationMaster');
+    expect(fn () => $this->importer->import('hqs', $rows, $preview['fingerprint']))->toThrow(HttpException::class);
+    expect(LocationMaster::count())->toBe(0);
+});
+
+it('requires a new HQ preview after an existing location changes', function () {
+    allowHqImports();
+    $rows = optionalImportRows(['location_code' => 'HQ-ONE', 'name' => 'One']);
+    $preview = $this->importer->preview('hqs', $rows);
+    $this->importer->import('hqs', $rows, $preview['fingerprint']);
+    $preview = $this->importer->preview('hqs', $rows);
+    LocationMaster::where('location_code', 'HQ-ONE')->sole()->forceFill(['name' => 'Changed elsewhere'])->saveQuietly();
+    expect(fn () => $this->importer->import('hqs', $rows, $preview['fingerprint']))->toThrow(ValidationException::class, 'Records changed');
+});
+
+it('uploads HQs through the reusable Admin card and resets its preview after confirmation', function () {
+    allowHqImports();
+    $csv = implode(',', OptionalOnboardingImport::COLUMNS['hqs'])."\nHQ-AHD,Ahmedabad HQ,,yes,,\n";
+    Livewire::test(OnboardingImports::class, ['group' => 'hqs'])
+        ->assertSet('module', 'hqs')->assertSee('HQ Locations')->assertDontSee('Opening Inventory')
+        ->call('downloadTemplate')->assertFileDownloaded('hqs-setup.xlsx')
+        ->set('file', UploadedFile::fake()->createWithContent('hqs.csv', $csv))
+        ->call('previewFile')->assertHasNoErrors()->assertSee('Confirm import')
+        ->call('importReviewed')->assertHasNoErrors()->assertSet('result.created', 1)->assertSet('preview', [])
+        ->call('importReviewed')->assertHasErrors('file');
+    expect(LocationMaster::where('location_code', 'HQ-AHD')->sole()->name)->toBe('Ahmedabad HQ');
+});
+
 it('renders the same inline upload and preview workflow in all four onboarding cards', function () {
     Gate::before(fn () => true);
     $page = Livewire::withQueryParams(['section' => 'field-travel'])->test(Onboarding::class)->assertSet('step', 4)
-        ->assertSee('Optional setup imports')
+        ->assertSee('Products & Samples')->assertSee('HR Setup')
         ->assertSeeLivewire(FieldTravelImport::class)
         ->assertSeeLivewire(OnboardingImports::class);
     expect(substr_count($page->html(), 'Preview file'))->toBe(4)
@@ -82,7 +156,7 @@ it('keeps embedded import groups independent and resets preview when the type ch
         ->call('importReviewed')->assertHasErrors('file');
     Gate::before(fn () => true);
     Livewire::test(FieldTravelImport::class, ['embedded' => true])
-        ->assertSet('fromOnboarding', true)->assertSee('Preview file')
+        ->assertSet('embedded', true)->assertSee('Preview file')
         ->call('downloadTemplate')->assertFileDownloaded('patches-and-fares.xlsx')
         ->assertDontSee('Return to company setup')->call('previewFile')->assertHasErrors('file');
 });
@@ -242,7 +316,7 @@ it('provides blank workbooks with separate instructions examples and references'
         $reader->close();
         unlink($path);
     }
-})->with(['products', 'shifts', 'holidays', 'leave_openings', 'inventory_openings']);
+})->with(['hqs', 'products', 'shifts', 'holidays', 'leave_openings', 'inventory_openings']);
 
 it('requires preview before confirmation and resets it when the upload changes', function () {
     $csv = implode(',', OptionalOnboardingImport::COLUMNS['products'])."\nSMP001,Sample,sample,,,,,,,,,,\n";

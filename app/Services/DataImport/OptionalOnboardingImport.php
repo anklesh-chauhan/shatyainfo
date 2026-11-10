@@ -41,6 +41,7 @@ use Illuminate\Validation\ValidationException;
 class OptionalOnboardingImport
 {
     public const MODULES = [
+        'hqs' => 'HQ Locations',
         'products' => 'Products & Samples',
         'shifts' => 'Employee Shift Assignments',
         'holidays' => 'Holiday Calendar',
@@ -48,9 +49,10 @@ class OptionalOnboardingImport
         'inventory_openings' => 'Opening Inventory',
     ];
 
-    public const SHEETS = ['products' => 'Products', 'shifts' => 'Shifts', 'holidays' => 'Holidays', 'leave_openings' => 'Leave Openings', 'inventory_openings' => 'Inventory Openings'];
+    public const SHEETS = ['hqs' => 'HQs', 'products' => 'Products', 'shifts' => 'Shifts', 'holidays' => 'Holidays', 'leave_openings' => 'Leave Openings', 'inventory_openings' => 'Inventory Openings'];
 
     public const COLUMNS = [
+        'hqs' => ['location_code', 'name', 'description', 'is_active', 'latitude', 'longitude'],
         'products' => ['sku', 'item_name', 'item_type', 'brand', 'category', 'unit', 'packing_type', 'per_packing_qty', 'hsn_code', 'purchase_price', 'selling_price', 'tax_names', 'description'],
         'shifts' => ['employee_code', 'shift_code', 'effective_from', 'effective_to'],
         'holidays' => ['date', 'name', 'country', 'state', 'location_code', 'is_optional', 'is_active'],
@@ -139,6 +141,7 @@ class OptionalOnboardingImport
                 }
                 $data = array_replace(array_fill_keys(self::COLUMNS[$module], ''), $data);
                 $plan = match ($module) {
+                    'hqs' => $this->hq($data),
                     'products' => $this->product($data),
                     'shifts' => $this->shift($data),
                     'holidays' => $this->holiday($data),
@@ -207,6 +210,9 @@ class OptionalOnboardingImport
                         $this->assertEmptyInventory($stock->item_master_id, $stock->location_master_id);
                     }
                     $record->forceFill($plan['attributes'])->save();
+                    if ($module === 'hqs' && $plan['action'] === 'created') {
+                        $record->forceFill(['location_code' => $plan['attributes']['location_code']])->saveQuietly();
+                    }
                     if ($record instanceof InventoryAdjustment) {
                         app(InventoryService::class)->postAdjustment($record, auth()->id(), Carbon::parse($plan['effective_date'])->startOfDay());
                     }
@@ -221,6 +227,32 @@ class OptionalOnboardingImport
 
             return $result;
         });
+    }
+
+    private function hq(array $data): array
+    {
+        $values = array_filter($data, fn (string $value): bool => $value !== '');
+        Validator::make($values, [
+            'location_code' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9][A-Za-z0-9_.:\/-]*$/'],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['sometimes', 'string', 'max:10000'],
+            'is_active' => ['sometimes', Rule::in(['yes', 'no', '1', '0'])],
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
+        ])->validate();
+        $record = $this->existing(LocationMaster::withTrashed()->where('location_code', $data['location_code'])) ?? new LocationMaster;
+        abort_unless(auth()->user()->can($record->exists ? 'update' : 'create', $record->exists ? $record : LocationMaster::class), 403);
+        $attributes = array_intersect_key($values, array_flip(['location_code', 'name', 'description']));
+        if ($data['is_active'] !== '' || ! $record->exists) {
+            $attributes['is_active'] = ($data['is_active'] === '' || in_array($data['is_active'], ['yes', '1'], true)) ? 1 : 0;
+        }
+        foreach (['latitude', 'longitude'] as $field) {
+            if ($data[$field] !== '') {
+                $attributes[$field] = number_format((float) $data[$field], 7, '.', '');
+            }
+        }
+
+        return $this->plan($record, $attributes, $data['location_code']);
     }
 
     private function leaveOpening(array $data): array

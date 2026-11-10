@@ -213,7 +213,9 @@ it('renders account counts when opening and refreshing the embedded account impo
 
 it('offers only onboarding import groups and rejects unknown groups', function () {
     withDataImportTenant(function (): void {
-        expect(array_keys((new DataImport)->importOptions()))->toBe(['territories', 'employees', 'accounts', 'field_routes', 'products', 'hr']);
+        expect(array_keys((new DataImport)->importOptions()))->toBe(['hqs', 'territories', 'employees', 'accounts', 'field_routes', 'products', 'hr']);
+        livewire(DataImport::class)->set('importType', 'hqs')
+            ->assertSee('HQ Locations')->assertSee('Preview file');
         livewire(DataImport::class)->set('importType', 'departments')->assertStatus(422);
     });
 });

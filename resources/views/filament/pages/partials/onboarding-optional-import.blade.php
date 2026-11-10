@@ -1,5 +1,9 @@
-<section class="setup-import-card" aria-label="{{ $group === 'products' ? 'Products and samples setup' : 'HR setup imports' }}">
-    <div class="setup-card-heading"><span class="setup-card-number">{{ $group === 'products' ? 3 : 4 }}</span><div><h3>{{ $group === 'products' ? 'Products & Samples' : 'HR Setup' }}</h3><p>{{ $group === 'products' ? 'Import products, samples and opening inventory.' : 'Import shift assignments, holidays and opening leave balances.' }}</p></div></div>
+@php
+    $importHeading = match ($group) { 'hqs' => 'HQ Locations', 'products' => 'Products & Samples', default => 'HR Setup' };
+    $importDescription = match ($group) { 'hqs' => 'Import HQ locations before assigning them to representatives. No territory is required.', 'products' => 'Import products, samples and opening inventory.', default => 'Import shift assignments, holidays and opening leave balances.' };
+@endphp
+<section class="setup-import-card" aria-label="{{ $importHeading }}">
+    <div class="setup-card-heading"><span class="setup-card-number">{{ $group === 'hqs' ? 1 : ($group === 'products' ? 3 : 4) }}</span><div><h3>{{ $importHeading }}</h3><p>{{ $importDescription }}</p></div></div>
     <div class="setup-card-stats"><span>Excel or CSV · Up to 500 rows</span></div>
     <div class="setup-field">
         <label for="import-module-{{ $group }}">Import type</label>

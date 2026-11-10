@@ -46,7 +46,7 @@ class OnboardingImports extends Page
     public function mount(?string $group = null): void
     {
         app(OptionalOnboardingImport::class)->authorize();
-        abort_unless($group === null || in_array($group, ['products', 'hr'], true), 422);
+        abort_unless($group === null || in_array($group, ['hqs', 'products', 'hr'], true), 422);
         $this->group = $group;
         if ($group !== null) {
             $this->module = array_key_first($this->moduleOptions());
@@ -65,6 +65,7 @@ class OnboardingImports extends Page
     public function moduleOptions(): array
     {
         $keys = match ($this->group) {
+            'hqs' => ['hqs'],
             'products' => ['products', 'inventory_openings'],
             'hr' => ['shifts', 'holidays', 'leave_openings'],
             default => array_keys(OptionalOnboardingImport::MODULES),

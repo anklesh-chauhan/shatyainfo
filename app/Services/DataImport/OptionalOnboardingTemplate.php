@@ -21,6 +21,7 @@ use OpenSpout\Writer\XLSX\Writer;
 class OptionalOnboardingTemplate
 {
     public const HELP = [
+        'hqs' => 'Enter a unique location_code and name for each HQ. Reuse the same code on every upload: existing locations are updated, identical rows are unchanged. Blank optional cells preserve existing values. New HQs are active by default; is_active accepts yes/no or 1/0. Supply latitude and longitude together if needed. No territory is required. After importing, assign HQs to representatives in HQ & Customer Assignments. This upload creates locations; it does not assign employees or customers.',
         'leave_openings' => 'Create employees and leave types first. Use employee_code and leave_type_code from References. Enter an opening balance of 0 to 999.99 days, an effective_date on or before today, and period_end on or after that date (YYYY-MM-DD). This creates the opening record shown in the leave ledger. One opening per employee and leave type; existing identical rows are unchanged. Different openings or existing leave/payroll activity are rejected; use normal HR adjustments for corrections.',
         'inventory_openings' => 'Create items with SKUs and stock locations first. Enter quantity greater than zero (up to 3 decimal places), unit_cost (up to 4 decimal places), and effective_date on or before today (YYYY-MM-DD). Zero stock needs no import row. Confirmation posts a receipt adjustment and dated movement. One opening per SKU and location; identical posted openings are unchanged. Existing stock, movement history or conflicting openings are rejected. If inventory adjustments require approval, use Inventory Adjustments and its approval workflow.',
         'products' => 'Use a unique SKU per item. Item codes are generated automatically. Blank item_type means a general product on creation; sample, gift and promotional_input are supported. Existing optional values are preserved when blank. Use existing brands, item categories, unit abbreviations, packing types and tax names from References. Separate tax names with semicolons; supplied names replace tax assignments and set the combined tax rate. Opening stock and variants are managed separately.',
@@ -54,6 +55,7 @@ class OptionalOnboardingTemplate
             $writer->addNewSheetAndMakeItCurrent()->setName('Examples')->setColumnWidthForRange(24, 1, count(OptionalOnboardingImport::COLUMNS[$module]));
             $writer->addRow(Row::fromValues(OptionalOnboardingImport::COLUMNS[$module], $heading));
             $example = match ($module) {
+                'hqs' => ['HQ-AHD', 'Ahmedabad HQ', 'Field team base', 'yes', '23.0225', '72.5714'],
                 'products' => ['SAMPLE-001', 'Example sample', 'sample', '', '', '', '', '10', '3004', '10.00', '15.00', '', 'Replace with your own item'],
                 'shifts' => ['EMP001', 'DAY', '2026-01-01', '2026-12-31'],
                 'holidays' => ['2026-12-25', 'Example holiday', '', '', '', 'no', 'yes'],
@@ -64,6 +66,7 @@ class OptionalOnboardingTemplate
             $writer->addNewSheetAndMakeItCurrent()->setName('References')->setColumnWidthForRange(38, 1, 3);
             $writer->addRow(Row::fromValues(['Field', 'Value', 'Description'], $heading));
             $sources = match ($module) {
+                'hqs' => [['location_code', LocationMaster::query(), 'location_code', 'name']],
                 'leave_openings' => [
                     ['employee_code', Employee::query()->where('is_active', true), 'employee_id', 'first_name'],
                     ['leave_type_code', LeaveType::query()->where('is_active', true), 'code', 'name'],

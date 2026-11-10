@@ -75,6 +75,7 @@ class DataImport extends Page implements HasForms
     public function importOptions(): array
     {
         return [
+            'hqs' => 'HQ Locations',
             'territories' => 'Territories & Divisions',
             'employees' => 'Employees & Reporting Hierarchy',
             'accounts' => 'Accounts / Customers / Distributors',

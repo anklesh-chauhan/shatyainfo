@@ -32,7 +32,7 @@
         @else
             <p>You need permission to create patches or standard fares to import field routes.</p>
         @endif
-    @elseif (in_array($importType, ['products', 'hr'], true))
+    @elseif (in_array($importType, ['hqs', 'products', 'hr'], true))
         <div class="setup-shell">@livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => $importType], key('data-import-'.$importType))</div>
     @endif
 </x-filament-panels::page>
