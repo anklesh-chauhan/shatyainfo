@@ -1,5 +1,6 @@
 <section class="setup-import-card" aria-label="Account master import">
-    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Import account masters</h3><p>After patches and standard fares, import accounts. Supply your own account_code or leave it blank for automatic generation. Then return to field routes to assign customers using account codes or external references.</p></div></div>
+    @php($directAccountImport = app(\App\Services\DataImport\AccountImportTemplate::class)->usesDirectDcr())
+    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Import account masters</h3><p>{{ $directAccountImport ? 'Import customers and assign each to an MR using owner_email. Territory and patch setup is not needed for Direct DCR.' : 'After patches and standard fares, import accounts. Then return to field routes to assign customers using account codes or external references.' }} Supply your own account_code or leave it blank for automatic generation.</p></div></div>
     <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span><span>Excel or CSV · Up to 500 rows</span></div>
     <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
     <p class="setup-card-help">Includes account details, addresses, contacts, reporting, bank, credit, GST and statutory fields. Only four columns are required to start.</p>
@@ -7,7 +8,7 @@
         <summary>Instructions and examples</summary>
         <p>Fill the Accounts sheet only. Instructions explain every field group; References lists your company’s master values. Required: external_reference, name, account_type and owner_email.</p>
         <p>External reference is a stable source ID such as ERP:000123. Matching references update existing accounts. New references create accounts with generated application codes. Names are never used to match accounts.</p>
-        <p>Blank optional cells preserve existing values. Patch codes add assignments. New accounts default to Prospect; Active status requires complete activation fields. Parent, institution and supplier references can appear in any row order.</p>
+        <p>Blank optional cells preserve existing values. {{ $directAccountImport ? 'The Direct DCR template omits territory and patch columns.' : 'Patch codes add assignments.' }} New accounts default to Prospect; Active status requires complete activation fields. Parent, institution and supplier references can appear in any row order.</p>
         <p>Addresses match by city and PIN only. The oldest matching area is reused regardless of spelling. If no area matches, the supplied area is created during import. The city must already exist.</p>
         <p>Preview does not save records. Correct every error before importing; the whole file saves together. To link manually entered accounts, set their External Reference in Accounts first.</p>
     </details>

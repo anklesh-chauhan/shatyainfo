@@ -16,8 +16,10 @@ use App\Models\Tenant;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Services\AccountOnboardingService;
+use App\Services\CompanyLaunchService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\AccountImportTemplate;
+use App\Services\Field\FieldPlanningSettingsService;
 use Database\Seeders\AccountReportingMasterSeeder;
 use Database\Seeders\AccountStatusSeeder;
 use Filament\Facades\Filament;
@@ -242,6 +244,70 @@ it('creates a blank Excel template with tenant references and reads only the Acc
         unlink($path);
     }
 });
+
+it('downloads a workflow-specific account workbook that can be imported without geography', function (string $mode, bool $activeOnly) {
+    $launch = app(CompanyLaunchService::class);
+    $launch->saveWorkflow($mode, 0);
+    if ($activeOnly) {
+        $revision = $launch->proposal($this->organization->fresh());
+        app(FieldPlanningSettingsService::class)->activate(auth()->user(), $revision->id, $revision->version);
+        $metadata = $this->organization->fresh()->metadata;
+        unset($metadata['company_setup']['planning_revision_id']);
+        $this->organization->update(['metadata' => $metadata]);
+    }
+    $territory = Territory::create(['name' => 'Template territory', 'code' => 'TEMPLATE-TERRITORY']);
+    $patch = Patch::create(['name' => 'Template patch', 'code' => 'TEMPLATE-PATCH', 'territory_id' => $territory->id]);
+    $path = tempnam(sys_get_temp_dir(), 'workflow-account-template-');
+    try {
+        app(AccountImportTemplate::class)->write($path);
+        $reader = new Reader;
+        $reader->open($path);
+        $sheets = [];
+        try {
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    $sheets[$sheet->getName()][] = $row->toArray();
+                }
+            }
+        } finally {
+            $reader->close();
+        }
+        $headers = $sheets['Accounts'][0];
+        foreach (['territory_code', 'patch_codes'] as $column) {
+            foreach ([$headers, array_column($sheets['References'], 0), array_column($sheets['Field Guide'], 0)] as $fields) {
+                expect(in_array($column, $fields, true))->toBe($mode !== 'direct_dcr');
+            }
+        }
+        expect($headers)->toContain('external_reference', 'name', 'account_type', 'owner_email');
+        if ($mode === 'direct_dcr') {
+            expect(array_column($sheets['Instructions'], 0))->toContain('Direct DCR')->not->toContain('Territories and patches');
+        }
+        $writer = new Writer;
+        $writer->openToFile($path);
+        $writer->getCurrentSheet()->setName('Accounts');
+        $writer->addRow(Row::fromValues($headers));
+        $data = accountImportRows()[0]['data'];
+        $writer->addRow(Row::fromValues(array_map(fn (string $column): string => $data[$column] ?? '', $headers)));
+        $writer->close();
+        $rows = $this->service->readFile($path, true);
+        expect($this->service->preview($rows)['errors'])->toBe([]);
+        $this->service->import($rows);
+        $account = AccountMaster::where('external_reference', 'ERP:0001')->sole();
+        expect($account->territory_id)->toBeNull()->and($account->owner_id)->toBe(auth()->id());
+        $account->update(['territory_id' => $territory->id]);
+        $account->patches()->attach($patch->id);
+        $this->service->import($rows);
+        expect($account->fresh()->territory_id)->toBe($territory->id)
+            ->and($account->patches()->whereKey($patch->id)->exists())->toBeTrue();
+    } finally {
+        unlink($path);
+    }
+})->with([
+    'Direct DCR proposal' => ['direct_dcr', false],
+    'Active Direct DCR' => ['direct_dcr', true],
+    'Flexible planning' => ['flexible', false],
+    'Formal MTP' => ['formal_mtp', false],
+]);
 
 it('requires onboarding authorization for reading previewing importing and downloading templates', function () {
     app()->forgetInstance(CompanyOnboardingService::class);

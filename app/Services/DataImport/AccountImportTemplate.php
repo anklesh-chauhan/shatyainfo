@@ -2,6 +2,7 @@
 
 namespace App\Services\DataImport;
 
+use App\Enums\FieldPlanningMode;
 use App\Models\AccountMaster;
 use App\Models\AccountOwnership;
 use App\Models\AccountReportingMaster;
@@ -19,6 +20,9 @@ use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
 use App\Services\AccountOnboardingService;
+use App\Services\CompanyLaunchService;
+use App\Services\CompanyOnboardingService;
+use App\Services\Field\FieldPlanningService;
 use OpenSpout\Common\Entity\Cell\StringCell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
@@ -27,15 +31,27 @@ use OpenSpout\Writer\XLSX\Writer;
 
 class AccountImportTemplate
 {
+    public function usesDirectDcr(): bool
+    {
+        $revision = app(CompanyLaunchService::class)->proposal(app(CompanyOnboardingService::class)->organization())
+            ?? app(FieldPlanningService::class)->active();
+
+        return $revision?->mode === FieldPlanningMode::DirectDcr;
+    }
+
     public function write(string $path): void
     {
         app(AccountOnboardingService::class)->authorize();
+        $directDcr = $this->usesDirectDcr();
+        $columns = $directDcr
+            ? array_values(array_diff(AccountOnboardingService::COLUMNS, ['territory_code', 'patch_codes']))
+            : AccountOnboardingService::COLUMNS;
         $writer = new Writer;
         $writer->openToFile($path);
         $heading = (new Style)->setFontBold()->setFontColor('FFFFFF')->setBackgroundColor('17365D')->setShouldWrapText();
         $text = (new Style)->setFormat('@')->setShouldWrapText();
         try {
-            $writer->getCurrentSheet()->setName('Accounts')->setColumnWidthForRange(26, 1, count(AccountOnboardingService::COLUMNS));
+            $writer->getCurrentSheet()->setName('Accounts')->setColumnWidthForRange(26, 1, count($columns));
             $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2)->setFreezeColumn('C'));
             $writer->addRow(new Row(array_map(function (string $column) use ($heading): StringCell {
                 $style = clone $heading;
@@ -49,9 +65,9 @@ class AccountImportTemplate
                 });
 
                 return new StringCell($column, $style);
-            }, AccountOnboardingService::COLUMNS)));
+            }, $columns)));
             for ($index = 0; $index < 20; $index++) {
-                $writer->addRow(Row::fromValues(array_fill(0, count(AccountOnboardingService::COLUMNS), ''), $text));
+                $writer->addRow(Row::fromValues(array_fill(0, count($columns), ''), $text));
             }
             $writer->addNewSheetAndMakeItCurrent()->setName('Instructions')->setColumnWidth(110, 2);
             $writer->getCurrentSheet()->setColumnWidth(28, 1);
@@ -61,11 +77,13 @@ class AccountImportTemplate
                 ['Required columns', 'external_reference, name, account_type, owner_email are required on every row. Use exact type names and owner login emails from References. Masters and users must exist first.'],
                 ['Stable identity', 'external_reference is your stable source system ID, separate from the optional account_code. It is uppercased and unique per company. Use a prefix for different sources, e.g. ERP:000123. Allowed: letters, digits, underscore, dot, colon, slash and hyphen. Keep it unchanged on every rerun.'],
                 ['Existing accounts', 'An existing external reference updates that account. Names never identify records. Accounts created manually without a reference must be reviewed and assigned a reference in Accounts before import. Deleted references cannot be reused. Review possible duplicate names in the preview.'],
-                ['Blank cells', 'Blank optional fields preserve existing values. New accounts default to Prospect. Patch codes add links without removing existing ones. This importer does not clear fields or delete records.'],
+                ['Blank cells', 'Blank optional fields preserve existing values. New accounts default to Prospect. '.($directDcr ? '' : 'Patch codes add links without removing existing ones. ').'This importer does not clear fields or delete records.'],
                 ['Status and ratings', 'status_code is the lifecycle code, e.g. prospect or active. rating and segment are potential rating names. Active records must meet the type activation requirements. Incomplete new records should use prospect. Commission is 0 to 100 percent.'],
                 ['Addresses', 'Provide address_type, street, city, area and pin_code together to create/update the single primary address. Use an existing city name. Match by city and PIN only: reuse the oldest matching area regardless of the supplied area name, or create the supplied area during import if none exists. PINs may be shared by multiple areas. Other addresses are preserved.'],
                 ['Relationships', 'parent_reference, institution_reference and supplier_reference use external references from this file or existing accounts. Row order does not matter. Self-links, missing references and parent cycles are rejected.'],
-                ['Territories and patches', 'Use an existing territory_code. Separate patch_codes with semicolons. Existing patches are reused; missing patches are created on confirmation using the code as the name, the account territory and primary address location when available. New patches require a territory. Deleted patches must be restored first. Preview creates nothing.'],
+                $directDcr
+                    ? ['Direct DCR', 'Assign each customer using owner_email. Territory and patch columns are omitted for Direct DCR; no territory ID is needed. Existing territory and patch assignments are preserved on updates.']
+                    : ['Territories and patches', 'Use an existing territory_code. Separate patch_codes with semicolons. Existing patches are reused; missing patches are created on confirmation using the code as the name, the account territory and primary address location when available. New patches require a territory. Deleted patches must be restored first. Preview creates nothing.'],
                 ['Segmentation', 'One division profile per account per file. segment and profile_from (YYYY-MM-DD) are required together. Blank division_code means account-wide. Reuse the same external reference in a later file to add another division.'],
                 ['Potential', 'potential_value requires potential_unit_code, potential_period (monthly, quarterly, annual) and assessed_on (YYYY-MM-DD, not future). Revenue also requires a three-letter currency such as INR.'],
                 ['Periods and reruns', 'A profile matches account + division + profile_from. A target matches account + target_from. Matching periods are updated. Blank end date preserves an existing end date, or creates an open-ended period. Different periods must not overlap. Close old periods in Accounts before adding new ones.'],
@@ -100,6 +118,9 @@ class AccountImportTemplate
                 ['patch_codes', Patch::query(), 'code', 'name'],
                 ['division_code', OrganizationalUnit::where('is_active', true)->whereHas('typeMaster', fn ($query) => $query->where('name', 'Division')->where('typeable_type', OrganizationalUnit::class)), 'code', 'name'],
             ];
+            if ($directDcr) {
+                $sources = array_values(array_filter($sources, fn (array $source): bool => ! in_array($source[0], ['territory_code', 'patch_codes'], true)));
+            }
             foreach (['specialty', 'therapy_area', 'potential_unit'] as $kind) {
                 $sources[] = [$kind.'_code', AccountReportingMaster::where('kind', $kind)->where('is_active', true), 'code', 'name'];
             }
@@ -110,7 +131,7 @@ class AccountImportTemplate
             }
             $writer->addNewSheetAndMakeItCurrent()->setName('Field Guide')->setColumnWidthForRange(32, 1, 3);
             $writer->addRow(Row::fromValues(['Column', 'Required', 'Field group'], $heading));
-            foreach (AccountOnboardingService::COLUMNS as $column) {
+            foreach ($columns as $column) {
                 $group = match (true) {
                     str_starts_with($column, 'contact_') => 'Contact',
                     str_starts_with($column, 'bank_') => 'Bank',
