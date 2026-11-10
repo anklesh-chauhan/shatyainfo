@@ -68,9 +68,14 @@ class User extends Authenticatable implements FilamentUser
 
     protected $guarded = [];
 
-    public function getGuardName()
+    public function getGuardName(): string
     {
         return Tenant::current() ? 'tenant' : 'web';
+    }
+
+    protected function getDefaultGuardName(): string
+    {
+        return $this->getGuardName();
     }
 
     public function organizationalUnit(): BelongsTo
