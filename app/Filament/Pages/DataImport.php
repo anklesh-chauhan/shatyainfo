@@ -43,6 +43,11 @@ class DataImport extends Page implements HasForms
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowUpTray;
 
+    public function getSubheading(): ?string
+    {
+        return 'Download a blank template, keep identifiers stable, then preview before you confirm.';
+    }
+
     protected string $view = 'filament.pages.data-import';
 
     /**
