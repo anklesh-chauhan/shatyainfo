@@ -48,6 +48,7 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearch(BusinessSearchProvider::class)
             ->topbar(true)
             ->renderHook(PanelsRenderHook::TOPBAR_LOGO_AFTER, fn () => view('filament.components.topbar-quick-links'))
+            ->renderHook(PanelsRenderHook::HEAD_START, fn () => view('filament.components.subnav-scripts'))
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldSuffix(fn (): string => Platform::detect() === Platform::Mac ? '⌘K' : 'Ctrl+K')
             ->globalSearchDebounce(500)
@@ -90,7 +91,7 @@ class AdminPanelProvider extends PanelProvider
                 //
             ])
             ->plugins([
-                FilamentShieldPlugin::make(),
+                FilamentShieldPlugin::make()->navigationGroup('') ,
             ])
             ->widgets([
                 // Widgets displayed in the dashboard

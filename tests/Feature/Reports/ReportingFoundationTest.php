@@ -98,9 +98,12 @@ it('renders the reports overview catalog', function () {
         ->assertSee('Lead pipeline')
         ->assertSee('Overdue follow-ups')
         ->assertSee('Attendance register')
-        ->assertSee('Leave ledger');
+        ->assertSee('Leave ledger')
+        ->assertSeeHtml('fi-page-sub-navigation-sidebar-ctn')
+        ->assertSeeHtml('fi-subnav-collapse-btn')
+        ->assertSeeHtml('fi-subnav-expand-btn');
 
-    expect($page->instance()->getCatalog())->toHaveCount(14)
+    expect($page->instance()->getCatalog())->toHaveCount(15)
         ->and(array_column($page->instance()->getCatalogGroups(), 'label'))->toBe([
             'Field activity',
             'Samples and stock',
