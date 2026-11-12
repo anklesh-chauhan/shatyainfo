@@ -297,7 +297,7 @@ class Onboarding extends Page
 
     protected static ?string $title = 'Setup Checklist';
 
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 40;
 
     protected string $view = 'filament.pages.onboarding';
 

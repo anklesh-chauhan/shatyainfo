@@ -6,10 +6,13 @@ use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Services\OptionalModuleService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 
 class OptionalModules extends Page
 {
     protected static ?string $cluster = OrganizationAndCompanyCluster::class;
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckBadge;
 
     protected static ?int $navigationSort = 30;
 

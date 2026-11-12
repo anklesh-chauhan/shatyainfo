@@ -12,6 +12,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Page;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -24,6 +25,8 @@ class AccountReachFrequency extends Page implements HasTable
     use InteractsWithTable;
 
     protected static ?string $cluster = ReportsCluster::class;
+
+    protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedChartBarSquare;
 
     protected static ?string $title = 'Account Reach & Frequency';
 
