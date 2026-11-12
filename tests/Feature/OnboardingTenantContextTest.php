@@ -8,6 +8,33 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
+it('can save a setup draft again after the previous draft was cleared', function () {
+    $admin = reportingUser('Draft Resume Administrator');
+    $admin->assignRole(Role::findOrCreate('super_admin', 'web'));
+    $this->actingAs($admin);
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99990, 'name' => 'Draft Resume Company', 'master_setup_status' => 'ready']);
+    $service = app(CompanyOnboardingService::class);
+    $draft = ['step' => 2, 'organization' => ['name' => 'Resume Me'],
+        'workflow' => '', 'workflow_version' => 0, 'approval' => []];
+
+    try {
+        $tenant->makeCurrent();
+        $service->saveDraft($draft);
+        $service->forgetDraft();
+        expect($service->draft())->toBe([]);
+
+        $service->saveDraft([...$draft, 'step' => 1, 'organization' => ['name' => 'Updated again']]);
+
+        expect($service->draft()['organization']['name'])->toBe('Updated again')
+            ->and($service->draft()['step'])->toBe(1);
+    } finally {
+        Tenant::forgetCurrent();
+    }
+});
+
 it('keeps drafts separate when the same administrator switches company contexts', function () {
     $admin = reportingUser('Tenant Context Administrator');
     $admin->assignRole(Role::findOrCreate('super_admin', 'web'));

@@ -48,15 +48,23 @@ class CompanyOnboardingService
         if (strlen(json_encode($draft, JSON_THROW_ON_ERROR)) > 65536) {
             throw ValidationException::withMessages(['draft' => 'The setup draft is too large to save.']);
         }
-        IntegrationSetting::query()->updateOrCreate(['provider' => $this->draftKey()], [
-            'is_enabled' => false, 'credentials' => $draft,
-        ]);
+
+        $setting = IntegrationSetting::withTrashed()->firstOrNew(['provider' => $this->draftKey()]);
+
+        if ($setting->trashed()) {
+            $setting->restore();
+        }
+
+        $setting->fill([
+            'is_enabled' => false,
+            'credentials' => $draft,
+        ])->save();
     }
 
     public function forgetDraft(): void
     {
         $this->authorize();
-        IntegrationSetting::query()->where('provider', $this->draftKey())->delete();
+        IntegrationSetting::withTrashed()->where('provider', $this->draftKey())->forceDelete();
     }
 
     /** @return array<string, bool|int> */
