@@ -14,7 +14,16 @@ class OptionalModules extends Page
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckBadge;
 
+    protected static ?string $title = 'Optional modules';
+
+    protected static ?string $navigationLabel = 'Optional Modules';
+
     protected static ?int $navigationSort = 30;
+
+    public function getSubheading(): ?string
+    {
+        return 'Turn on inventory, expenses, attendance and CRM once prerequisites are complete.';
+    }
 
     public array $reviewed = [];
 
