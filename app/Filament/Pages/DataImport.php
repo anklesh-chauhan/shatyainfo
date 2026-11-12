@@ -227,7 +227,7 @@ class DataImport extends Page implements HasForms
     public function import(ResourceCsvImporter $importer, ResourceImportCatalog $catalog): void
     {
         $this->authorizeEmployeeImport();
-        $state = $this->form->getState();
+        $state = $this->form->getState(shouldCallHooksBefore: false);
         $module = $catalog->find((string) ($state['resource'] ?? ''));
 
         if ($module === null || $module->modelClass !== Employee::class || ! $catalog->allows($module)) {

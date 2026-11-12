@@ -37,7 +37,7 @@ class CompanyOnboardingService
         $this->authorize();
         abort_unless(Tenant::current()?->accountIsConfigured() ?? true, 409);
         $draft = Validator::make($draft, [
-            'step' => ['required', 'integer', 'between:0,6'],
+            'step' => ['required', 'integer', 'between:0,7'],
             'organization' => ['required', 'array'],
             'organization.*' => ['nullable', 'string', 'max:255'],
             'workflow' => ['nullable', Rule::in(array_keys(CompanyLaunchService::workflows()))],

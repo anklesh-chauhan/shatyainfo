@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\City;
 use App\Models\CityPinCode;
+use App\Models\LocationMaster;
 use App\Models\Organization;
 use App\Models\OrganizationalUnit;
 use App\Models\Tenant;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class TerritoryOnboardingService
 {
-    public const COLUMNS = ['code', 'name', 'parent_code', 'status', 'description', 'division_codes', 'cities_and_areas', 'division_names'];
+    public const COLUMNS = ['code', 'name', 'parent_code', 'status', 'description', 'division_codes', 'cities_and_areas', 'division_names', 'hq_codes'];
 
     public function readFile(string $path, bool $isWorkbook = false): array
     {
@@ -96,13 +97,15 @@ class TerritoryOnboardingService
             'rows.*.name' => ['required', 'string', 'max:255', 'distinct:ignore_case'],
             'rows.*.division_codes' => [Organization::divisionsEnabled() ? 'required' : 'nullable', 'string', 'max:5000'],
             'rows.*.division_names' => ['nullable', 'string', 'max:10000'],
+            'rows.*.hq_codes' => ['nullable', 'string', 'max:5000'],
             'rows.*.cities_and_areas' => ['required', 'string', 'max:10000'],
             'rows.*.parent_code' => ['nullable', 'string', 'max:255'],
             'rows.*.status' => ['required', Rule::in(['active', 'inactive'])],
             'rows.*.description' => ['nullable', 'string', 'max:5000'],
         ])->validate()['rows'];
         $divisionPlans = $this->divisionPlans($rows);
-        $existing = Territory::withTrashed()->with(['divisions', 'cityPinCodes'])->get();
+        $existing = Territory::withTrashed()->with(['divisions', 'cityPinCodes', 'locations'])->get();
+        $hqs = LocationMaster::withTrashed()->get()->groupBy(fn (LocationMaster $hq): string => strtoupper((string) $hq->location_code));
         $duplicateCodes = $existing->groupBy(fn (Territory $territory): string => strtoupper((string) $territory->code))
             ->filter(fn ($matches): bool => $matches->count() > 1)->keys();
         if ($duplicateCodes->intersect(collect($rows)->flatMap(fn (array $row): array => [$row['code'], $row['parent_code']]))->isNotEmpty()) {
@@ -118,6 +121,20 @@ class TerritoryOnboardingService
             $row['division_plans'] = array_values(array_intersect_key($divisionPlans, array_flip(array_map(fn ($code) => strtoupper(trim($code)), explode(';', $row['division_codes'])))));
             $parent = $row['parent_code'];
             $record = $existing->get($row['code']);
+            $row['hq_ids'] = [];
+            if ($row['hq_codes'] !== '') {
+                $codes = array_map(fn (string $code): string => strtoupper(trim($code)), explode(';', $row['hq_codes']));
+                foreach (array_unique($codes) as $code) {
+                    $matches = $hqs->get($code, collect());
+                    if ($code === '' || $matches->count() !== 1 || $matches->first()->trashed() || ! $matches->first()->is_active) {
+                        $errors['rows.'.$index.'.hq_codes'] = 'Row '.($index + 2).': HQ code '.$code.' must match one active HQ. Import HQ locations first.';
+
+                        continue;
+                    }
+                    $row['hq_ids'][] = $matches->first()->id;
+                }
+                $row['hq_codes'] = implode(';', array_unique($codes));
+            }
             if ($parent !== '' && ! $pending->has($parent) && (! $existing->has($parent) || $existing[$parent]->trashed())) {
                 $errors['rows.'.$index.'.parent_code'] = 'Row '.($index + 2).': parent '.$parent.' was not found.';
             }
@@ -191,6 +208,9 @@ class TerritoryOnboardingService
                 $errors['rows.'.$index.'.name'] = 'Row '.($index + 2).': this territory name is already in use.';
             }
             $row['action'] = $record ? 'Keep existing' : 'Create';
+            if ($record && array_diff($row['hq_ids'], $record->locations->modelKeys()) !== []) {
+                $row['action'] = 'Add HQ links';
+            }
         }
         unset($row);
         foreach ($rows as $index => $row) {
@@ -256,6 +276,9 @@ class TerritoryOnboardingService
                         $territory->cityPinCodes()->sync(array_map(fn ($id) => $areaIds[$id] ?? $id, $row['cities_and_areas_ids']));
                         $ids[$row['code']] = $territory->id;
                         $created++;
+                    }
+                    if ($row['hq_ids'] !== []) {
+                        Territory::query()->findOrFail($ids[$row['code']])->locations()->syncWithoutDetaching($row['hq_ids']);
                     }
                     unset($rows[$index]);
                 }

@@ -1,10 +1,13 @@
 <?php
 
 use App\Enums\FieldPlanningMode;
+use App\Filament\Pages\SalesAssistant;
 use App\Models\VisitPreference;
 use App\Services\Field\FieldPlanningService;
+use App\Services\Field\FieldPlanningSettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
@@ -62,4 +65,38 @@ it('keeps plan requirements internally consistent across proposed presets', func
             ->and($rules['require_patch'])->toBeFalse()
             ->and($rules['unplanned_calls'])->not->toBe('block');
     }
+})->with([FieldPlanningMode::DirectDcr, FieldPlanningMode::Flexible, FieldPlanningMode::FormalMtp]);
+
+it('aligns monthly plan API and assistant capabilities with the active method', function (FieldPlanningMode $mode) {
+    $user = reportingUser('MethodCapabilities');
+    foreach (['Manage:FieldPlanningPreference', 'Create:SalesTourPlan'] as $permission) {
+        $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    Sanctum::actingAs($user);
+    $settings = app(FieldPlanningSettingsService::class);
+    $revision = $settings->saveProposal($user, [
+        'mode' => $mode->value,
+        'rules' => app(FieldPlanningService::class)->preset($mode),
+        'reason' => 'Check selected reporting method',
+        'proposed_effective_on' => null,
+    ], 0);
+    $settings->activate($user, $revision->id, 1);
+    $supportsMtp = $mode === FieldPlanningMode::FormalMtp;
+    $this->getJson('/api/v1/me')->assertSuccessful()->assertJsonPath('data.field_planning.supports_mtp', $supportsMtp);
+    $features = $this->getJson('/api/v1/salesperson-ai/roadmap')->assertSuccessful()->json('data');
+    expect(in_array('tour_plan_draft', array_column($features, 'key'), true))->toBe($supportsMtp);
+    if ($supportsMtp) {
+        $this->getJson('/api/v1/monthly-tour-plans/options')->assertSuccessful()->assertJsonPath('data.can_create', true);
+        $this->getJson('/api/v1/tour-plan-draft?month='.today()->format('Y-m'))->assertSuccessful();
+    } else {
+        foreach (['monthly-tour-plans/options', 'monthly-tour-plans?month='.today()->format('Y-m'), 'monthly-tour-plans/inbox?month='.today()->format('Y-m'), 'monthly-tour-plans/1', 'tour-plan-draft?month='.today()->format('Y-m')] as $endpoint) {
+            $this->getJson('/api/v1/'.$endpoint)->assertForbidden();
+        }
+        $this->getJson('/api/v1/todays-priorities')->assertSuccessful();
+        $this->getJson('/api/v1/day-route')->assertSuccessful()->assertJsonPath('data.stops', []);
+    }
+    $this->actingAs($user);
+    $page = app(SalesAssistant::class);
+    $page->mount();
+    expect($page->tourDraft !== [])->toBe($supportsMtp);
 })->with([FieldPlanningMode::DirectDcr, FieldPlanningMode::Flexible, FieldPlanningMode::FormalMtp]);

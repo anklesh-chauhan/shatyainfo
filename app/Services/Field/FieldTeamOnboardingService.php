@@ -7,7 +7,9 @@ use App\Models\FieldUserHq;
 use App\Models\LocationMaster;
 use App\Models\User;
 use App\Services\CompanyLaunchService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class FieldTeamOnboardingService
 {
@@ -16,6 +18,14 @@ class FieldTeamOnboardingService
     public static function canManage(?User $user): bool
     {
         return (bool) ($user && ($user->can(self::PERMISSION) || $user->hasAnyRole(['super_admin', 'administration_admin'])));
+    }
+
+    public function availableHqs(?int $userId): Builder
+    {
+        return LocationMaster::query()->where('is_active', true)
+            ->when(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq(),
+                fn (Builder $query): Builder => $query->whereHas('territories.positions.employees',
+                    fn (Builder $employees): Builder => $employees->where('login_id', $userId)->whereNotNull('login_id')));
     }
 
     public function save(User $actor, array $input): array
@@ -32,7 +42,11 @@ class FieldTeamOnboardingService
         return $actor->getConnection()->transaction(function () use ($actor, $data): array {
             User::query()->whereKey($data['user_id'])->lockForUpdate()->firstOrFail();
             if (isset($data['location_master_id'])) {
-                LocationMaster::query()->whereKey($data['location_master_id'])->where('is_active', true)->firstOrFail();
+                if (! $this->availableHqs((int) $data['user_id'])->whereKey($data['location_master_id'])->exists()) {
+                    throw ValidationException::withMessages(['location_master_id' => app(CompanyLaunchService::class)->requiresTerritoryLinkedHq()
+                        ? 'Select an active HQ linked to at least one territory of this MR’s positions. Configure HQ territory links in Location Masters first.'
+                        : 'Select an active HQ.']);
+                }
             }
             $accounts = AccountMaster::query()->applyVisibility('AccountMaster')->whereIn('id', $data['account_ids'])->orderBy('id')->lockForUpdate()->get();
             abort_unless($accounts->count() === count($data['account_ids']), 404, 'Select customers available in your visibility.');

@@ -2,11 +2,13 @@
 
 namespace App\Services\Approval;
 
+use App\Enums\FieldPlanningMode;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalSetting;
 use App\Models\JobRole;
 use App\Models\Organization;
 use App\Models\Territory;
+use App\Services\CompanyLaunchService;
 use App\Services\CompanyOnboardingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -71,6 +73,13 @@ class OnboardingApprovalService
         $data = Validator::make($input, [
             'required' => ['required', Rule::in(['yes', 'no', 'existing'])],
         ])->validate();
+        $revision = app(CompanyLaunchService::class)->proposal(app(CompanyOnboardingService::class)->organization());
+        if ($revision?->mode === FieldPlanningMode::FormalMtp
+            && ($data['required'] === 'existing'
+                ? ! ApprovalSetting::moduleRequiresApproval('SalesTourPlan')
+                : ($data['required'] !== 'yes' || ! in_array('SalesTourPlan', (array) ($input['modules'] ?? []), true)))) {
+            throw ValidationException::withMessages(['approval' => 'Require monthly plans needs Sales Tour Plan approvals. Configure monthly-plan approvers before continuing.']);
+        }
         if ($data['required'] === 'existing') {
             if (! $this->hasExistingConfiguration()) {
                 throw ValidationException::withMessages(['approval' => 'There is no existing configuration to retain.']);

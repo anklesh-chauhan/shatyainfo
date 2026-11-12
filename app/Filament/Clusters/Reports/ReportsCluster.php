@@ -10,7 +10,7 @@ class ReportsCluster extends Cluster
 {
     protected static string|\UnitEnum|null $navigationGroup = 'Reports';
 
-    protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
+    // protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentChartBar;
 

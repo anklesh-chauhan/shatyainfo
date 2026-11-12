@@ -1,5 +1,5 @@
 <section class="setup-import-card" aria-label="Field route setup">
-    <div class="setup-card-heading"><span class="setup-card-number">1</span><div><h3>Field routes & historical travel</h3><p>First import Patches and Standard Fares, leaving the Patch Customers sheet empty. After importing account masters below, return to add customer assignments and historical travel. Customer code fields accept your account code or external_reference.</p></div></div>
+    <div class="setup-card-heading"><span class="setup-card-number">↑</span><div><h3>Field routes & historical travel</h3><p>Import patches, fares or past travel records.</p></div></div>
     <fieldset @disabled(in_array($status, ['queued', 'running'], true))>
     <div class="setup-field">
         <label for="field-travel-mode">Import type</label>
@@ -8,20 +8,19 @@
             <option value="1">Historical travel segments (optional)</option>
         </x-filament::input.select></x-filament::input.wrapper>
     </div>
-    <div class="setup-card-stats"><span>Excel workbook · Maximum 10 MB</span></div>
     <x-filament::button color="gray" wire:click="downloadTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
-    @if ($historical)
-        <p class="setup-card-help">Create employees and their editable daily call reports (DCRs) first. Each employee and date must match one existing DCR. Keep external_reference unchanged when importing again: matching segments are updated rather than duplicated. Locked reports cannot be changed. You can complete this migration later.</p>
-    @else
-        <p class="setup-card-help">Set up territories first. Leave account assignments blank until accounts and addresses exist.</p>
-    @endif
-    <p class="setup-card-help">Preview detects the import type when the workbook contains only patches and fares or only historical travel. For a workbook containing both types, choose which type to import.</p>
-    <details class="setup-optional"><summary>Instructions and examples</summary>
-        @foreach (app(\App\Services\DataImport\FieldTravelTemplate::class)->instructions() as [$heading, $instruction])<p><strong>{{ $heading }}:</strong> {{ $instruction }}</p>@endforeach
-        <p>Fill the data sheets with your own records. Examples are never imported. Preview does not save records.</p>
+    <details class="setup-optional">
+        <summary>How to prepare your {{ $historical ? 'travel' : 'field route' }} file</summary>
+        @if ($historical)
+            <p>Create employees and editable DCRs first. Each employee and date must match an existing DCR.</p>
+            <p>Keep external_reference unchanged when updating travel records. Approved or locked reports cannot be changed.</p>
+        @else
+            <p>Create territories first. Fill Patches and Standard Fares; leave Patch Customers blank until customers have been imported.</p>
+            <p>Use account codes or external references for customer assignments. Keep patch codes unchanged when updating records.</p>
+        @endif
+        <p>Keep sheet names and headers unchanged. The template includes field instructions and examples. Preview the file, fix any errors, then select Confirm import.</p>
     </details>
-    @error('file')<p class="setup-error" role="alert">{{ $message }}</p>@enderror
-    @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewFile', 'fileProperty' => 'file', 'inputId' => 'field-route-file', 'accept' => '.xlsx', 'fileHelp' => '.xlsx · Maximum 10 MB.'])
+    @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewFile', 'fileProperty' => 'file', 'inputId' => 'field-route-file', 'accept' => '.xlsx', 'fileHelp' => 'Excel · Up to 5,000 rows · Maximum 10 MB.'])
     </fieldset>
     @if ($importErrors)<div class="setup-error" role="alert"><p>Correct all errors and upload the file again.</p><ul>@foreach ($importErrors as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @if ($preview)

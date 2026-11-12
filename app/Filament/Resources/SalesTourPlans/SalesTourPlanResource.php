@@ -10,7 +10,6 @@ use App\Filament\Resources\SalesTourPlans\Schemas\SalesTourPlanForm;
 use App\Filament\Resources\SalesTourPlans\Tables\SalesTourPlansTable;
 use App\Models\SalesTourPlan;
 use App\Services\Field\FieldPlanningService;
-use App\Services\Field\FieldTeamOnboardingService;
 use App\Traits\HasApprovalWorkflow;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\HasVisibilityScope;
@@ -37,10 +36,17 @@ class SalesTourPlanResource extends BaseResource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return parent::shouldRegisterNavigation() && (
-            FieldTeamOnboardingService::canManage(auth()->user())
-            || ! app(FieldPlanningService::class)->capabilities()['supports_direct_calls']
-        );
+        return parent::shouldRegisterNavigation() && app(FieldPlanningService::class)->capabilities()['supports_mtp'];
+    }
+
+    public static function canViewAny(): bool
+    {
+        return app(FieldPlanningService::class)->capabilities()['supports_mtp'] && parent::canViewAny();
+    }
+
+    public static function canCreate(): bool
+    {
+        return app(FieldPlanningService::class)->capabilities()['supports_mtp'] && parent::canCreate();
     }
 
     public static function form(Schema $schema): Schema

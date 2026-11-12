@@ -37,7 +37,7 @@ class TerritoryImportTemplate
             $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2));
             $writer->addRow(Row::fromValues($headers, $heading));
             foreach ([['MUMBAI', 'Mumbai', 'WEST', 'active', 'Child territory', 'DIV-WEST', 'Mumbai|Andheri|400058', 'West Division'], ['WEST', 'West', '', 'active', 'Root territory', 'DIV-WEST', 'Mumbai|Andheri|400058;Pune|Shivajinagar|411005', 'West Division'], ['PUNE', 'Pune', 'WEST', 'inactive', 'Inactive example', 'DIV-WEST', 'Pune|Shivajinagar|411005', 'West Division']] as $example) {
-                $writer->addRow(Row::fromValues($example, $text));
+                $writer->addRow(Row::fromValues([...$example, 'HQ-MUMBAI'], $text));
             }
         } finally {
             $writer->close();
@@ -49,8 +49,8 @@ class TerritoryImportTemplate
         return [
             ['Before you begin', 'Divisions can be created directly from this file. Supply division_codes and matching division_names. Existing divisions are reused by code. If your company has no divisions, select No in Company information and leave both columns blank. City and area references must already exist.'],
             ['1. Prepare', 'Fill the Territories sheet only. Keep its name and column headers unchanged. Instructions and Examples are not imported. Replace examples with your own data; do not upload fictitious territories.'],
-            ['2. Upload and preview', 'Save as .xlsx or UTF-8 CSV. Upload up to 500 data rows and 2 MB. Select Preview territories and check names, parent codes, status and the Create / Keep existing actions.'],
-            ['3. Confirm import', 'Select Import reviewed territories only after checking the preview. The entire import is saved together. If validation fails, no territories are saved. Correct the reported rows and preview again.'],
+            ['2. Upload and preview', 'Save as .xlsx or UTF-8 CSV. Upload up to 500 data rows and 2 MB. Select Preview file and check names, parent codes, HQ codes and the Create / Keep existing / Add HQ links actions.'],
+            ['3. Confirm import', 'Select Confirm import after checking the preview. Territories and HQ links save together. If validation fails, nothing is saved. Correct the reported rows and preview again.'],
             ['4. Add employees', 'Import territories before employees. In the employee template, use territory_codes such as WEST;MUMBAI to link territories to a position. These assignments are shared by employees in that position.'],
             ['Hierarchy order', 'Parents and children may appear in any row order. A parent code must exist in this upload or the company. Self-parenting and circular hierarchies are rejected.'],
             ['Existing territories', 'Codes match without case sensitivity and new codes are stored in uppercase. An identical existing record is kept. Conflicting names, parents, status, descriptions, division links or city/area links are rejected; edit them in Territories first. Deleted codes cannot be reused here.'],
@@ -61,6 +61,7 @@ class TerritoryImportTemplate
             ['name', 'Required unique territory name, maximum 255 characters.'],
             ['division_codes', 'Required when the company uses divisions. Separate codes with semicolons: DIV-WEST;DIV-SOUTH. Existing codes are reused; new codes require corresponding names. Blank is allowed when divisions are disabled and preserves existing links.'],
             ['division_names', 'Names in the same order as division_codes: West Division;South Division. Required for each new division. For existing codes, omit names or supply their exact existing names. Repeat a new code with the same name on every row where it appears. Conflicting names, deleted codes and non-division codes are rejected. New divisions and territories save together; any error saves nothing.'],
+            ['hq_codes', 'Optional semicolon-separated HQ location codes, for example HQ-MUMBAI;HQ-PUNE. Import HQ locations first, then use their location_code values here. Each code must match one active HQ. Links are added to new or existing territories; blank cells preserve links and uploads never remove links. Required monthly-plan teams need an HQ linked to an assigned territory before launch. Direct DCR does not require HQ links.'],
             ['cities_and_areas', 'Required. One or more locations written as City|Area|PIN, separated by semicolons: Mumbai|Andheri|400058;Pune|Shivajinagar|411005. Use an existing city name. Matching uses city and PIN only; the oldest matching area is reused regardless of the supplied area name. If none exists, the supplied area is created when importing. PINs may be shared by multiple areas. Missing or ambiguous cities are rejected.'],
             ['parent_code', 'Optional parent territory code, maximum 255 characters. Leave blank for a root territory. Reference a code, not a name or database ID.'],
             ['status', 'Optional: active or inactive. Blank defaults to active.'],

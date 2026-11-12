@@ -7,6 +7,7 @@ use App\Models\FollowUp;
 use App\Models\SalesTourPlanDetail;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\Field\FieldPlanningService;
 use App\Services\Reports\OverdueFollowUpQuery;
 use Illuminate\Support\Carbon;
 
@@ -107,6 +108,10 @@ class TodayPriorityService
      */
     private function plannedAccounts(User $user, Carbon $from, Carbon $to): array
     {
+        if (! app(FieldPlanningService::class)->capabilities()['supports_mtp']) {
+            return [];
+        }
+
         $details = SalesTourPlanDetail::query()
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->whereHas('tourPlan', fn ($query) => $query->where('user_id', $user->id))

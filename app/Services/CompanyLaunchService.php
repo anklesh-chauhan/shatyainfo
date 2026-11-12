@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\FieldPlanningMode;
 use App\Models\AccountMaster;
+use App\Models\ApprovalSetting;
 use App\Models\Employee;
 use App\Models\FieldPlanningRevision;
 use App\Models\FieldUserHq;
@@ -67,6 +68,13 @@ class CompanyLaunchService
         return $revision?->mode !== FieldPlanningMode::DirectDcr;
     }
 
+    public function requiresTerritoryLinkedHq(): bool
+    {
+        $revision = $this->proposal(Organization::query()->first()) ?? app(FieldPlanningService::class)->active();
+
+        return $revision?->mode === FieldPlanningMode::FormalMtp;
+    }
+
     /** @return array<string, mixed> */
     public function readiness(?array $employeeIds = null, bool $activeOnly = false): array
     {
@@ -87,10 +95,15 @@ class CompanyLaunchService
         if ($revision?->proposed_effective_on?->isFuture()) {
             $blockers[] = 'The chosen policy starts in the future. Launch on or after its start date.';
         }
+        if ($revision?->mode === FieldPlanningMode::FormalMtp
+            && ($organization?->metadata['company_setup']['approvals_applied'] ?? false)
+            && ! ApprovalSetting::moduleRequiresApproval('SalesTourPlan')) {
+            $blockers[] = 'Enable Sales Tour Plan approvals and configure monthly-plan approvers before launch.';
+        }
         $employees = Employee::query()->with(['user.roles.permissions', 'user.permissions', 'positions.territories'])
             ->when($employeeIds !== null, fn ($query) => $query->whereKey($employeeIds))->orderBy('first_name')->get();
         $userIds = $employees->pluck('login_id')->filter()->all();
-        $hqs = FieldUserHq::query()->with('location')->whereIn('user_id', $userIds)->get()->keyBy('user_id');
+        $hqs = FieldUserHq::query()->with('location.territories')->whereIn('user_id', $userIds)->get()->keyBy('user_id');
         $accounts = AccountMaster::query()->whereIn('owner_id', $userIds)
             ->select('owner_id')->selectRaw('COUNT(*) AS customer_count')->groupBy('owner_id')->pluck('customer_count', 'owner_id');
         $launched = $organization?->metadata['company_setup']['launched_users'] ?? [];
@@ -111,6 +124,9 @@ class CompanyLaunchService
             }
             if ($this->requiresHq($revision) && ! $hq?->location?->is_active) {
                 $issues['hq'] = 'Assign an active HQ.';
+            } elseif ($revision?->mode === FieldPlanningMode::FormalMtp
+                && $hq->location->territories->pluck('id')->intersect($territories)->isEmpty()) {
+                $issues['hq'] = 'Assign an HQ linked to at least one territory of this MR’s positions. Manage HQ territory links in Location Masters.';
             }
             if ($customerCount === 0) {
                 $issues['customers'] = 'Assign customers to this MR.';
@@ -128,6 +144,18 @@ class CompanyLaunchService
                     app(ApprovalService::class)->validateRouteFor($user, 'SalesDcr', $user->territory_id ? (int) $user->territory_id : null);
                 } catch (LogicException $exception) {
                     $issues['approvals'] = 'DCR approvals: '.$exception->getMessage();
+                }
+                if ($revision?->mode === FieldPlanningMode::FormalMtp) {
+                    try {
+                        foreach ($territories ?: [null] as $territoryId) {
+                            app(ApprovalService::class)->validateRouteFor($user, 'SalesTourPlan', $territoryId);
+                        }
+                        if (count($territories) > 1) {
+                            app(ApprovalService::class)->validateRouteFor($user, 'SalesTourPlan');
+                        }
+                    } catch (LogicException $exception) {
+                        $issues['plan_approvals'] = 'Monthly plan approvals: '.$exception->getMessage();
+                    }
                 }
             }
             $rows[] = ['employee_id' => $employee->id, 'user_id' => $user?->id, 'name' => $employee->full_name,

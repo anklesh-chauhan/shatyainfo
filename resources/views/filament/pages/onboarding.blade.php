@@ -18,12 +18,16 @@
         @php
             $checklist = $this->checklist();
             $directDcr = $workflow === 'direct_dcr';
+            $setupSteps = $this->setupSteps();
+            $stepNumber = $step === 0 ? 0 : array_search($step, array_keys($setupSteps), true) + 1;
             $titles = ['A great place to start.', 'Tell us about your company.', 'Choose your working method.', 'Bring your team together.', 'Prepare your customers.', 'Choose how approvals work.', 'Launch your first team.'];
             $descriptions = ['Prepare one HQ first, then bring the rest of your team onboard.', 'These details help your team recognize your workspace.', 'Choose how MRs plan visits. DCR approvals are configured separately.', 'Add employees, login access and HQ assignments.', 'Import customers and assign them to your MRs.', 'Confirm reporting approvals independently of visit planning.', 'Select the MRs to launch. Other teams can remain in preparation.'];
             if ($directDcr) {
                 $descriptions[0] = 'Prepare your first team, then bring the rest onboard.';
                 $descriptions[3] = 'Add employees and login access. HQ assignment is optional for Direct DCR.';
             }
+            $titles[7] = 'Map your territories and HQs.';
+            $descriptions[7] = 'Prepare the territory hierarchy and HQ locations before adding your monthly-plan team.';
         @endphp
         <div class="setup-wizard">
             <aside class="setup-intro">
@@ -32,14 +36,14 @@
                 <h1>{{ $titles[$step] }}</h1>
                 <p class="setup-description">{{ $descriptions[$step] }}</p>
                 <ol class="setup-steps" aria-label="Setup progress">
-                    @foreach (['Company information', 'Working method', $directDcr ? 'Team' : 'Team and HQs', 'Customers', 'Reporting rules', 'Review and launch'] as $label)
-                        <li class="{{ $step === $loop->iteration ? 'is-current' : '' }}" @if ($step === $loop->iteration) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $step > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
+                    @foreach ($setupSteps as $stepId => $label)
+                        <li class="{{ $step === $stepId ? 'is-current' : '' }}" @if ($step === $stepId) aria-current="step" @endif><span class="setup-step-number" aria-hidden="true">{{ $stepNumber > $loop->iteration ? '✓' : $loop->iteration }}</span>{{ $label }}</li>
                     @endforeach
                 </ol>
                 <p class="setup-account">Signed in as<br>{{ auth()->user()->email }}</p>
             </aside>
             <section class="setup-content" aria-label="Current setup step" wire:key="setup-step-{{ $step }}">
-                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$step.' OF 6' }}</p>
+                <p class="setup-step-label">{{ $step === 0 ? 'WELCOME' : 'STEP '.$stepNumber.' OF '.count($setupSteps) }}</p>
                 <p class="setup-hint">Text changes are saved when you leave a field. Drafts are private to your login. Uploads must be saved separately.</p>
                 <p wire:loading role="status">Saving changes…</p>
                 @if ($draftSaved)<p wire:loading.remove wire:dirty.remove role="status">Draft saved. You can return after signing in again.</p>@endif
@@ -56,12 +60,15 @@
                     <h2>Company information</h2><p>Confirm the details below to personalize your workspace.</p>
                     <form wire:submit="saveOrganization" class="setup-form">
                         <div class="setup-field">
-                            <label for="company-logo">Company logo (optional)</label>
                             @if ($logoUrl = $this->companyLogoUrl())
                                 <img src="{{ $logoUrl }}" alt="Company logo preview" style="max-width:200px;height:100px;object-fit:contain;margin-bottom:12px">
                             @endif
-                            <div class="setup-upload-box"><input id="company-logo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" wire:model="companyLogo" aria-describedby="company-logo-help"></div>
-                            <p id="company-logo-help" class="setup-card-help">JPG, PNG, GIF or WebP. Maximum 2 MB. Saved when you select Save and continue.</p>
+                            <div class="setup-field setup-upload-box">
+                                <label for="company-logo">Company logo (optional)</label>
+                                <input id="company-logo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" wire:model="companyLogo" aria-describedby="company-logo-help">
+                                <p id="company-logo-help" class="setup-card-help">JPG, PNG, GIF or WebP · Maximum 2 MB.</p>
+                            </div>
+                            <details class="setup-optional"><summary>How to upload your logo</summary><p>Choose an image, check the preview, then select Save and continue.</p></details>
                             <p wire:loading wire:target="companyLogo" role="status">Uploading logo…</p>
                         </div>
                         @foreach (['name' => 'Company name', 'email' => 'Company email', 'phone' => 'Phone number'] as $field => $label)
@@ -91,6 +98,16 @@
                         @endif
                         <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><x-filament::button type="submit" wire:loading.attr="disabled">Save and continue</x-filament::button></div>
                     </form>
+                @elseif ($step === 7)
+                    <h2>Territories and HQs</h2>
+                    <p>Import HQ locations first. Then use hq_codes in the territory file to link them. You can also manage links in Location Masters.</p>
+                    <a class="setup-option" href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Review divisions and organization structure →</a>
+                    @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hqs'], key('onboarding-required-hq-import'))
+                    <a class="setup-option" href="{{ \App\Filament\Resources\LocationMasters\LocationMasterResource::getUrl('index', panel: 'admin') }}">Manage HQ locations →</a>
+                    @include('filament.pages.partials.onboarding-territory-import')
+                    <a class="setup-option" href="{{ \App\Filament\Resources\Territories\TerritoryResource::getUrl('create', panel: 'admin') }}">Add a territory manually →</a>
+                    <a class="setup-review-link" href="{{ \App\Filament\Resources\Territories\TerritoryResource::getUrl('index', panel: 'admin') }}">Manage territories →</a>
+                    <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button wire:click="reviewTerritories" wire:loading.attr="disabled">Continue to employees</x-filament::button></div>
                 @elseif ($step === 3)
                     <h2>Who’s joining your workspace?</h2><p>Add employees one at a time, or bring your whole team in with an Excel file.</p>
                     @livewire(\App\Filament\Pages\DataImport::class, ['embedded' => true], key('onboarding-employee-import'))
@@ -102,7 +119,6 @@
                     <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Assign customers' : 'Assign HQs and customers' }} →</a>
                     @if ($directDcr)<p class="setup-hint">HQ, territories and patches are optional for Direct DCR. Assign customers to each MR before launch so they can report visits.</p>@endif
                     @if ($workflow === 'formal_mtp')
-                        @include('filament.pages.partials.onboarding-territory-import')
                         <p class="setup-hint">{{ $checklist['unassigned_territory_count'] }} employees have no territory through their positions. <a href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and territory assignments →</a></p>
                     @endif
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip" wire:loading.attr="disabled">Save and continue later</button><x-filament::button wire:click="next" wire:loading.attr="disabled" size="lg">Next</x-filament::button></div></div>
@@ -126,6 +142,7 @@
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
                 @elseif ($step === 5)
                     <h2>Does your team need approvals?</h2>
+                    @if ($this->requiresMonthlyPlans())<p class="setup-note">Monthly tour plan approvals are required for this working method. Enable Sales Tour Plan approvals and configure an approver for each MR. DCR and other reporting approvals remain separate choices.</p>@endif
                     <p>We will create the settings and flows in your existing admin pages. L1 and L2 are human approval steps.</p>
                     <form wire:submit="reviewApprovals" class="setup-form">
                         @if ($this->approvalSetup()->hasExistingConfiguration() || $this->approvalAlreadyApplied())
@@ -211,7 +228,7 @@
                     <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Launch selected team</x-filament::button></div>
                 @endif
-                @if ($step >= 5)
+                @if (in_array($step, [5, 6], true))
                     <p class="setup-hint"><a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalSettings\ApprovalSettingResource::getUrl('index', panel: 'admin') }}">Approval Settings</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalFlows\ApprovalFlowResource::getUrl('index', panel: 'admin') }}">Approval Flows</a> · <a class="setup-review-link" href="{{ \App\Filament\Resources\ApprovalDelegations\ApprovalDelegationResource::getUrl('index', panel: 'admin') }}">Approval Delegations</a></p>
                 @endif
                 @if ($checklist['company'] && ($detailsUrl = $this->organizationDetailsUrl()))

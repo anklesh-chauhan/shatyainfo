@@ -29,7 +29,7 @@ class FieldPlanningService
             'mode' => $active?->mode->value ?? FieldPlanningMode::Legacy->value,
             'supports_direct_calls' => in_array($active?->mode, [FieldPlanningMode::DirectDcr, FieldPlanningMode::Flexible], true),
             'supports_flexible_plans' => $active?->mode === FieldPlanningMode::Flexible && ($active->rules['enable_flexible_plans'] ?? false),
-            'supports_mtp' => true,
+            'supports_mtp' => in_array($active?->mode, [null, FieldPlanningMode::Legacy, FieldPlanningMode::FormalMtp], true),
             'allows_unplanned_calls' => ($active?->rules['unplanned_calls'] ?? 'allow') !== 'block',
             'requires_unplanned_reason' => ($active?->rules['unplanned_calls'] ?? 'allow') === 'allow_with_reason',
         ];

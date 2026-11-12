@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\DataImport;
 use App\Filament\Pages\FieldTravelImport;
 use App\Filament\Pages\Onboarding;
 use App\Filament\Pages\OnboardingImports;
@@ -36,6 +37,21 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
+it('previews employee uploads through the shared onboarding control', function () {
+    Gate::before(fn () => true);
+    $page = Livewire::test(DataImport::class, ['embedded' => true])
+        ->assertSee('How to prepare your employee file')
+        ->assertSee('Upload your completed file')
+        ->assertSee('wire:model="data.file.0"', false)
+        ->call('previewEmployees')->assertHasErrors(['data.file']);
+    $page->set('data.file.0', UploadedFile::fake()->createWithContent('employees.csv', "employee_id,first_name,last_name,mobile_number\nEMP-UPLOAD,Asha,Shah,9000000001\n"))
+        ->call('previewEmployees')->assertHasNoErrors()
+        ->assertSee('Review before importing');
+    expect(Employee::query()->where('employee_id', 'EMP-UPLOAD')->exists())->toBeFalse();
+    $page->set('data.file.0', UploadedFile::fake()->createWithContent('replacement.csv', "employee_id,first_name\nEMP-NEW,Ravi\n"))
+        ->assertSet('employeePreview', null);
+});
+
 beforeEach(function () {
     $this->actingAs(User::factory()->create());
     config(['multitenancy.switch_tenant_tasks' => []]);
@@ -61,7 +77,7 @@ function optionalImportRows(array ...$data): array
 function allowHqImports(): void
 {
     foreach (['Create:LocationMaster', 'Update:LocationMaster'] as $permission) {
-        auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'tenant'));
     }
 }
 

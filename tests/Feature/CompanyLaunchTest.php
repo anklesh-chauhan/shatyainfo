@@ -5,6 +5,7 @@ use App\Filament\Pages\FlexiblePlanning;
 use App\Filament\Pages\Onboarding;
 use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
 use App\Filament\Widgets\FieldWorkspace;
+use App\Models\ApprovalSetting;
 use App\Models\FieldPlanningActivation;
 use App\Models\FieldUserHq;
 use App\Models\JobRole;
@@ -388,3 +389,144 @@ it('ignores malformed representative query parameters without changing assignmen
         ->assertSuccessful()->assertFormSet(['user_id' => null, 'account_ids' => []]);
     expect(FieldUserHq::query()->where('user_id', $this->rep->id)->count())->toBe(1);
 });
+
+it('puts territories and HQs before employees only for required monthly plans', function (string $mode) {
+    config(['multitenancy.switch_tenant_tasks' => []]);
+    $tenant = new Tenant;
+    $tenant->forceFill(['id' => 99998, 'name' => 'Structured Setup', 'master_setup_status' => 'ready']);
+    app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
+    $tenant->makeCurrent();
+    auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    try {
+        $page = Livewire::test(Onboarding::class)->set('workflow', $mode)->call('saveWorkflow')->assertHasNoErrors();
+        if ($mode !== 'formal_mtp') {
+            $page->assertSet('step', 3)->assertDontSee('Map your territories and HQs.');
+
+            return;
+        }
+        $page->assertSet('step', 7)->assertSee('Map your territories and HQs.')
+            ->assertSee('STEP 3 OF 7')->assertDontSee('Who’s joining your workspace?')
+            ->call('reviewTerritories')->assertHasErrors('territories')->assertSet('step', 7)
+            ->call('skipTerritories')->assertHasErrors('territories')->assertSet('step', 7);
+        Livewire::test(Onboarding::class)->assertSet('step', 7);
+        $territory = reportingTerritory('Setup territory');
+        $hq = FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location;
+        $hq->update(['is_active' => false]);
+        $page->call('reviewTerritories')->assertHasErrors('territories')->assertSet('step', 7);
+        $hq->update(['is_active' => true]);
+        $page->call('reviewTerritories')->assertHasErrors('territories')->assertSet('step', 7);
+        $hq->territories()->attach($territory->id);
+        $page->call('reviewTerritories')->assertHasNoErrors()->assertSet('step', 3)
+            ->assertSee('STEP 4 OF 7')->call('back')->assertSet('step', 7)
+            ->call('back')->assertSet('step', 2)
+            ->set('workflow', 'direct_dcr')->call('saveWorkflow')->assertHasNoErrors()->assertSet('step', 3)
+            ->assertSee('STEP 3 OF 6');
+    } finally {
+        Tenant::forgetCurrent();
+    }
+})->with(['formal_mtp', 'direct_dcr', 'flexible']);
+
+it('rejects disabling monthly plan approvals in required-plan onboarding', function () {
+    $this->launch->saveWorkflow('formal_mtp', 0);
+    expect(fn () => app(OnboardingApprovalService::class)->saveDraft(['required' => 'no']))
+        ->toThrow(ValidationException::class);
+    $revision = $this->launch->proposal($this->organization->fresh());
+    expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))
+        ->toThrow(ValidationException::class);
+    expect(FieldPlanningActivation::query()->count())->toBe(0);
+});
+
+it('blocks switching a launched direct team to monthly plans without enabling plan approvals', function () {
+    $this->launch->saveWorkflow('direct_dcr', 0);
+    $this->launch->launch([$this->rep->employee->id], $this->launch->proposal($this->organization->fresh())->id);
+    $this->launch->saveWorkflow('formal_mtp', 1);
+    expect($this->launch->readiness([$this->rep->employee->id])['blockers'])
+        ->toContain('Enable Sales Tour Plan approvals and configure monthly-plan approvers before launch.');
+    expect(fn () => $this->launch->launch([$this->rep->employee->id], $this->launch->proposal($this->organization->fresh())->id))
+        ->toThrow(ValidationException::class);
+    expect(app(FieldPlanningService::class)->active()->mode->value)->toBe('direct_dcr');
+});
+
+it('launches a structured monthly-plan team only with an independent plan approver', function () {
+    $this->launch->saveWorkflow('formal_mtp', 0);
+    $territory = reportingTerritory('Monthly territory');
+    FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location->territories()->attach($territory->id);
+    reportingPatch($territory, 'Monthly patch');
+    $role = JobRole::query()->create(['name' => 'Monthly manager', 'code' => 'MONTHLY-MGR', 'level' => 2]);
+    $position = Position::query()->create(['name' => 'Monthly manager', 'code' => 'MONTHLY-MGR', 'job_role_id' => $role->id]);
+    $position->territories()->attach($territory->id);
+    $this->rep->employee->positions()->attach($position->id);
+    $input = app(OnboardingApprovalService::class)->defaults();
+    $input['required'] = 'yes';
+    $input['modules'] = ['SalesTourPlan'];
+    $input['common']['l1_role_id'] = $role->id;
+    $input['common']['l1_user_id'] = $this->rep->id;
+    app(OnboardingApprovalService::class)->saveDraft($input);
+    $revision = $this->launch->proposal($this->organization->fresh());
+    expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))->toThrow(ValidationException::class);
+    expect(FieldPlanningActivation::query()->count())->toBe(0);
+
+    $manager = reportingUser('Independent monthly manager');
+    $manager->employee->positions()->attach($position->id);
+    $input['common']['l1_user_id'] = $manager->id;
+    app(OnboardingApprovalService::class)->saveDraft($input);
+    $hq = FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location;
+    $hq->territories()->detach();
+    expect($this->launch->readiness([$this->rep->employee->id])['members'][0]['issue_details'])->toHaveKey('hq');
+    expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))->toThrow(ValidationException::class);
+    expect(FieldPlanningActivation::query()->count())->toBe(0);
+    $hq->territories()->attach($territory->id);
+    $this->launch->launch([$this->rep->employee->id], $revision->id);
+    expect(app(FieldPlanningService::class)->capabilities())
+        ->toMatchArray(['mode' => 'formal_mtp', 'supports_direct_calls' => false, 'supports_flexible_plans' => false, 'allows_unplanned_calls' => false]);
+    expect($this->launch->forUser($this->rep)['launched'])->toBeTrue();
+    expect(ApprovalSetting::moduleRequiresApproval('SalesTourPlan'))->toBeTrue()
+        ->and(ApprovalSetting::moduleRequiresApproval('SalesDcr'))->toBeFalse();
+});
+
+it('requires a matching HQ territory when assigning a monthly-plan representative', function (string $case) {
+    $this->launch->saveWorkflow('formal_mtp', 0);
+    $territory = reportingTerritory('Assigned territory');
+    $other = reportingTerritory('Other territory');
+    $role = JobRole::query()->create(['name' => 'HQ MR', 'code' => 'HQ-MR', 'level' => 1]);
+    $position = Position::query()->create(['name' => 'HQ MR', 'code' => 'HQ-MR', 'job_role_id' => $role->id]);
+    $position->territories()->attach($territory->id);
+    if ($case !== 'no_position') {
+        $this->rep->employee->positions()->attach($position->id);
+    }
+    $hq = reportingLocation('Candidate HQ');
+    if ($case !== 'unlinked') {
+        $hq->territories()->attach($case === 'wrong_territory' ? $other->id : $territory->id);
+    }
+    if ($case === 'inactive') {
+        $hq->update(['is_active' => false]);
+    }
+    if ($case === 'multiple_territories') {
+        $hq->territories()->attach($other->id);
+        $position->territories()->attach($other->id);
+    }
+    $service = app(FieldTeamOnboardingService::class);
+    $valid = in_array($case, ['matching', 'multiple_territories'], true);
+    expect($service->availableHqs($this->rep->id)->whereKey($hq->id)->exists())->toBe($valid);
+    $original = FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id;
+    $input = ['user_id' => $this->rep->id, 'location_master_id' => $hq->id, 'account_ids' => [], 'calls_per_month' => 2];
+    if ($valid) {
+        $service->save($this->admin, $input);
+        expect(FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id)->toBe($hq->id);
+        expect($this->launch->readiness([$this->rep->employee->id])['members'][0]['issue_details'])->not->toHaveKey('hq');
+    } else {
+        expect(fn () => $service->save($this->admin, $input))->toThrow(ValidationException::class);
+        expect(FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id)->toBe($original);
+    }
+})->with(['matching', 'multiple_territories', 'wrong_territory', 'unlinked', 'no_position', 'inactive']);
+
+it('keeps HQ territory links optional for direct and flexible assignments', function (string $mode) {
+    $this->launch->saveWorkflow($mode, 0);
+    $hq = reportingLocation('Unlinked HQ');
+    app(FieldTeamOnboardingService::class)->save($this->admin, [
+        'user_id' => $this->rep->id, 'location_master_id' => $hq->id, 'account_ids' => [], 'calls_per_month' => 2,
+    ]);
+    expect(FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id)->toBe($hq->id);
+    expect($this->launch->readiness([$this->rep->employee->id])['members'][0]['issue_details'])->not->toHaveKey('hq');
+})->with(['direct_dcr', 'flexible']);

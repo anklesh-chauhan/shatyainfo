@@ -77,9 +77,10 @@ enum SalespersonAiFeature: string
     /**
      * @return list<array{key: string, order: int, label: string, summary: string, where_to_use: string, status: string}>
      */
-    public static function roadmap(): array
+    public static function roadmap(bool $supportsMtp = true): array
     {
         return collect(self::cases())
+            ->filter(fn (self $feature): bool => $supportsMtp || ! in_array($feature, [self::TourPlanDraft, self::DayRoute], true))
             ->sortBy(fn (self $feature): int => $feature->order())
             ->map(fn (self $feature): array => [
                 'key' => $feature->value,

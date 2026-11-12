@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\FieldPlanningMode;
 use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Resources\ApprovalFlows\ApprovalFlowResource;
 use App\Filament\Resources\Employees\EmployeeResource;
@@ -11,6 +12,7 @@ use App\Filament\Resources\Users\UserResource;
 use App\Jobs\ProcessAccountImport;
 use App\Jobs\SeedTenantMasters;
 use App\Models\Employee;
+use App\Models\LocationMaster;
 use App\Models\Organization;
 use App\Models\Tenant;
 use App\Models\User;
@@ -274,11 +276,16 @@ class Onboarding extends Page
         $count = app(TerritoryOnboardingService::class)->import($this->territoryPreview);
         $this->territoryPreview = [];
         $this->reset('territoryFile');
-        Notification::make()->title($count.' territories created. Existing territories preserved.')->success()->send();
+        Notification::make()->title($count.' territories created. Supplied HQ links saved; existing links preserved.')->success()->send();
     }
 
     public function skipTerritories(): void
     {
+        if ($this->requiresMonthlyPlans()) {
+            $this->reviewTerritories();
+
+            return;
+        }
         app(CompanyOnboardingService::class)->mark('territories_reviewed');
         $this->resetErrorBag();
         $this->step = 3;
@@ -324,6 +331,37 @@ class Onboarding extends Page
 
     public string $workflow = '';
 
+    public function requiresMonthlyPlans(): bool
+    {
+        return app(CompanyLaunchService::class)->proposal(app(CompanyOnboardingService::class)->organization())?->mode === FieldPlanningMode::FormalMtp;
+    }
+
+    /** @return array<int, string> */
+    public function setupSteps(): array
+    {
+        return [
+            1 => 'Company information',
+            2 => 'Working method',
+        ] + ($this->requiresMonthlyPlans() ? [7 => 'Territories and HQs'] : [])
+            + [3 => $this->workflow === 'direct_dcr' ? 'Team' : 'Team and HQs', 4 => 'Customers', 5 => 'Reporting rules', 6 => 'Review and launch'];
+    }
+
+    public function reviewTerritories(): void
+    {
+        $service = app(CompanyOnboardingService::class);
+        $service->authorize();
+        abort_unless(Tenant::current()->accountIsConfigured(), 409);
+        $this->resetErrorBag();
+        if ($this->requiresMonthlyPlans() && (! $service->checklist()['territory_count'] || ! LocationMaster::query()->where('is_active', true)->has('territories')->exists())) {
+            $this->addError('territories', 'Create territories and link at least one active HQ to a territory before adding your monthly-plan team.');
+
+            return;
+        }
+        $service->mark('territories_reviewed');
+        $this->step = 3;
+        $this->saveDraft();
+    }
+
     public array $launchMembers = [];
 
     #[Locked]
@@ -338,7 +376,7 @@ class Onboarding extends Page
         $revision = app(FieldPlanningSettingsService::class)->latest(auth()->user());
         $this->workflowVersion = $revision->version;
         $this->workflowRevisionId = $revision->id;
-        $this->step = 3;
+        $this->step = $this->requiresMonthlyPlans() ? 7 : 3;
         $this->saveDraft();
         Notification::make()->title('Working method saved for launch')->success()->send();
     }
@@ -364,7 +402,7 @@ class Onboarding extends Page
             'employee', 'login', 'territory' => EmployeeResource::class,
             'permissions', 'visibility' => UserResource::class,
             'patch' => PatchResource::class,
-            'approvals' => ApprovalFlowResource::class,
+            'approvals', 'plan_approvals' => ApprovalFlowResource::class,
             default => null,
         };
         if (! $resource || ! $resource::canViewAny()) {
@@ -563,7 +601,7 @@ class Onboarding extends Page
             $this->organization = array_replace($this->organization, array_intersect_key($draft['organization'], $this->organization));
             $this->workflow = $draft['workflow'] ?? '';
             $this->approval = $draft['approval'];
-            $this->step = min(5, $draft['step']);
+            $this->step = $draft['step'] === 7 && $this->requiresMonthlyPlans() ? 7 : min(5, $draft['step']);
             if ($this->step > 2 && $this->workflow !== $revision?->mode->value) {
                 $this->step = 2;
             }
@@ -575,6 +613,12 @@ class Onboarding extends Page
                 $this->addError('workflow', 'The working method changed since your draft. Review and save your choice again.');
             }
             $this->draftSaved = true;
+        }
+        if ($this->step > 2 && $this->requiresMonthlyPlans()
+            && (! ($organization?->metadata['company_setup']['territories_reviewed'] ?? false)
+                || ! $this->checklist()['territory_count']
+                || ! LocationMaster::query()->where('is_active', true)->has('territories')->exists())) {
+            $this->step = 7;
         }
     }
 
@@ -596,6 +640,8 @@ class Onboarding extends Page
             $this->step = 1;
         } elseif ($this->step === 2) {
             $this->saveWorkflow();
+        } elseif ($this->step === 7) {
+            $this->reviewTerritories();
         } elseif ($this->step === 3) {
             $checklist = $service->checklist();
             if (! $checklist['company'] || ! $checklist['employees']) {
@@ -613,7 +659,11 @@ class Onboarding extends Page
     {
         app(CompanyOnboardingService::class)->authorize();
         $this->resetErrorBag();
-        $this->step = max(0, $this->step - 1);
+        $this->step = match (true) {
+            $this->step === 7 => 2,
+            $this->step === 3 && $this->requiresMonthlyPlans() => 7,
+            default => max(0, $this->step - 1),
+        };
         $this->saveDraft();
     }
 

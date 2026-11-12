@@ -57,6 +57,9 @@
         </section>
     @endif
 
+    @if ($embedded)
+        @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewEmployees', 'fileProperty' => 'data.file.0', 'errorProperty' => 'data.file', 'inputId' => 'employee-file', 'accept' => '.xlsx,.csv', 'fileHelp' => 'Excel or CSV · Maximum 20 MB.'])
+    @else
     <form wire:submit="previewEmployees" class="space-y-6">
         {{ $this->form }}
 
@@ -71,6 +74,7 @@
             </x-filament::button>
         </div>
     </form>
+    @endif
 
     @if ($employeePreview !== null)
         <section x-show="$wire.employeePreview !== null && Object.keys($wire.data.file ?? {}).length > 0" class="mt-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">

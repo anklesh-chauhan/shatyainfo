@@ -4,6 +4,7 @@ namespace App\Services\SalespersonAi;
 
 use App\Models\SalesTourPlanDetail;
 use App\Models\User;
+use App\Services\Field\FieldPlanningService;
 use Illuminate\Support\Carbon;
 
 class DayRouteOrderService
@@ -13,6 +14,10 @@ class DayRouteOrderService
      */
     public function forUser(User $user, Carbon $date): array
     {
+        if (! app(FieldPlanningService::class)->capabilities()['supports_mtp']) {
+            return ['date' => $date->toDateString(), 'method' => 'none', 'stops' => [], 'summary' => 'No route suggestions for this reporting method.'];
+        }
+
         $details = SalesTourPlanDetail::query()
             ->whereDate('date', $date)
             ->whereHas('tourPlan', fn ($query) => $query->where('user_id', $user->id))

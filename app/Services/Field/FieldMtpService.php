@@ -30,6 +30,8 @@ class FieldMtpService
 
     public function query(User $user, bool $inbox = false): Builder
     {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+
         $query = SalesTourPlan::query()->with($this->relations());
         if (! $inbox) {
             return $query->where('user_id', $user->id);
@@ -53,6 +55,8 @@ class FieldMtpService
 
     public function find(User $user, int $id, bool $lock = false): SalesTourPlan
     {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+
         $query = SalesTourPlan::query()->with($this->relations());
         if ($lock) {
             $query->lockForUpdate();
@@ -101,6 +105,8 @@ class FieldMtpService
 
     public function options(User $user): array
     {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+
         $territories = Territory::query()->orderBy('name');
         if (! $user->hasAnyRole(['super_admin', 'administration_admin']) && ! $user->can('AccessAllRecords')) {
             $territories->whereIn('id', PositionService::getTerritoryIdsForUser($user));
@@ -121,6 +127,8 @@ class FieldMtpService
 
     public function save(User $user, array $data, ?int $id = null): SalesTourPlan
     {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+
         return $user->getConnection()->transaction(function () use ($user, $data, $id): SalesTourPlan {
             $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             if ($id) {

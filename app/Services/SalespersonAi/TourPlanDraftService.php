@@ -6,6 +6,7 @@ use App\Models\AccountMaster;
 use App\Models\SalesTourPlan;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\Field\FieldPlanningService;
 use Illuminate\Support\Carbon;
 
 class TourPlanDraftService
@@ -15,6 +16,8 @@ class TourPlanDraftService
      */
     public function forUser(User $user, string $month): array
     {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+
         $target = Carbon::createFromFormat('Y-m', $month)?->startOfMonth();
 
         if (! $target) {

@@ -1,16 +1,14 @@
 <section class="setup-import-card" aria-label="Account master import">
     @php($directAccountImport = app(\App\Services\DataImport\AccountImportTemplate::class)->usesDirectDcr())
-    <div class="setup-card-heading"><span class="setup-card-number">2</span><div><h3>Import account masters</h3><p>{{ $directAccountImport ? 'Import customers and assign each to an MR using owner_email. Territory and patch setup is not needed for Direct DCR.' : 'After patches and standard fares, import accounts. Then return to field routes to assign customers using account codes or external references.' }} Supply your own account_code or leave it blank for automatic generation.</p></div></div>
-    <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span><span>Excel or CSV · Up to 500 rows</span></div>
+    <div class="setup-card-heading"><span class="setup-card-number">↑</span><div><h3>Import account masters</h3><p>Import customers and assign them to MRs.</p></div></div>
+    <div class="setup-card-stats"><span>{{ $checklist['account_count'] }} accounts saved</span></div>
     <x-filament::button color="gray" wire:click="downloadAccountTemplate" wire:loading.attr="disabled">Download Excel template</x-filament::button>
-    <p class="setup-card-help">Includes account details, addresses, contacts, reporting, bank, credit, GST and statutory fields. Only four columns are required to start.</p>
     <details class="setup-optional">
-        <summary>Instructions and examples</summary>
-        <p>Fill the Accounts sheet only. Instructions explain every field group; References lists your company’s master values. Required: external_reference, name, account_type and owner_email.</p>
-        <p>External reference is a stable source ID such as ERP:000123. Matching references update existing accounts. New references create accounts with generated application codes. Names are never used to match accounts.</p>
-        <p>Blank optional cells preserve existing values. {{ $directAccountImport ? 'The Direct DCR template omits territory and patch columns.' : 'Patch codes add assignments.' }} New accounts default to Prospect; Active status requires complete activation fields. Parent, institution and supplier references can appear in any row order.</p>
-        <p>Addresses match by city and PIN only. The oldest matching area is reused regardless of spelling. If no area matches, the supplied area is created during import. The city must already exist.</p>
-        <p>Preview does not save records. Correct every error before importing; the whole file saves together. To link manually entered accounts, set their External Reference in Accounts first.</p>
+        <summary>How to prepare your customer file</summary>
+        <p>Fill the Accounts sheet. Required columns: external_reference, name, account_type and owner_email.</p>
+        <p>Keep external_reference unchanged when updating a customer. Blank optional cells keep existing values. Leave account_code blank to generate it.</p>
+        <p>{{ $directAccountImport ? 'Direct DCR does not require territories or patches.' : 'Create patches before using patch codes. Use existing city names for addresses.' }}</p>
+        <p>Use the References sheet for company values. Preview the file, fix any errors, then select Confirm import.</p>
     </details>
     @if (in_array($accountImportStatus['status'] ?? null, ['queued', 'running'], true))
         <div class="setup-note" wire:poll.3s="refreshAccountImport" role="status" aria-live="polite">
@@ -24,7 +22,7 @@
         @if (($accountImportStatus['status'] ?? null) === 'failed')
             <p class="setup-error" role="alert">Account import failed. {{ $accountImportStatus['message'] }}</p>
         @endif
-        @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewAccounts', 'fileProperty' => 'accountFile', 'inputId' => 'account-file', 'accept' => '.xlsx,.csv', 'fileHelp' => '.xlsx or .csv · Maximum 2 MB.'])
+        @include('filament.pages.partials.onboarding-import-upload', ['previewAction' => 'previewAccounts', 'fileProperty' => 'accountFile', 'inputId' => 'account-file', 'accept' => '.xlsx,.csv', 'fileHelp' => 'Excel or CSV · Up to 500 rows · Maximum 2 MB.'])
     @endif
     @if ($accountImportResult !== [])
         <p class="setup-success" role="status">{{ $accountImportResult['created'] }} accounts created; {{ $accountImportResult['updated'] }} existing accounts updated.</p>
@@ -61,7 +59,7 @@
         @endif
         <x-filament::button type="button" wire:click="importAccounts" wire:target="importAccounts,accountFile,previewAccounts" wire:loading.attr="disabled" :disabled="$accountPreview['errors'] !== []">
             <span wire:loading.remove wire:target="importAccounts">Confirm import</span>
-            <span wire:loading wire:target="importAccounts">Working… Importing accounts</span>
+            <span wire:loading wire:target="importAccounts">Importing accounts…</span>
         </x-filament::button>
         @if ($accountPreview['errors'] !== [])<p class="setup-card-help">Confirm import becomes available after all row errors are corrected and the file is previewed again.</p>@endif
         </div>

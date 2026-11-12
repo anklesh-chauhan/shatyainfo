@@ -8,7 +8,7 @@ use Filament\Support\Icons\Heroicon;
 
 class UserAndAccessCluster extends Cluster
 {
-    protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
+    // protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
 

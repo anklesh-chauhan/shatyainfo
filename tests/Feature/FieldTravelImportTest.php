@@ -235,7 +235,7 @@ it('validates visit and DCR relationships', function () {
 
 it('renders the import page and limits all travel relationship dropdowns', function () {
     useFieldTravelImportTenant();
-    Livewire::test(ImportPage::class, ['embedded' => true])->assertSee('Download Excel template')->assertSee('Instructions and examples');
+    Livewire::test(ImportPage::class, ['embedded' => true])->assertSee('Download Excel template')->assertSee('How to prepare your field route file');
     $component = Livewire::test(CreateTravelSegment::class)->assertSuccessful();
     foreach (['sales_dcr_id', 'visit_id', 'sales_tour_plan_detail_id', 'patch_id', 'from_account_id', 'to_account_id', 'from_area_town_id', 'to_area_town_id', 'transport_mode_id'] as $field) {
         $component->assertFormFieldExists($field, fn ($select) => $select->isSearchable() && ! $select->isPreloaded() && $select->getOptionsLimit() === 50);

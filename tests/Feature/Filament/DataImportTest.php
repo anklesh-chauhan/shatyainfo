@@ -186,7 +186,7 @@ it('offers historical travel in the shared embedded importer and resets mode sta
         livewire(FieldTravelImport::class, ['embedded' => true])
             ->assertSee('Historical travel segments (optional)')
             ->set('historical', true)
-            ->assertSee('editable daily call reports')
+            ->assertSee('editable DCRs')
             ->call('downloadTemplate')->assertFileDownloaded('historical-travel.xlsx')
             ->set('historical', false)
             ->assertSet('file', null)->assertSet('preview', [])->assertSet('status', '')
@@ -229,8 +229,8 @@ function withDataImportTenant(Closure $callback): void
     $tenant->makeCurrent();
     try {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
-        foreach (['Create:Patch', 'Create:StandardFareChart', 'Create:TravelSegment'] as $permission) {
-            auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+        foreach (['Create:Patch', 'Create:StandardFareChart', 'Create:TravelSegment', 'Create:Employee'] as $permission) {
+            auth()->user()->givePermissionTo(Permission::findOrCreate($permission, 'tenant'));
         }
         Organization::create(['name' => 'Import Company', 'metadata' => ['company_setup' => ['organization_saved' => true]]]);
         $callback();
@@ -251,3 +251,38 @@ function dataImportCsv(string $contents): string
 
     return $path;
 }
+
+it('confirms the previewed employee file without clearing its preview', function (bool $embedded) {
+    withDataImportTenant(function () use ($embedded): void {
+        Storage::fake('local');
+        $upload = UploadedFile::fake()->createWithContent('employees.csv',
+            "employee_id,first_name,last_name,mobile_number,position,position_code,job_role,is_primary_position\nCONFIRM1,Asha,Shah,9000000123,Field Rep,CONFIRM-POS,Sales Representative,Yes\n");
+        $page = livewire(DataImport::class, ['embedded' => $embedded]);
+        if ($embedded) {
+            $page->set('data.file.0', $upload);
+        } else {
+            $page->fillForm(['file' => $upload]);
+        }
+        $page->call('previewEmployees')->assertHasNoErrors()->assertSee('Confirm import');
+        expect(Employee::query()->where('employee_id', 'CONFIRM1')->exists())->toBeFalse();
+        $page->call('$refresh')->call('import')->assertHasNoErrors();
+        expect($page->get('result.failed'))->toBe([], json_encode($page->get('result.failed')));
+        $page->assertSet('result.created', 1)
+            ->assertSet('employeePreview', null);
+        expect(Employee::query()->where('employee_id', 'CONFIRM1')->exists())->toBeTrue();
+    });
+})->with(['onboarding' => true, 'data import' => false]);
+
+it('requires a new preview after replacing the employee upload', function () {
+    withDataImportTenant(function (): void {
+        Storage::fake('local');
+        $page = livewire(DataImport::class, ['embedded' => true])
+            ->set('data.file.0', UploadedFile::fake()->createWithContent('first.csv',
+                "employee_id,first_name,last_name,mobile_number\nFIRST1,Asha,Shah,9000000123\n"))
+            ->call('previewEmployees')->assertHasNoErrors()
+            ->set('data.file.0', UploadedFile::fake()->createWithContent('second.csv',
+                "employee_id,first_name,last_name,mobile_number\nSECOND1,Ravi,Shah,9000000124\n"))
+            ->call('import')->assertHasErrors(['data.file']);
+        expect(Employee::query()->whereIn('employee_id', ['FIRST1', 'SECOND1'])->exists())->toBeFalse();
+    });
+});

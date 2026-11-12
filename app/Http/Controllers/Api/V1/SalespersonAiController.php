@@ -12,6 +12,7 @@ use App\Models\Deal;
 use App\Models\FollowUp;
 use App\Models\Lead;
 use App\Models\User;
+use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldVisitService;
 use App\Services\SalespersonAi\DayRouteOrderService;
 use App\Services\SalespersonAi\FollowUpScriptService;
@@ -31,7 +32,7 @@ class SalespersonAiController extends Controller
     public function roadmap(): JsonResponse
     {
         return response()->json([
-            'data' => SalespersonAiFeature::roadmap(),
+            'data' => SalespersonAiFeature::roadmap(app(FieldPlanningService::class)->capabilities()['supports_mtp']),
         ]);
     }
 

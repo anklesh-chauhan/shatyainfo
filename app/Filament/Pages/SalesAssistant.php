@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\SalespersonAiFeature;
 use App\Models\User;
+use App\Services\Field\FieldPlanningService;
 use App\Services\SalespersonAi\DayRouteOrderService;
 use App\Services\SalespersonAi\TodayPriorityService;
 use App\Services\SalespersonAi\TourPlanDraftService;
@@ -52,7 +53,7 @@ class SalesAssistant extends Page
 
         $this->priorities = app(TodayPriorityService::class)->forUser($user, today());
         $this->route = app(DayRouteOrderService::class)->forUser($user, today());
-        $this->tourDraft = app(TourPlanDraftService::class)->forUser($user, now()->addMonth()->format('Y-m'));
-        $this->features = SalespersonAiFeature::roadmap();
+        $this->tourDraft = app(FieldPlanningService::class)->capabilities()['supports_mtp'] ? app(TourPlanDraftService::class)->forUser($user, now()->addMonth()->format('Y-m')) : [];
+        $this->features = SalespersonAiFeature::roadmap(app(FieldPlanningService::class)->capabilities()['supports_mtp']);
     }
 }

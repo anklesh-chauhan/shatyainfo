@@ -15,6 +15,7 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -55,18 +56,23 @@ class FieldTeamOnboarding extends Page implements HasForms
     public function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Field representative setup')->description(fn (): string => app(CompanyLaunchService::class)->requiresHq()
+            Section::make('Field representative setup')->description(fn (): string => app(CompanyLaunchService::class)->requiresTerritoryLinkedHq()
+                ? 'Assign an HQ linked to at least one territory of the representative’s positions, then assign customers.'
+                : (app(CompanyLaunchService::class)->requiresHq()
                 ? 'Assign an HQ and customers without territory, patch or position setup. Changes take effect now; previous customer ownership remains in history.'
-                : 'Assign customers for Direct DCR. HQ, territories and patches are optional. Changes take effect now; previous customer ownership remains in history.')
+                : 'Assign customers for Direct DCR. HQ, territories and patches are optional. Changes take effect now; previous customer ownership remains in history.'))
                 ->schema([
                     Select::make('user_id')->label('Representative')->options(fn () => User::query()->orderBy('name')->pluck('name', 'id'))->searchable()->required()->live()->afterStateUpdated(function ($state, Set $set): void {
                         $set('location_master_id', FieldUserHq::query()->where('user_id', $state)->value('location_master_id'));
                     }),
-                    Select::make('location_master_id')->label('HQ')->options(fn () => LocationMaster::query()->where('is_active', true)->orderBy('name')->pluck('name', 'id'))
+                    Select::make('location_master_id')->label('HQ')->options(fn (Get $get) => app(FieldTeamOnboardingService::class)->availableHqs($get('user_id') ? (int) $get('user_id') : null)->orderBy('name')->pluck('name', 'id'))
                         ->searchable()->required(fn (): bool => app(CompanyLaunchService::class)->requiresHq())
-                        ->helperText(fn (): ?string => app(CompanyLaunchService::class)->requiresHq() ? null : 'Optional for Direct DCR. Leave blank to keep any existing HQ assignment.')
-                        ->createOptionForm([TextInput::make('name')->required()->maxLength(255), TextInput::make('location_code')->required()->maxLength(50)->unique('location_masters', 'location_code')])
+                        ->helperText(fn (): ?string => app(CompanyLaunchService::class)->requiresTerritoryLinkedHq()
+                            ? 'Only active HQs linked to the MR’s position territories are listed. Add territory links in Location Masters before assigning an HQ.'
+                            : (app(CompanyLaunchService::class)->requiresHq() ? null : 'Optional for Direct DCR. Leave blank to keep any existing HQ assignment.'))
+                        ->createOptionForm(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq() ? [] : [TextInput::make('name')->required()->maxLength(255), TextInput::make('location_code')->required()->maxLength(50)->unique('location_masters', 'location_code')])
                         ->createOptionUsing(function (array $data): int {
+                            abort_if(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq(), 422, 'Create the HQ and its territory links in Location Masters first.');
                             abort_unless(static::canAccess() && auth()->user()->can('create', LocationMaster::class), 403);
 
                             return LocationMaster::query()->create([...$data, 'is_active' => true])->id;

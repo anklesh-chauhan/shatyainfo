@@ -136,7 +136,8 @@ it('renders a visible territory file picker during onboarding', function () {
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(Onboarding::class)
             ->assertSet('step', 2)
-            ->assertSee('Upload your completed territory file')
+            ->set('workflow', 'formal_mtp')->call('saveWorkflow')->assertSet('step', 7)
+            ->assertSee('Upload your completed file')
             ->assertSee('id="territory-file"', false)
             ->assertSee('wire:model="territoryFile"', false);
     } finally {
@@ -144,7 +145,7 @@ it('renders a visible territory file picker during onboarding', function () {
     }
 });
 
-it('shows territory upload before employees and resumes after skipping', function () {
+it('requires territory and HQ setup before employees and resumes after review', function () {
     config(['multitenancy.switch_tenant_tasks' => []]);
     app('db')->connection('tenant')->setPdo(app('db')->connection()->getPdo())->setReadPdo(app('db')->connection()->getPdo());
     $tenant = new Tenant;
@@ -153,10 +154,14 @@ it('shows territory upload before employees and resumes after skipping', functio
     try {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::test(Onboarding::class)
-            ->assertSet('step', 2)->assertSee('Set up your territories')
+        $page = Livewire::test(Onboarding::class)
+            ->assertSet('step', 2)->set('workflow', 'formal_mtp')->call('saveWorkflow')
+            ->assertSet('step', 7)->assertSee('Set up your territories')
             ->call('next')->assertHasErrors(['territories'])
-            ->call('skipTerritories')->assertSet('step', 3);
+            ->call('skipTerritories')->assertHasErrors(['territories'])->assertSet('step', 7);
+        $this->service->import(territoryRows());
+        reportingLocation('Setup HQ')->territories()->attach(Territory::where('code', 'WEST')->sole()->id);
+        $page->call('reviewTerritories')->assertHasNoErrors()->assertSet('step', 3);
         Livewire::test(Onboarding::class)->assertSet('step', 3)
             ->call('next')->assertSet('step', 4);
         Livewire::test(Onboarding::class)->assertSet('step', 4)
@@ -168,12 +173,12 @@ it('shows territory upload before employees and resumes after skipping', functio
         Livewire::withQueryParams(['section' => 'field-travel'])->test(Onboarding::class)
             ->assertSet('step', 4)->assertSee('Import account masters')->assertDontSee('Customers and addresses');
         foreach (['Patch', 'StandardFareChart'] as $model) {
-            auth()->user()->givePermissionTo(Permission::findOrCreate('Create:'.$model, 'web'));
+            auth()->user()->givePermissionTo(Permission::findOrCreate('Create:'.$model, 'tenant'));
         }
-        Livewire::withQueryParams(['onboarding' => 1])->test(FieldTravelImport::class)
-            ->assertSuccessful()->assertSet('fromOnboarding', true)
-            ->assertSee('Return to company setup')
-            ->assertDontSee('Import historical travel segments instead of patches and fares');
+        Livewire::test(FieldTravelImport::class, ['embedded' => true])
+            ->assertSuccessful()->assertSet('embedded', true)
+            ->assertSee('Patches, account assignments & standard fares', false)
+            ->assertSee('Preview file');
     } finally {
         Tenant::forgetCurrent();
     }
@@ -189,10 +194,13 @@ it('previews a CSV upload and imports only after confirmation', function () {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::test(Onboarding::class)
+            ->set('workflow', 'formal_mtp')->call('saveWorkflow')->assertSet('step', 7)
             ->set('territoryFile', UploadedFile::fake()->createWithContent('territories.csv', "code,name,parent_code,division_codes,cities_and_areas\nMUMBAI,Mumbai,WEST,DIV-WEST,Mumbai|Andheri|400058\nWEST,West,,DIV-WEST,Mumbai|Andheri|400058\n"))
             ->call('previewTerritories')->assertHasNoErrors()->assertSee('Review before importing');
         $this->assertDatabaseCount('territories', 0);
-        $page->call('importTerritories')->assertHasNoErrors()->call('next')->assertSet('step', 3);
+        $page->call('importTerritories')->assertHasNoErrors();
+        reportingLocation('Imported territory HQ')->territories()->attach(Territory::where('code', 'WEST')->sole()->id);
+        $page->call('next')->assertSet('step', 3);
         $this->assertDatabaseCount('territories', 2);
     } finally {
         Tenant::forgetCurrent();
@@ -233,6 +241,7 @@ it('provides a blank territory workbook with instructions and separate examples'
         }
         expect(array_keys($sheets))->toBe(['Territories', 'Instructions', 'Examples']);
         expect($sheets['Territories'][0])->toBe(TerritoryOnboardingService::COLUMNS);
+        expect($sheets['Territories'][0])->toContain('hq_codes');
         expect(count($sheets['Instructions']))->toBeGreaterThan(10);
         expect($sheets['Examples'][1][0])->toBe('MUMBAI');
         expect($this->service->readFile($path, true))->toBe([]);
@@ -242,6 +251,44 @@ it('provides a blank territory workbook with instructions and separate examples'
     }
 });
 
+it('previews and adds HQ links without removing existing links or duplicating retries', function () {
+    $first = reportingLocation('First import HQ');
+    $second = reportingLocation('Second import HQ');
+    $rows = territoryRows();
+    $rows[0]['hq_codes'] = strtolower($first->location_code);
+    $preview = $this->service->preview($rows);
+    expect($preview[0]['hq_ids'])->toBe([$first->id]);
+    $this->assertDatabaseCount('location_territory', 0);
+    $this->service->import($preview);
+    $territory = Territory::where('code', 'MUMBAI')->sole();
+    expect($territory->locations()->pluck('location_masters.id')->all())->toBe([$first->id]);
+    $rows[0]['hq_codes'] = $second->location_code;
+    expect($this->service->preview($rows)[0]['action'])->toBe('Add HQ links');
+    $this->service->import($rows);
+    $this->service->import($rows);
+    $rows[0]['hq_codes'] = '';
+    $this->service->import($rows);
+    expect($territory->locations()->count())->toBe(2);
+});
+
+it('rejects invalid HQ codes without partially importing territories', function (string $case) {
+    $hq = reportingLocation('Invalid import HQ');
+    $rows = territoryRows();
+    $rows[0]['hq_codes'] = $hq->location_code;
+    if ($case === 'inactive') {
+        $hq->update(['is_active' => false]);
+    } elseif ($case === 'deleted') {
+        $hq->delete();
+    } elseif ($case === 'empty_entry') {
+        $rows[0]['hq_codes'] .= ';';
+    } else {
+        $rows[1]['hq_codes'] = 'UNKNOWN-HQ';
+    }
+    expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+    $this->assertDatabaseCount('territories', 0);
+    $this->assertDatabaseCount('location_territory', 0);
+})->with(['inactive', 'deleted', 'empty_entry', 'unknown']);
+
 it('reads only the Territories worksheet even when instructions come first', function () {
     $path = sys_get_temp_dir().'/territory-upload-'.bin2hex(random_bytes(8)).'.xlsx';
     $writer = new Writer;
@@ -250,7 +297,7 @@ it('reads only the Territories worksheet even when instructions come first', fun
     $writer->addRow(Row::fromValues(['Do not import this sheet']));
     $writer->addNewSheetAndMakeItCurrent()->setName('Territories');
     $writer->addRow(Row::fromValues(TerritoryOnboardingService::COLUMNS));
-    $writer->addRow(Row::fromValues(['WEST', 'West', '', 'active', '', 'DIV-WEST', 'Mumbai|Andheri|400058', '']));
+    $writer->addRow(Row::fromValues(['WEST', 'West', '', 'active', '', 'DIV-WEST', 'Mumbai|Andheri|400058', '', '']));
     $writer->addNewSheetAndMakeItCurrent()->setName('Examples');
     $writer->addRow(Row::fromValues(['EXAMPLE', 'Example', '', 'active', '']));
     $writer->close();

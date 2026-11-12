@@ -13,6 +13,10 @@ class FieldTourService
      */
     public function forDate(User $user, ?string $date = null): Collection
     {
+        if (! app(FieldPlanningService::class)->capabilities()['supports_mtp']) {
+            return collect();
+        }
+
         $date ??= today()->toDateString();
 
         return SalesTourPlanDetail::query()

@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\FieldPlanningMode;
 use App\Events\ApprovalStatusChanged;
+use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalSetting;
@@ -10,6 +12,8 @@ use App\Models\SalesTourPlan;
 use App\Models\Visit;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
+use App\Services\Field\FieldPlanningService;
+use App\Services\Field\FieldPlanningSettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
@@ -202,4 +206,42 @@ it('finalizes a monthly plan without a workflow when approvals are disabled and 
         ->assertSuccessful()->assertJsonPath('data.approval_required', true)->json('data');
     $this->postJson('/api/v1/monthly-tour-plans/'.$next['id'].'/submit', ['revision' => $next['revision']])
         ->assertSuccessful()->assertJsonPath('data.approval_status', 'pending')->assertJsonCount(2, 'data.approval_steps');
+});
+
+it('creates a monthly plan only when the selected method supports it', function (FieldPlanningMode $mode) {
+    $fixture = fieldMtpFixture();
+    $user = $fixture['rep'];
+    $user->givePermissionTo(Permission::findOrCreate('Manage:FieldPlanningPreference', 'web'));
+    $settings = app(FieldPlanningSettingsService::class);
+    $revision = $settings->saveProposal($user, [
+        'mode' => $mode->value,
+        'rules' => app(FieldPlanningService::class)->preset($mode),
+        'reason' => 'Verify plan creation', 'proposed_effective_on' => null,
+    ], 0);
+    $settings->activate($user, $revision->id, 1);
+    $response = $this->postJson('/api/v1/monthly-tour-plans', $fixture['body']);
+    if ($mode === FieldPlanningMode::FormalMtp) {
+        $response->assertSuccessful();
+    } else {
+        $response->assertForbidden();
+        expect(SalesTourPlan::query()->count())->toBe(0);
+    }
+})->with([FieldPlanningMode::DirectDcr, FieldPlanningMode::Flexible, FieldPlanningMode::FormalMtp]);
+
+it('hides existing monthly plans after switching to direct reporting', function () {
+    $fixture = fieldMtpFixture();
+    $plan = $this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data');
+    $this->getJson('/api/v1/todays-tour')->assertSuccessful()->assertJsonCount(1, 'data');
+    $user = $fixture['rep'];
+    $user->givePermissionTo(Permission::findOrCreate('Manage:FieldPlanningPreference', 'web'));
+    $settings = app(FieldPlanningSettingsService::class);
+    $revision = $settings->saveProposal($user, [...$settings->initialProposal(), 'reason' => 'Switch to direct reporting'], 0);
+    $settings->activate($user, $revision->id, 1);
+    $this->getJson('/api/v1/todays-tour')->assertSuccessful()->assertJsonCount(0, 'data');
+    $this->getJson('/api/v1/monthly-tour-plans/'.$plan['id'])->assertForbidden();
+    $this->getJson('/api/v1/day-route')->assertSuccessful()->assertJsonPath('data.stops', []);
+    $this->getJson('/api/v1/todays-priorities')->assertSuccessful()->assertJsonPath('data.items', []);
+    expect(SalesTourPlanResource::canViewAny())->toBeFalse()
+        ->and(SalesTourPlanResource::canCreate())->toBeFalse()
+        ->and(SalesTourPlan::query()->whereKey($plan['id'])->exists())->toBeTrue();
 });
