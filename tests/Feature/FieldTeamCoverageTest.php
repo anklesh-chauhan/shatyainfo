@@ -122,13 +122,50 @@ it('reloads the selected representative HQ and allows HQ-only onboarding without
     expect(FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location_master_id)->toBe($newHq->id)
         ->and($this->doctor->fresh()->owner_id)->toBe($this->rep->id)
         ->and($this->doctor->callTargets()->sole()->calls_per_month)->toBe(2);
-    Livewire::test(FieldCoverage::class)->set('userId', $this->rep->id)->assertSee('New review HQ')->assertSee('Doctor One');
+    Livewire::test(FieldCoverage::class)->fillForm(['user_id' => $this->rep->id])->assertSee('New review HQ')->assertSee('Doctor One');
 });
 
 it('renders onboarding and coverage and saves the representative setup through Admin', function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Livewire::test(FieldTeamOnboarding::class)->assertSuccessful()->fillForm($this->setup)->call('save')->assertHasNoFormErrors()->assertNotified();
-    Livewire::test(FieldCoverage::class)->set('userId', $this->rep->id)->assertSuccessful()->assertSee('Doctor One')->assertSee('Ahmedabad HQ');
+    Livewire::test(FieldCoverage::class)->fillForm(['user_id' => $this->rep->id])->assertSuccessful()->assertSee('Doctor One')->assertSee('Ahmedabad HQ');
+});
+
+it('filters coverage customers by search status and hq', function () {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $this->onboarding->save($this->admin, $this->setup);
+    $otherDoctor = reportingDoctor($this->admin, 'Doctor Two');
+    $this->onboarding->save($this->admin, [...$this->setup, 'account_ids' => [$this->doctor->id, $otherDoctor->id]]);
+    completedCoverageVisit($this, $this->rep, $this->doctor, '2026-06-02');
+    completedCoverageVisit($this, $this->rep, $this->doctor, '2026-06-03');
+    $this->travelTo(now()->endOfMonth());
+
+    $page = Livewire::test(FieldCoverage::class)
+        ->fillForm(['user_id' => $this->rep->id])
+        ->assertCanSeeTableRecords([
+            (string) $this->doctor->id,
+            (string) $otherDoctor->id,
+        ])
+        ->assertSee('Assigned customers')
+        ->assertSeeHtml('FieldCoverageStatsWidget')
+        ->assertCountTableRecords(2)
+        ->set('tableRecordsPerPage', 10)
+        ->assertCanSeeTableRecords([
+            (string) $this->doctor->id,
+            (string) $otherDoctor->id,
+        ])
+        ->searchTable('Doctor One')
+        ->assertCanSeeTableRecords([(string) $this->doctor->id])
+        ->assertCanNotSeeTableRecords([(string) $otherDoctor->id])
+        ->searchTable(null)
+        ->filterTable('status', 'achieved')
+        ->assertCanSeeTableRecords([(string) $this->doctor->id])
+        ->assertCanNotSeeTableRecords([(string) $otherDoctor->id])
+        ->fillForm(['hq_filter' => $this->hq->id])
+        ->assertFormSet(['user_id' => $this->rep->id]);
+
+    expect($page->instance()->coverageReport()['covered_customers'])->toBe(1)
+        ->and($page->instance()->getWidgetData()['report']['frequency_percent'])->toBe(50.0);
 });
 
 it('makes assigned customers visible under ViewOwn without exposing other customers', function () {
