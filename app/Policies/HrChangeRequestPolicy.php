@@ -1,34 +1,90 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Policies;
 
+use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\HrChangeRequest;
-use App\Models\User;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class HrChangeRequestPolicy
 {
-    public function viewAny(User $user): bool
+    use HandlesAuthorization;
+    
+    public function viewAny(AuthUser $authUser): bool
     {
-        return $user->can('ViewAny:HrChangeRequest');
+        return $authUser->can('ViewAny:HrChangeRequest');
     }
 
-    public function view(User $user, HrChangeRequest $record): bool
+    public function view(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
     {
-        return $user->can('View:HrChangeRequest') && ($record->request_type !== 'salary' || $user->can('Update:EmpSalary'));
+        return $authUser->can('View:HrChangeRequest');
     }
 
-    public function create(User $user): bool
+    public function create(AuthUser $authUser): bool
     {
-        return $user->can('Create:HrChangeRequest');
+        return $authUser->can('Create:HrChangeRequest');
     }
 
-    public function update(User $user, HrChangeRequest $record): bool
+    public function update(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
     {
-        return false;
+        return $authUser->can('Update:HrChangeRequest');
     }
 
-    public function delete(User $user, HrChangeRequest $record): bool
+    public function delete(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
     {
-        return false;
+        return $authUser->can('Delete:HrChangeRequest');
     }
+
+    public function restore(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('Restore:HrChangeRequest');
+    }
+
+    public function forceDelete(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('ForceDelete:HrChangeRequest');
+    }
+
+    public function forceDeleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('ForceDeleteAny:HrChangeRequest');
+    }
+
+    public function restoreAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('RestoreAny:HrChangeRequest');
+    }
+
+    public function replicate(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('Replicate:HrChangeRequest');
+    }
+
+    public function reorder(AuthUser $authUser): bool
+    {
+        return $authUser->can('Reorder:HrChangeRequest');
+    }
+
+    public function viewOwnTerritory(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('ViewOwnTerritory:HrChangeRequest');
+    }
+
+    public function viewOwnOU(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('ViewOwnOU:HrChangeRequest');
+    }
+
+    public function viewOwn(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('ViewOwn:HrChangeRequest');
+    }
+
+    public function overrideApproval(AuthUser $authUser, HrChangeRequest $hrChangeRequest): bool
+    {
+        return $authUser->can('OverrideApproval:HrChangeRequest');
+    }
+
 }

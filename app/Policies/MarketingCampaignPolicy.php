@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\MarketingCampaign;
 use Illuminate\Auth\Access\HandlesAuthorization;
-use Illuminate\Foundation\Auth\User as AuthUser;
 
 class MarketingCampaignPolicy
 {
     use HandlesAuthorization;
-
+    
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:MarketingCampaign');
@@ -86,4 +86,5 @@ class MarketingCampaignPolicy
     {
         return $authUser->can('OverrideApproval:MarketingCampaign');
     }
+
 }
