@@ -37,7 +37,7 @@ class EmployeeHierarchyImport
                         }
                     }
                     $code = strtolower($row['employee_id'] ?? '');
-                    foreach (['first_name', 'last_name', 'mobile_number', 'email', 'temporary_password'] as $field) {
+                    foreach (['first_name', 'last_name', 'mobile_number', 'email', 'temporary_password', 'hq_code'] as $field) {
                         if (filled($row[$field] ?? null)) {
                             if (isset($seenValues[$code][$field]) && $seenValues[$code][$field] !== $row[$field]) {
                                 throw new ImportRowException('Conflicting '.$field.' for employee '.$row['employee_id'].'.');
@@ -222,6 +222,7 @@ class EmployeeHierarchyImport
                 foreach ($employees as $code => $employee) {
                     $line = array_key_first($employeeRows[$code]);
                     $importer->provisionLogin($employee->fresh(), $seenValues[$code] ?? []);
+                    $importer->assignHq($employee->fresh(), $seenValues[$code] ?? []);
                 }
 
                 return $result;

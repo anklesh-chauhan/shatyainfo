@@ -3,6 +3,7 @@
 namespace App\Services\DataImport;
 
 use App\Models\Employee;
+use App\Models\LocationMaster;
 use App\Models\Position;
 use App\Models\Tenant;
 use App\Models\User;
@@ -125,7 +126,7 @@ class ResourceCsvImporter
             if ($code === '') {
                 $errors[] = ['row' => $line, 'message' => 'Enter an employee code.'];
             }
-            foreach (['first_name', 'last_name', 'mobile_number', 'email'] as $field) {
+            foreach (['first_name', 'last_name', 'mobile_number', 'email', 'hq_code'] as $field) {
                 $value = $row[$field] ?? '';
                 if ($code === '' || blank($value)) {
                     continue;
@@ -134,6 +135,12 @@ class ResourceCsvImporter
                     $errors[] = ['row' => $line, 'message' => 'Conflicting '.$field.' for employee '.$row['employee_id'].'. Use the same details on every row for this employee.'];
                 }
                 $seen[$code][$field] ??= $value;
+            }
+            if (filled($row['hq_code'] ?? null)) {
+                $hqs = LocationMaster::query()->where('location_code', $row['hq_code'])->limit(2)->get();
+                if ($hqs->count() !== 1 || ! $hqs->first()->is_active) {
+                    $errors[] = ['row' => $line, 'message' => 'hq_code must identify exactly one active HQ. Import HQ Locations first.'];
+                }
             }
             foreach (['reports_to_position_code' => $positions, 'reports_to_employee_code' => $employeeCodes] as $field => $knownCodes) {
                 $reference = $row[$field] ?? '';

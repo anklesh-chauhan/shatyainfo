@@ -22,9 +22,11 @@ use App\Services\CompanyLaunchService;
 use App\Services\CompanyOnboardingService;
 use App\Services\DataImport\AccountImportTemplate;
 use App\Services\DataImport\ImportDownloadResponse;
+use App\Services\DataImport\ImportRowException;
 use App\Services\DataImport\TerritoryImportTemplate;
 use App\Services\DateFormatService;
 use App\Services\Field\FieldPlanningSettingsService;
+use App\Services\Field\TeamAssignmentService;
 use App\Services\TerritoryOnboardingService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -363,6 +365,109 @@ class Onboarding extends Page
     }
 
     public array $launchMembers = [];
+
+    public ?int $bulkHqId = null;
+
+    public bool $replaceExistingHqs = false;
+
+    #[Locked]
+    public array $hqAssignmentPreview = [];
+
+    public mixed $mappingFile = null;
+
+    public bool $allowCustomerTransfers = false;
+
+    #[Locked]
+    public array $mappingRows = [];
+
+    #[Locked]
+    public array $mappingPreview = [];
+
+    public function updatedLaunchMembers(): void
+    {
+        $this->hqAssignmentPreview = [];
+    }
+
+    public function updatedBulkHqId(): void
+    {
+        $this->hqAssignmentPreview = [];
+    }
+
+    public function updatedReplaceExistingHqs(): void
+    {
+        $this->hqAssignmentPreview = [];
+    }
+
+    public function updatedMappingFile(): void
+    {
+        $this->mappingRows = [];
+        $this->mappingPreview = [];
+    }
+
+    public function updatedAllowCustomerTransfers(): void
+    {
+        $this->mappingPreview = [];
+    }
+
+    public function selectReadyMembers(): void
+    {
+        $this->launchMembers = collect($this->launchReadiness()['members'])->where('ready', true)->where('launched', false)->pluck('employee_id')->all();
+        $this->hqAssignmentPreview = [];
+    }
+
+    public function previewBulkHqs(): void
+    {
+        $this->resetErrorBag();
+        $this->hqAssignmentPreview = [];
+        $this->hqAssignmentPreview = app(TeamAssignmentService::class)->previewHqs($this->launchMembers, $this->bulkHqId ?? 0, $this->replaceExistingHqs);
+    }
+
+    public function confirmBulkHqs(): void
+    {
+        $count = app(TeamAssignmentService::class)->assignHqs($this->launchMembers, $this->bulkHqId ?? 0, $this->replaceExistingHqs, $this->hqAssignmentPreview['fingerprint'] ?? '');
+        $this->hqAssignmentPreview = [];
+        Notification::make()->title($count.' HQ assignments saved')->success()->send();
+    }
+
+    public function downloadCustomerMappings(): StreamedResponse
+    {
+        app(TeamAssignmentService::class)->authorize();
+
+        return ImportDownloadResponse::from(response()->streamDownload(function (): void {
+            $path = tempnam(sys_get_temp_dir(), 'customer-mappings-');
+            try {
+                app(TeamAssignmentService::class)->writeMappingTemplate($path);
+                readfile($path);
+            } finally {
+                unlink($path);
+            }
+        }, 'customer-mappings.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']));
+    }
+
+    public function previewCustomerMappings(): void
+    {
+        $service = app(TeamAssignmentService::class);
+        $service->authorize();
+        $this->resetErrorBag();
+        $this->mappingPreview = [];
+        $this->mappingRows = [];
+        $this->validate(['mappingFile' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:2048']]);
+        try {
+            $this->mappingRows = $service->readMappings($this->mappingFile->getRealPath(), strtolower($this->mappingFile->getClientOriginalExtension()) === 'xlsx');
+        } catch (ImportRowException $exception) {
+            throw ValidationException::withMessages(['mappingFile' => $exception->getMessage()]);
+        }
+        $this->mappingPreview = $service->previewMappings($this->mappingRows, $this->allowCustomerTransfers);
+    }
+
+    public function confirmCustomerMappings(): void
+    {
+        $count = app(TeamAssignmentService::class)->importMappings($this->mappingRows, $this->allowCustomerTransfers, $this->mappingPreview['fingerprint'] ?? '');
+        $this->mappingRows = [];
+        $this->mappingPreview = [];
+        $this->mappingFile = null;
+        Notification::make()->title($count.' customer assignments saved')->success()->send();
+    }
 
     #[Locked]
     public int $workflowVersion = 0;

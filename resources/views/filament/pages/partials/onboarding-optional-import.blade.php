@@ -24,7 +24,7 @@
         <summary>How to prepare your {{ $fileSubject }} file</summary>
         <p>{{ $fileInstructions }}</p>
         @if ($module === 'hqs')
-            <p>{{ app(\App\Services\CompanyLaunchService::class)->requiresTerritoryLinkedHq() ? 'After import, enter these location codes in the territory file’s hq_codes column, or link them in Location Masters.' : 'This file creates locations only. Assign HQs separately in HQ & Customer Assignments.' }}</p>
+            <p>{{ app(\App\Services\CompanyLaunchService::class)->requiresTerritoryLinkedHq() ? 'After import, enter these location codes in the territory file’s hq_codes column, or link them in Location Masters. Then use hq_code in the employee file or bulk assign in Review and launch.' : 'This file creates locations only. Use hq_code in the employee file to assign them, or bulk assign HQs in Review and launch.' }}</p>
         @endif
         <p>Fill the data sheet only. See Instructions and References in the template for field details. Preview the file, fix any errors, then select Confirm import.</p>
     </details>

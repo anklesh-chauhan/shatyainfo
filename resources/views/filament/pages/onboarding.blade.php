@@ -110,12 +110,13 @@
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button wire:click="reviewTerritories" wire:loading.attr="disabled">Continue to employees</x-filament::button></div>
                 @elseif ($step === 3)
                     <h2>Who’s joining your workspace?</h2><p>Add employees one at a time, or bring your whole team in with an Excel file.</p>
+                    <details class="setup-optional"><summary>{{ $directDcr ? 'Import HQ locations (optional)' : 'Import HQ locations before employees' }}</summary>
+                        @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hqs'], key('onboarding-hq-import'))
+                    </details>
+                    <p class="setup-hint">Use hq_code in the employee file to assign HQs during import, or assign a group together in Review and launch. Blank hq_code keeps existing assignments. {{ $directDcr ? 'HQ is optional for this working method.' : ($workflow === 'formal_mtp' ? 'The HQ must share a territory with an assigned position.' : 'An active HQ is needed before launch; territory links are optional.') }}</p>
                     @livewire(\App\Filament\Pages\DataImport::class, ['embedded' => true], key('onboarding-employee-import'))
                     <a class="setup-option" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('create', panel: 'admin') }}"><span class="setup-option-icon" aria-hidden="true">＋</span><span><strong>Add an employee</strong><small>Enter a team member’s details yourself.</small></span><span aria-hidden="true">→</span></a>
                     <details class="setup-optional"><summary>Need to set up divisions first? (Optional)</summary><p>Create divisions and child organizational units before adding your team. Excel import can also create divisions for you.</p><a href="{{ \App\Filament\Resources\OrganizationalUnits\OrganizationalUnitResource::getUrl('index', panel: 'admin') }}">Set up organization structure →</a></details>
-                    <details class="setup-optional"><summary>{{ $directDcr ? 'Import HQ locations (optional)' : 'Import HQ locations' }}</summary>
-                        @livewire(\App\Filament\Pages\OnboardingImports::class, ['group' => 'hqs'], key('onboarding-hq-import'))
-                    </details>
                     <a class="setup-option" href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Assign customers' : 'Assign HQs and customers' }} →</a>
                     @if ($directDcr)<p class="setup-hint">HQ, territories and patches are optional for Direct DCR. Assign customers to each MR before launch so they can report visits.</p>@endif
                     @if ($workflow === 'formal_mtp')
@@ -186,18 +187,29 @@
                         @if ($readiness['approval_check_pending'])<p>Approval routes will be applied and checked for each selected MR at launch.</p>@endif
                         @foreach ($readiness['blockers'] as $blocker)<p>{{ $blocker }}</p>@endforeach
                     </div>
-                    @foreach ($readiness['members'] as $member)
-                        <div class="setup-note" wire:key="launch-member-{{ $member['employee_id'] }}">
-                            <label><input type="checkbox" wire:model="launchMembers" value="{{ $member['employee_id'] }}"> <strong>{{ $member['name'] }}</strong> — {{ $member['hq'] ?? ($directDcr ? 'HQ optional' : 'HQ not assigned') }} · {{ $member['customers'] }} customers {{ $member['launched'] ? '· Already launched' : '' }}</label>
-                            @foreach ($member['issue_details'] as $code => $issue)
-                                <p>{{ $issue }}
-                                    @if ($action = $this->readinessAction($code, $member))
-                                        <a class="setup-review-link" href="{{ $action['url'] }}">{{ $action['label'] }} →</a>
-                                    @endif
-                                </p>
-                            @endforeach
-                        </div>
-                    @endforeach
+                    @if (\App\Filament\Pages\FieldTeamOnboarding::canAccess())
+                        @include('filament.pages.partials.onboarding-team-assignments')
+                    @endif
+                    <p><x-filament::button color="gray" wire:click="selectReadyMembers" wire:loading.attr="disabled">Select all ready MRs</x-filament::button></p>
+                    <div style="overflow:auto"><table class="setup-territories">
+                        <thead><tr><th>Select MR</th><th>HQ</th><th>Customers</th><th>Readiness</th></tr></thead>
+                        <tbody>@foreach ($readiness['members'] as $member)
+                            <tr wire:key="launch-member-{{ $member['employee_id'] }}">
+                                <td><label><input type="checkbox" wire:model.live="launchMembers" value="{{ $member['employee_id'] }}"> {{ $member['name'] }}</label>{{ $member['launched'] ? ' · Already launched' : '' }}</td>
+                                <td>{{ $member['hq'] ?? ($directDcr ? 'HQ optional' : 'HQ not assigned') }}</td>
+                                <td>{{ $member['customers'] }}</td>
+                                <td>@if ($member['ready']) Ready @endif
+                                    @foreach ($member['issue_details'] as $code => $issue)
+                                        <p>{{ $issue }}
+                                            @if (! in_array($code, ['hq', 'customers'], true) && ($action = $this->readinessAction($code, $member)))
+                                                <a class="setup-review-link" href="{{ $action['url'] }}">{{ $action['label'] }} →</a>
+                                            @endif
+                                        </p>
+                                    @endforeach
+                                </td>
+                            </tr>
+                        @endforeach</tbody>
+                    </table></div>
                     <p class="setup-hint"><a href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Review customer assignments' : 'Fix HQ/customer assignments' }}</a> · <a href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review employees and login access</a></p>
                     <details class="setup-optional">
                         <summary>Team launch history</summary>

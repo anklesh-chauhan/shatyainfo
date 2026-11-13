@@ -7,11 +7,13 @@ use App\Models\EmpGrade;
 use App\Models\EmpJobTitle;
 use App\Models\Employee;
 use App\Models\JobRole;
+use App\Models\LocationMaster;
 use App\Models\OrganizationalUnit;
 use App\Models\Position;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
+use App\Services\Field\FieldTeamOnboardingService;
 use App\Services\OrganizationalUnitService;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +34,7 @@ class EmployeeOnboardingImporter
             'mobile_number' => '9000000001', 'email' => '',
             'department' => 'Sales', 'job_role' => 'Sales Representative',
             'job_role_level' => '1', 'position' => 'Sales Representative - West',
-            'position_code' => 'SR-WEST', 'territory_codes' => '', 'grade' => 'G1', 'job_title' => 'Sales Executive',
+            'position_code' => 'SR-WEST', 'territory_codes' => '', 'hq_code' => '', 'grade' => 'G1', 'job_title' => 'Sales Executive',
             'org_unit' => 'West Division', 'org_unit_type' => 'Division',
             'hire_date' => '2026-10-01', 'employment_type' => 'Permanent',
             'is_primary_position' => 'Yes', 'reports_to_position_code' => '',
@@ -159,9 +161,31 @@ class EmployeeOnboardingImporter
         }
         if (! $deferAssignments) {
             $this->provisionLogin($employee, $row);
+            $this->assignHq($employee, $row);
         }
 
         return $existing ? 'updated' : 'created';
+    }
+
+    public function assignHq(Employee $employee, array $row): void
+    {
+        if (blank($row['hq_code'] ?? null)) {
+            return;
+        }
+        if (! $employee->login_id) {
+            throw new ImportRowException('HQ assignment requires a linked login. Supply email and temporary_password for a new login.');
+        }
+        if (! FieldTeamOnboardingService::canManage(auth()->user())) {
+            throw new ImportRowException('You need Manage:FieldTeam permission to import HQ assignments.');
+        }
+        $matches = LocationMaster::query()->where('location_code', $row['hq_code'])->limit(2)->get();
+        if ($matches->count() !== 1 || ! $matches->first()->is_active) {
+            throw new ImportRowException('hq_code must identify exactly one active HQ. Import HQ Locations first.');
+        }
+        app(FieldTeamOnboardingService::class)->save(auth()->user(), [
+            'user_id' => $employee->login_id, 'location_master_id' => $matches->first()->id,
+            'account_ids' => [], 'calls_per_month' => 2,
+        ]);
     }
 
     public function provisionLogin(Employee $employee, array $row): void

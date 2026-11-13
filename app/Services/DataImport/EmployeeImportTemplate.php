@@ -2,6 +2,7 @@
 
 namespace App\Services\DataImport;
 
+use App\Models\LocationMaster;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Entity\SheetView;
@@ -44,6 +45,11 @@ class EmployeeImportTemplate
             $writer->addRow(Row::fromValues($headers, $headerStyle)->setHeight(42));
             foreach ($this->examples() as $example) {
                 $writer->addRow(Row::fromValues(array_map(fn (string $header): string => $example[$header] ?? '', $headers), $textStyle)->setHeight(28));
+            }
+            $writer->addNewSheetAndMakeItCurrent()->setName('HQ References')->setColumnWidthForRange(35, 1, 3);
+            $writer->addRow(Row::fromValues(['hq_code', 'HQ name', 'Linked territories'], $headerStyle));
+            foreach (LocationMaster::query()->where('is_active', true)->with('territories')->orderBy('name')->get() as $hq) {
+                $writer->addRow(Row::fromValues([$hq->location_code, $hq->name, $hq->territories->pluck('code')->implode(';')], $textStyle));
             }
         } finally {
             $writer->close();
@@ -89,6 +95,7 @@ class EmployeeImportTemplate
             'position' => 'Required when defining a new position; specific seat name, for example Area Sales Manager - Mumbai.',
             'position_code' => 'Unique position code, maximum 255 characters. Required for assignment/reporting changes. Existing position codes can be used without repeating name/job role.',
             'territory_codes' => 'Optional existing territory codes separated by semicolons, for example WEST;MUMBAI. Upload territories first. Assigns territories to the position, shared by all its employees. Blank preserves assignments. Conflicting existing assignments must be edited in Positions.',
+            'hq_code' => 'Use an active location_code from HQ References to assign this employee’s HQ. Requires a linked login and Manage:FieldTeam access. Blank preserves the current HQ. HQ is optional for Report visits directly; needed before launch for Plan when useful and Require monthly plans. Monthly plans also require this HQ to share a territory with an assigned position. Repeated employee rows must specify the same HQ. Import HQ Locations before employees, or bulk assign HQs in Review and launch.',
             'grade' => 'Optional grade name, maximum 50 characters; reused by name and must match the department if already defined.',
             'job_title' => 'Optional title; reused by title and must match the department if already defined.',
             'org_unit' => 'Optional employee/position organizational unit name. Existing names must be unambiguous. This does not change the department\'s organizational unit; a department may be shared across employee org units. Division is derived automatically: a Division unit selects itself; a child unit uses its nearest Division ancestor. Configure parent units under Org Units before importing child units. Units outside a Division leave Division blank.',

@@ -389,9 +389,9 @@ it('provides a blank upload sheet with complete instructions and separate exampl
                 $sheets[$sheet->getName()][] = $row->toArray();
             }
         }
-        expect(array_keys($sheets))->toBe(['Employees', 'Instructions', 'Examples']);
+        expect(array_keys($sheets))->toBe(['Employees', 'Instructions', 'Examples', 'HQ References']);
         expect($sheets['Employees'])->toHaveCount(1);
-        expect($sheets['Employees'][0])->toContain('reports_to_position_code', 'reports_to_employee_code', 'is_primary_position', 'assignment_action', 'reporting_action');
+        expect($sheets['Employees'][0])->toContain('reports_to_position_code', 'reports_to_employee_code', 'is_primary_position', 'assignment_action', 'reporting_action', 'hq_code');
         $instructions = json_encode($sheets['Instructions']);
         expect($instructions)->toContain('circular', 'clear', 'remove', 'No first matching manager', 'maximum 20');
         $reader->close();
