@@ -31,17 +31,20 @@ class RcpaCompetitorResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->can('Manage:RcpaCompetitor') ?? false;
+        return parent::canViewAny()
+            || (auth()->user()?->can('Manage:RcpaCompetitor') ?? false);
     }
 
     public static function canCreate(): bool
     {
-        return static::canViewAny();
+        return parent::canCreate()
+            || (auth()->user()?->can('Manage:RcpaCompetitor') ?? false);
     }
 
     public static function canEdit(Model $record): bool
     {
-        return static::canViewAny();
+        return parent::canEdit($record)
+            || (auth()->user()?->can('Manage:RcpaCompetitor') ?? false);
     }
 
     public static function canDelete(Model $record): bool

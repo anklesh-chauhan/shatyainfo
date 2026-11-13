@@ -29,7 +29,8 @@ class RcpaObservationResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return (bool) (auth()->user()?->can('Capture:Rcpa') || auth()->user()?->can('View:Rcpa'));
+        return parent::canViewAny()
+            || (bool) (auth()->user()?->can('Capture:Rcpa') || auth()->user()?->can('View:Rcpa'));
     }
 
     public static function canCreate(): bool

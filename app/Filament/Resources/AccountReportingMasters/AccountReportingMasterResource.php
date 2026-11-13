@@ -30,17 +30,20 @@ class AccountReportingMasterResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->can('ViewAny:RatingType') ?? false;
+        return parent::canViewAny()
+            || (auth()->user()?->can('ViewAny:RatingType') ?? false);
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->can('Create:RatingType') ?? false;
+        return parent::canCreate()
+            || (auth()->user()?->can('Create:RatingType') ?? false);
     }
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->can('Update:RatingType') ?? false;
+        return parent::canEdit($record)
+            || (auth()->user()?->can('Update:RatingType') ?? false);
     }
 
     public static function canDelete(Model $record): bool

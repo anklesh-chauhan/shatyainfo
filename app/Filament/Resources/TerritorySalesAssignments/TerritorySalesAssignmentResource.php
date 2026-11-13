@@ -30,12 +30,14 @@ class TerritorySalesAssignmentResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return (bool) (auth()->user()?->can('View:SalesTargets') || auth()->user()?->can('Manage:SalesTargets'));
+        return parent::canViewAny()
+            || (bool) (auth()->user()?->can('View:SalesTargets') || auth()->user()?->can('Manage:SalesTargets'));
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->can('Manage:SalesTargets') ?? false;
+        return parent::canCreate()
+            || (auth()->user()?->can('Manage:SalesTargets') ?? false);
     }
 
     public static function canEdit(Model $record): bool

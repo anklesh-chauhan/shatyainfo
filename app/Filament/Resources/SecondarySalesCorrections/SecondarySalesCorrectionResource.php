@@ -34,7 +34,8 @@ class SecondarySalesCorrectionResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return (bool) (auth()->user()?->can('Create:SecondarySales') || auth()->user()?->can('Review:SecondarySales'));
+        return parent::canViewAny()
+            || (bool) (auth()->user()?->can('Create:SecondarySales') || auth()->user()?->can('Review:SecondarySales'));
     }
 
     public static function canCreate(): bool
