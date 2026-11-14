@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\Onboarding;
+use App\Models\Employee;
 use App\Models\FieldUserHq;
 use App\Models\JobRole;
 use App\Models\Organization;
@@ -20,6 +21,58 @@ use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
+
+it('limits launch readiness to the requested page and searches the whole roster', function () {
+    foreach (range(1, 50) as $index) {
+        Employee::withoutEvents(fn () => Employee::query()->create([
+            'employee_id' => sprintf('PAGE%04d', $index), 'first_name' => sprintf('Roster %04d', $index),
+            'last_name' => 'Representative', 'mobile_number' => sprintf('950000%04d', $index), 'is_active' => true,
+        ]));
+    }
+    $launch = app(CompanyLaunchService::class);
+    $first = $launch->reviewPage('', 'all', [], 1);
+    $middle = $launch->reviewPage('', 'all', [], 2);
+    $last = $launch->reviewPage('', 'all', [], 99);
+    expect($first['total'])->toBe(53)->and($first['members'])->toHaveCount(25)
+        ->and($middle['first'])->toBe(26)->and($middle['members'])->toHaveCount(25)
+        ->and($last['page'])->toBe(3)->and($last['members'])->toHaveCount(3);
+    expect(array_column($launch->reviewPage('Roster 0050 Representative', 'all', [], 1)['members'], 'employee_code'))->toBe(['PAGE0050']);
+    expect(array_column($launch->reviewPage('PAGE0050', 'all', [], 1)['members'], 'employee_code'))->toBe(['PAGE0050']);
+    expect($launch->reviewPage('', 'selected', [$this->rep->employee->id], 1)['total'])->toBe(1)
+        ->and($launch->reviewPage('', 'selected', [], 1)['total'])->toBe(0);
+});
+
+it('suggests confirmed territory transfers from account and patch links and skips conflicts', function () {
+    $direct = reportingDoctor($this->admin, 'Account territory');
+    $direct->update(['territory_id' => $this->territory->id]);
+    $patch = reportingPatch($this->territory, 'Imported patch');
+    $linked = reportingDoctor($this->admin, 'Patch territory');
+    $linked->patches()->attach($patch->id, ['sequence_no' => 1]);
+    $conflict = reportingDoctor($this->admin, 'Conflicting territories');
+    $conflict->update(['territory_id' => reportingTerritory('Other territory')->id]);
+    $conflict->patches()->attach($patch->id, ['sequence_no' => 2]);
+    $unlinked = reportingDoctor($this->admin, 'No territory');
+    $members = [$this->rep->employee->id];
+
+    $withoutTransfers = $this->service->previewTerritoryMappings($members, false);
+    expect($withoutTransfers['plans'])->toBeEmpty()
+        ->and($withoutTransfers['skipped']['existing'])->toBe(2);
+    $shared = $this->service->previewTerritoryMappings([...$members, $this->other->employee->id], true);
+    expect($shared['plans'])->toBeEmpty()->and($shared['skipped']['ambiguous'])->toBe(3);
+
+    $preview = $this->service->previewTerritoryMappings($members, true);
+    $accountIds = array_column($preview['plans'], 'account_id');
+    expect($accountIds)->toBe([$direct->id, $linked->id])
+        ->and($direct->fresh()->owner_id)->toBe($this->admin->id);
+    $direct->update(['owner_id' => $this->other->id]);
+    expect(fn () => $this->service->assignTerritoryMappings($members, true, $accountIds, $preview['fingerprint']))->toThrow(ValidationException::class);
+    $preview = $this->service->previewTerritoryMappings($members, true);
+    expect($this->service->assignTerritoryMappings($members, true, $accountIds, $preview['fingerprint']))->toBe(2)
+        ->and($direct->fresh()->owner_id)->toBe($this->rep->id)
+        ->and($linked->fresh()->owner_id)->toBe($this->rep->id)
+        ->and($conflict->fresh()->owner_id)->toBe($this->admin->id)
+        ->and($unlinked->fresh()->owner_id)->toBe($this->admin->id);
+});
 
 beforeEach(function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -160,6 +213,8 @@ it('renders and saves bulk assignments from the final review in all working meth
     $metadata['company_setup']['territories_reviewed'] = true;
     $organization->update(['metadata' => $metadata]);
     $doctor = reportingDoctor($this->admin, 'Review Doctor');
+    $territoryDoctor = reportingDoctor($this->admin, 'Territory Review Doctor');
+    $territoryDoctor->update(['territory_id' => $this->territory->id]);
     config(['multitenancy.switch_tenant_tasks' => []]);
     $tenant = new Tenant;
     $tenant->forceFill(['id' => 99997, 'name' => 'Review Test', 'master_setup_status' => 'ready']);
@@ -172,11 +227,18 @@ it('renders and saves bulk assignments from the final review in all working meth
         Livewire::test(Onboarding::class)->assertSet('step', 6)
             ->assertSee('Assign HQs to selected MRs')->assertSee('Assign customers with one upload')
             ->set('launchMembers', [$this->rep->employee->id])->set('bulkHqId', $this->hq->id)
+            ->set('launchSearch', 'No matching MR')->assertSee('No MRs match this view.')
+            ->assertSee('1 selected across all pages')->assertSet('launchMembers', [$this->rep->employee->id])
+            ->set('launchSearch', '')->set('launchFilter', 'selected')
+            ->assertSee($this->rep->employee->employee_id)->assertDontSee($this->other->employee->employee_id)
             ->call('previewBulkHqs')->assertHasNoErrors()->call('confirmBulkHqs')->assertHasNoErrors()
             ->set('allowCustomerTransfers', true)->set('mappingFile', $file)
             ->call('previewCustomerMappings')->assertHasNoErrors()->assertSee('Transfer')
-            ->call('confirmCustomerMappings')->assertHasNoErrors();
-        expect($doctor->fresh()->owner_id)->toBe($this->rep->id);
+            ->call('confirmCustomerMappings')->assertHasNoErrors()
+            ->call('previewTerritoryCustomerMappings')->assertHasNoErrors()->assertSee('Confirm territory matches')
+            ->call('confirmTerritoryCustomerMappings')->assertHasNoErrors();
+        expect($doctor->fresh()->owner_id)->toBe($this->rep->id)
+            ->and($territoryDoctor->fresh()->owner_id)->toBe($this->rep->id);
     } finally {
         Tenant::forgetCurrent();
     }

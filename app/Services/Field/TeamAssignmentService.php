@@ -192,16 +192,97 @@ class TeamAssignmentService
                 ->orderBy('id')->lockForUpdate()->get();
             $preview = $this->previewMappings($rows, $allowTransfers);
             $this->assertReviewed($preview, $fingerprint);
-            $count = 0;
-            foreach ($preview['plans'] as $plan) {
-                if ($plan['change']) {
-                    AccountMaster::query()->findOrFail($plan['account_id'])->update(['owner_id' => $plan['owner_id']]);
-                    $count++;
-                }
-            }
 
-            return $count;
+            return $this->saveCustomerPlans($preview['plans']);
         });
+    }
+
+    public function previewTerritoryMappings(array $employeeIds, bool $allowTransfers): array
+    {
+        $this->authorize();
+        Validator::make(['launchMembers' => $employeeIds], [
+            'launchMembers' => ['required', 'array', 'min:1', 'max:5000'],
+            'launchMembers.*' => ['required', 'integer', 'distinct'],
+        ], ['launchMembers.required' => 'Select the MRs in the launch team table first.'])->validate();
+
+        $employees = Employee::query()->whereKey($employeeIds)->where('is_active', true)
+            ->with(['user', 'positions.territories'])->get();
+        $candidates = [];
+        foreach ($employees as $employee) {
+            if ($employee->is_deleted || ! $employee->user) {
+                continue;
+            }
+            foreach ($employee->positions->flatMap->territories->pluck('id')->unique() as $territoryId) {
+                $candidates[$territoryId][$employee->login_id] = $employee->user;
+            }
+        }
+
+        $territoryIds = array_keys($candidates);
+        $accounts = AccountMaster::query()->applyVisibility('AccountMaster')->with(['owner', 'patches'])
+            ->where(fn ($query) => $query->whereIn('territory_id', $territoryIds)
+                ->orWhereHas('patches', fn ($patches) => $patches->whereIn('territory_id', $territoryIds)))
+            ->orderBy('id')->lazyById();
+        $plans = [];
+        $skipped = ['ambiguous' => 0, 'existing' => 0, 'other' => 0];
+        foreach ($accounts as $account) {
+            if (! auth()->user()->can('update', $account)) {
+                continue;
+            }
+            $territories = $account->patches->pluck('territory_id')->push($account->territory_id)->filter()->unique()->values();
+            $owners = $territories->flatMap(fn ($id) => array_values($candidates[$id] ?? []))->unique('id')->values();
+            if ($territories->count() !== 1 || $owners->count() !== 1) {
+                $skipped['ambiguous']++;
+
+                continue;
+            }
+            $owner = $owners->first();
+            if ($owner->id === $account->owner_id) {
+                continue;
+            }
+            if ($account->owner_id !== null && ! $allowTransfers) {
+                $skipped['existing']++;
+
+                continue;
+            }
+            if (count($plans) === 500) {
+                $skipped['other']++;
+
+                continue;
+            }
+            $plans[] = ['account_id' => $account->id, 'code' => $account->account_code ?: $account->external_reference,
+                'name' => $account->name, 'current_id' => $account->owner_id, 'current' => $account->owner?->email,
+                'owner_id' => $owner->id, 'owner' => $owner->email, 'territory_id' => $territories->first(),
+                'change' => true, 'action' => $account->owner_id === null ? 'Assign' : 'Transfer'];
+        }
+
+        return ['plans' => $plans, 'errors' => [], 'skipped' => $skipped, 'fingerprint' => $this->fingerprint($plans)];
+    }
+
+    public function assignTerritoryMappings(array $employeeIds, bool $allowTransfers, array $reviewedAccountIds, string $fingerprint): int
+    {
+        $this->authorize();
+
+        return auth()->user()->getConnection()->transaction(function () use ($employeeIds, $allowTransfers, $reviewedAccountIds, $fingerprint): int {
+            $this->lockOrganization();
+            AccountMaster::query()->whereKey($reviewedAccountIds)->orderBy('id')->lockForUpdate()->get();
+            $preview = $this->previewTerritoryMappings($employeeIds, $allowTransfers);
+            $this->assertReviewed($preview, $fingerprint);
+
+            return $this->saveCustomerPlans($preview['plans']);
+        });
+    }
+
+    private function saveCustomerPlans(array $plans): int
+    {
+        $count = 0;
+        foreach ($plans as $plan) {
+            if ($plan['change']) {
+                AccountMaster::query()->findOrFail($plan['account_id'])->update(['owner_id' => $plan['owner_id']]);
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     public function writeMappingTemplate(string $path): void

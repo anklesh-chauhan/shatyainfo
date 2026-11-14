@@ -183,19 +183,36 @@
                 @else
                     <h2>Choose the team to launch</h2><p>Selected MRs are recorded as launched. Missing requirements are checked again before launch. Planning and approval settings apply to the whole company; existing permissions continue to control access.</p>
                     @php($readiness = $this->launchReadiness())
-                    <div class="setup-note">{{ $readiness['ready_count'] }} MRs pass the current setup checks. {{ $readiness['launched_count'] }} already launched.
+                    <div class="setup-note">{{ $readiness['ready_count'] }} MRs on this page pass the current setup checks. {{ $readiness['launched_count'] }} already launched company-wide.
                         @if ($readiness['approval_check_pending'])<p>Approval routes will be applied and checked for each selected MR at launch.</p>@endif
                         @foreach ($readiness['blockers'] as $blocker)<p>{{ $blocker }}</p>@endforeach
                     </div>
-                    @if (\App\Filament\Pages\FieldTeamOnboarding::canAccess())
-                        @include('filament.pages.partials.onboarding-team-assignments')
-                    @endif
-                    <p><x-filament::button color="gray" wire:click="selectReadyMembers" wire:loading.attr="disabled">Select all ready MRs</x-filament::button></p>
+                    <div class="setup-field">
+                        <label for="launch-search">Search MRs</label>
+                        <x-filament::input.wrapper><x-filament::input id="launch-search" type="search" wire:model.live.debounce.400ms="launchSearch" placeholder="Name or employee code" maxlength="100" /></x-filament::input.wrapper>
+                    </div>
+                    <div class="setup-field">
+                        <label for="launch-filter">Show MRs</label>
+                        <x-filament::input.wrapper><x-filament::input.select id="launch-filter" wire:model.live="launchFilter">
+                            <option value="all">All MRs</option>
+                            <option value="pending">Not yet launched</option>
+                            <option value="launched">Already launched</option>
+                            <option value="selected">Selected MRs</option>
+                        </x-filament::input.select></x-filament::input.wrapper>
+                    </div>
+                    <p role="status"><strong>{{ count($launchMembers) }} selected across all pages</strong></p>
+                    <p>
+                        <x-filament::button color="gray" wire:click="selectReadyMembers" wire:loading.attr="disabled">Select all ready MRs</x-filament::button>
+                        @if ($launchMembers !== [])
+                            <x-filament::button color="gray" wire:click="clearLaunchSelection" wire:loading.attr="disabled">Clear selection</x-filament::button>
+                        @endif
+                    </p>
+                    <p class="setup-hint">Select all ready MRs checks the full roster, including MRs outside the current search or filter.</p>
                     <div style="overflow:auto"><table class="setup-territories">
                         <thead><tr><th>Select MR</th><th>HQ</th><th>Customers</th><th>Readiness</th></tr></thead>
-                        <tbody>@foreach ($readiness['members'] as $member)
+                        <tbody>@forelse ($readiness['members'] as $member)
                             <tr wire:key="launch-member-{{ $member['employee_id'] }}">
-                                <td><label><input type="checkbox" wire:model.live="launchMembers" value="{{ $member['employee_id'] }}"> {{ $member['name'] }}</label>{{ $member['launched'] ? ' · Already launched' : '' }}</td>
+                                <td><label><input type="checkbox" wire:model.live="launchMembers" value="{{ $member['employee_id'] }}"> {{ $member['name'] }} · {{ $member['employee_code'] }}</label>{{ $member['launched'] ? ' · Already launched' : '' }}</td>
                                 <td>{{ $member['hq'] ?? ($directDcr ? 'HQ optional' : 'HQ not assigned') }}</td>
                                 <td>{{ $member['customers'] }}</td>
                                 <td>@if ($member['ready']) Ready @endif
@@ -208,8 +225,23 @@
                                     @endforeach
                                 </td>
                             </tr>
-                        @endforeach</tbody>
+                        @empty
+                            <tr><td colspan="4">No MRs match this view.</td></tr>
+                        @endforelse</tbody>
                     </table></div>
+                    @if ($readiness['total'] > 0)
+                        <p role="status">Showing {{ $readiness['first'] }}–{{ $readiness['last'] }} of {{ $readiness['total'] }} MRs</p>
+                    @endif
+                    @if ($readiness['pages'] > 1)
+                        <nav aria-label="MR list pagination">
+                            <x-filament::button color="gray" wire:click="goToLaunchPage({{ $readiness['page'] - 1 }})" wire:loading.attr="disabled" :disabled="$readiness['page'] === 1">Previous</x-filament::button>
+                            <span>Page {{ $readiness['page'] }} of {{ $readiness['pages'] }}</span>
+                            <x-filament::button color="gray" wire:click="goToLaunchPage({{ $readiness['page'] + 1 }})" wire:loading.attr="disabled" :disabled="$readiness['page'] === $readiness['pages']">Next</x-filament::button>
+                        </nav>
+                    @endif
+                    @if (\App\Filament\Pages\FieldTeamOnboarding::canAccess())
+                        @include('filament.pages.partials.onboarding-team-assignments')
+                    @endif
                     <p class="setup-hint"><a href="{{ \App\Filament\Pages\FieldTeamOnboarding::getUrl(panel: 'admin') }}">{{ $directDcr ? 'Review customer assignments' : 'Fix HQ/customer assignments' }}</a> · <a href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review employees and login access</a></p>
                     <details class="setup-optional">
                         <summary>Team launch history</summary>

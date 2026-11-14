@@ -76,6 +76,40 @@ class CompanyLaunchService
     }
 
     /** @return array<string, mixed> */
+    public function reviewPage(string $search, string $filter, array $selectedIds, int $page): array
+    {
+        $company = app(CompanyOnboardingService::class);
+        $company->authorize();
+        $launchedIds = array_keys($company->organization()?->metadata['company_setup']['launched_users'] ?? []);
+        $search = trim(mb_substr($search, 0, 100));
+        $employees = Employee::query()
+            ->when($search !== '', function ($query) use ($search): void {
+                foreach (preg_split('/\s+/', $search) as $term) {
+                    $query->where(fn ($names) => $names->whereLike('first_name', '%'.$term.'%')
+                        ->orWhereLike('middle_name', '%'.$term.'%')->orWhereLike('last_name', '%'.$term.'%')
+                        ->orWhereLike('employee_id', '%'.$term.'%'));
+                }
+            })
+            ->when($filter === 'selected', fn ($query) => $query->whereKey($selectedIds))
+            ->when($filter === 'launched', fn ($query) => $query->whereIn('login_id', $launchedIds))
+            ->when($filter === 'pending', fn ($query) => $query->where(fn ($pending) => $pending->whereNull('login_id')->orWhereNotIn('login_id', $launchedIds)));
+        $total = $employees->count();
+        $perPage = 25;
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min($pages, max(1, $page));
+        $ids = $employees->orderBy('first_name')->orderBy('id')->forPage($page, $perPage)->pluck('id')->all();
+
+        return [
+            ...$this->readiness($ids),
+            'page' => $page,
+            'pages' => $pages,
+            'total' => $total,
+            'first' => $ids === [] ? 0 : ($page - 1) * $perPage + 1,
+            'last' => ($page - 1) * $perPage + count($ids),
+        ];
+    }
+
+    /** @return array<string, mixed> */
     public function readiness(?array $employeeIds = null, bool $activeOnly = false): array
     {
         $company = app(CompanyOnboardingService::class);
@@ -101,7 +135,7 @@ class CompanyLaunchService
             $blockers[] = 'Enable Sales Tour Plan approvals and configure monthly-plan approvers before launch.';
         }
         $employees = Employee::query()->with(['user.roles.permissions', 'user.permissions', 'positions.territories'])
-            ->when($employeeIds !== null, fn ($query) => $query->whereKey($employeeIds))->orderBy('first_name')->get();
+            ->when($employeeIds !== null, fn ($query) => $query->whereKey($employeeIds))->orderBy('first_name')->orderBy('id')->get();
         $userIds = $employees->pluck('login_id')->filter()->all();
         $hqs = FieldUserHq::query()->with('location.territories')->whereIn('user_id', $userIds)->get()->keyBy('user_id');
         $accounts = AccountMaster::query()->whereIn('owner_id', $userIds)
@@ -158,7 +192,7 @@ class CompanyLaunchService
                     }
                 }
             }
-            $rows[] = ['employee_id' => $employee->id, 'user_id' => $user?->id, 'name' => $employee->full_name,
+            $rows[] = ['employee_id' => $employee->id, 'employee_code' => $employee->employee_id, 'user_id' => $user?->id, 'name' => $employee->full_name,
                 'hq' => $hq?->location?->name, 'customers' => $customerCount, 'issues' => array_values($issues), 'issue_details' => $issues,
                 'ready' => $issues === [] && $blockers === [], 'launched' => isset($launched[$employee->login_id])];
         }

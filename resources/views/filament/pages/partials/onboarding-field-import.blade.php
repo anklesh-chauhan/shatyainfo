@@ -15,7 +15,7 @@
             <p>Create employees and editable DCRs first. Each employee and date must match an existing DCR.</p>
             <p>Keep external_reference unchanged when updating travel records. Approved or locked reports cannot be changed.</p>
         @else
-            <p>Create territories first. Fill Patches and Standard Fares; leave Patch Customers blank until customers have been imported.</p>
+            <p>Create territories first. Fill Patches and Standard Fares; leave Patch Customers blank until customers have been imported. In Review and launch, select your MRs and preview customer assignments using the territories linked to their positions.</p>
             <p>Use account codes or external references for customer assignments. Keep patch codes unchanged when updating records.</p>
         @endif
         <p>Keep sheet names and headers unchanged. The template includes field instructions and examples. Preview the file, fix any errors, then select Confirm import.</p>

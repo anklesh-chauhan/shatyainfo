@@ -366,6 +366,34 @@ class Onboarding extends Page
 
     public array $launchMembers = [];
 
+    public string $launchSearch = '';
+
+    public string $launchFilter = 'all';
+
+    #[Locked]
+    public int $launchPage = 1;
+
+    public function updatedLaunchSearch(): void
+    {
+        $this->launchPage = 1;
+    }
+
+    public function updatedLaunchFilter(): void
+    {
+        $this->launchPage = 1;
+    }
+
+    public function goToLaunchPage(int $page): void
+    {
+        $this->launchPage = max(1, $page);
+    }
+
+    public function clearLaunchSelection(): void
+    {
+        $this->launchMembers = [];
+        $this->updatedLaunchMembers();
+    }
+
     public ?int $bulkHqId = null;
 
     public bool $replaceExistingHqs = false;
@@ -383,9 +411,13 @@ class Onboarding extends Page
     #[Locked]
     public array $mappingPreview = [];
 
+    #[Locked]
+    public array $territoryMappingPreview = [];
+
     public function updatedLaunchMembers(): void
     {
         $this->hqAssignmentPreview = [];
+        $this->territoryMappingPreview = [];
     }
 
     public function updatedBulkHqId(): void
@@ -407,12 +439,34 @@ class Onboarding extends Page
     public function updatedAllowCustomerTransfers(): void
     {
         $this->mappingPreview = [];
+        $this->territoryMappingPreview = [];
     }
 
     public function selectReadyMembers(): void
     {
-        $this->launchMembers = collect($this->launchReadiness()['members'])->where('ready', true)->where('launched', false)->pluck('employee_id')->all();
-        $this->hqAssignmentPreview = [];
+        $this->launchMembers = collect(app(CompanyLaunchService::class)->readiness()['members'])
+            ->where('ready', true)->where('launched', false)->pluck('employee_id')->all();
+        $this->updatedLaunchMembers();
+    }
+
+    public function previewTerritoryCustomerMappings(): void
+    {
+        $this->resetErrorBag();
+        $this->territoryMappingPreview = [];
+        $this->territoryMappingPreview = app(TeamAssignmentService::class)->previewTerritoryMappings($this->launchMembers, $this->allowCustomerTransfers);
+    }
+
+    public function confirmTerritoryCustomerMappings(): void
+    {
+        $count = app(TeamAssignmentService::class)->assignTerritoryMappings(
+            $this->launchMembers,
+            $this->allowCustomerTransfers,
+            array_column($this->territoryMappingPreview['plans'] ?? [], 'account_id'),
+            $this->territoryMappingPreview['fingerprint'] ?? '',
+        );
+        $this->territoryMappingPreview = [];
+        $this->mappingPreview = [];
+        Notification::make()->title($count.' customer assignments saved')->success()->send();
     }
 
     public function previewBulkHqs(): void
@@ -466,6 +520,7 @@ class Onboarding extends Page
         $this->mappingRows = [];
         $this->mappingPreview = [];
         $this->mappingFile = null;
+        $this->territoryMappingPreview = [];
         Notification::make()->title($count.' customer assignments saved')->success()->send();
     }
 
@@ -488,7 +543,7 @@ class Onboarding extends Page
 
     public function launchReadiness(): array
     {
-        return app(CompanyLaunchService::class)->readiness();
+        return app(CompanyLaunchService::class)->reviewPage($this->launchSearch, $this->launchFilter, $this->launchMembers, $this->launchPage);
     }
 
     public function launchHistory(): array
