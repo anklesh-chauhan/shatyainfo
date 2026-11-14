@@ -31,7 +31,7 @@ class EmployeeHierarchyImport
                 $employeeRows = [];
                 $seenValues = [];
                 foreach ($rows as $line => $row) {
-                    foreach (['is_primary_position' => ['yes', 'no'], 'reporting_action' => ['set', 'clear'], 'assignment_action' => ['assign', 'remove']] as $field => $allowed) {
+                    foreach (['is_primary_position' => ['yes', 'no'], 'reporting_action' => ['set', 'clear'], 'reporting_employee_action' => ['clear'], 'assignment_action' => ['assign', 'remove']] as $field => $allowed) {
                         if (filled($row[$field] ?? null) && ! in_array(strtolower($row[$field]), $allowed, true)) {
                             throw new ImportRowException($field.' must be '.implode(' or ', $allowed).'.');
                         }
@@ -128,8 +128,8 @@ class EmployeeHierarchyImport
                         }
                         $assignmentClaims[$position->id] = $claim;
                         if ($remove) {
-                            if ($primary === 'yes' || filled($row['reports_to_employee_code'] ?? null)) {
-                                throw new ImportRowException('A removed assignment cannot be primary or specify an expected manager.');
+                            if ($primary === 'yes') {
+                                throw new ImportRowException('A removed assignment cannot be primary.');
                             }
                             unset($assignments[$position->id]);
 
@@ -151,7 +151,7 @@ class EmployeeHierarchyImport
                         }
                         unset($assignment);
                     }
-                    if (count(array_filter($assignments, fn (array $assignment): bool => $assignment['is_primary'])) !== 1) {
+                    if ($assignments !== [] && count(array_filter($assignments, fn (array $assignment): bool => $assignment['is_primary'])) !== 1) {
                         throw new ImportRowException('Employee '.$employee->employee_id.' must have exactly one primary position. Enter Yes in is_primary_position.');
                     }
                     $employee->positions()->sync($assignments);
@@ -162,13 +162,13 @@ class EmployeeHierarchyImport
                         }
                     }
                     $employee->unsetRelation('positions');
-                    $primaryPosition = $employee->positions()->wherePivot('is_primary', true)->firstOrFail();
-                    $employment = array_filter(['department_id' => $primaryPosition->department_id, 'grade_id' => $primaryPosition->job_grade_id, 'job_title_id' => $primaryPosition->job_title_id, 'organizational_unit_id' => $primaryPosition->organizational_unit_id], fn ($value): bool => $value !== null);
-                    if ($primaryPosition->organizational_unit_id) {
-                        $employment['division_ou_id'] = OrganizationalUnitService::divisionId($primaryPosition->organizational_unit_id);
+                    $primaryPosition = $employee->positions()->wherePivot('is_primary', true)->first();
+                    $employment = array_filter(['department_id' => $primaryPosition?->department_id, 'grade_id' => $primaryPosition?->job_grade_id, 'job_title_id' => $primaryPosition?->job_title_id, 'organizational_unit_id' => $primaryPosition?->organizational_unit_id], fn ($value): bool => $value !== null);
+                    if ($primaryPosition?->organizational_unit_id) {
+                        $employment['division_ou_id'] = OrganizationalUnitService::divisionId($primaryPosition?->organizational_unit_id);
                     }
                     foreach ($employeeRows[$code] as $line => $row) {
-                        if (strtolower($row['position_code'] ?? '') !== strtolower($primaryPosition->code) && filled($row['position_code'] ?? null)) {
+                        if (strtolower($row['position_code'] ?? '') !== strtolower($primaryPosition?->code ?? '') && filled($row['position_code'] ?? null)) {
                             continue;
                         }
                         foreach (['hire_date', 'employment_type'] as $field) {
@@ -178,44 +178,64 @@ class EmployeeHierarchyImport
                         }
                     }
                     $detail = $employee->employmentDetail()->updateOrCreate([], $employment);
-                    if ($primaryPosition->organizational_unit_id) {
-                        $detail->organizationalUnits()->syncWithoutDetaching([$primaryPosition->organizational_unit_id]);
+                    if ($primaryPosition?->organizational_unit_id) {
+                        $detail->organizationalUnits()->syncWithoutDetaching([$primaryPosition?->organizational_unit_id]);
                     }
                 }
 
-                $allEmployees = Employee::query()->with('positions.reportsTo.employees')->get();
-                $managerGraph = [];
-                $affectedEmployeeIds = [];
-                foreach ($allEmployees as $employee) {
-                    $resolution = $service->resolve($employee);
-                    $managerGraph[$employee->id] = $resolution['manager'];
-                    $affected = isset($employees[strtolower($employee->employee_id)]) || $employee->positions->contains(fn ($position): bool => in_array($position->reports_to_position_id, $changedPositionIds, true) || in_array($position->id, $changedPositionIds, true));
-                    if ($affected) {
-                        $affectedEmployeeIds[] = $employee->id;
-                    }
-                    if ($affected && in_array($resolution['status'], ['Multiple employees occupy the reporting position', 'An employee cannot report to themselves'], true)) {
-                        throw new ImportRowException($employee->employee_id.': '.$resolution['status'].'. Resolve position assignments before importing.');
-                    }
-                }
-                foreach ($affectedEmployeeIds as $employeeId) {
-                    $this->assertAcyclic($managerGraph, $employeeId, 'employee');
-                }
+                $allEmployees = Employee::query()->with('positions.reportsTo.employees', 'explicitReportingManager')->get()->keyBy('id');
+                $byEmployeeCode = $allEmployees->groupBy(fn (Employee $employee): string => strtolower($employee->employee_id));
                 foreach ($employees as $code => $employee) {
-                    $line = array_key_first($employeeRows[$code]);
-                    $this->assertAcyclic($managerGraph, $employee->id, 'employee');
-                    $employee = $allEmployees->firstWhere('id', $employee->id);
-                    $resolution = $service->resolve($employee);
+                    $claims = [];
                     foreach ($employeeRows[$code] as $line => $row) {
-                        if (filled($row['reports_to_employee_code'] ?? null)) {
-                            $expected = $allEmployees->first(fn (Employee $person): bool => strcasecmp($person->employee_id, $row['reports_to_employee_code']) === 0);
-                            if (! $expected || $expected->id !== $resolution['manager']) {
-                                throw new ImportRowException('Expected manager '.$row['reports_to_employee_code'].' does not match the primary position hierarchy for '.$employee->employee_id.'.');
+                        $managerCode = strtolower(trim($row['reports_to_employee_code'] ?? ''));
+                        $clear = strtolower($row['reporting_employee_action'] ?? '') === 'clear';
+                        if ($clear && $managerCode !== '') {
+                            throw new ImportRowException('Leave reports_to_employee_code blank when clearing the reporting employee.');
+                        }
+                        if ($clear) {
+                            $claims[] = null;
+                        } elseif ($managerCode !== '') {
+                            $matches = $byEmployeeCode->get($managerCode);
+                            if ($matches?->count() > 1) {
+                                throw new ImportRowException('Multiple employees match reporting employee code '.$managerCode.'.');
                             }
+                            $manager = $matches?->first();
+                            if (! $manager?->is_active || $manager->is_deleted) {
+                                throw new ImportRowException('Reporting employee '.$managerCode.' does not exist or is inactive in this company.');
+                            }
+                            $claims[] = $manager->id;
                         }
                     }
-                    $primary = $employee->positions->first(fn ($position): bool => (bool) $position->pivot->is_primary);
-                    $manager = $allEmployees->firstWhere('id', $resolution['manager']);
-                    $result->hierarchy[] = ['employee' => $employee->employee_id, 'position' => $primary->code, 'reports_to_position' => $primary->reportsTo?->code ?? '', 'manager' => $manager?->employee_id ?? '', 'status' => $resolution['status']];
+                    $claims = array_values(array_unique($claims));
+                    if (count($claims) > 1) {
+                        throw new ImportRowException('Conflicting reporting employees for '.$employee->employee_id.'.');
+                    }
+                    if ($claims !== []) {
+                        $record = $allEmployees[$employee->id];
+                        $record->provisionLoginOnSave = false;
+                        $record->update(['explicit_reporting_manager_id' => $claims[0]]);
+                        $record->unsetRelation('explicitReportingManager');
+                    }
+                }
+
+                foreach ($allEmployees as $employee) {
+                    $code = strtolower($employee->employee_id);
+                    $affected = isset($employees[$code]) || $employee->positions->contains(fn ($position): bool => in_array($position->reports_to_position_id, $changedPositionIds, true) || in_array($position->id, $changedPositionIds, true));
+                    if (! $affected) {
+                        continue;
+                    }
+                    $line = array_key_first($employeeRows[$code] ?? $rows);
+                    $resolution = $service->resolve($employee, $allEmployees);
+                    if ($resolution['manager'] === null && ($employee->explicit_reporting_manager_id !== null
+                        || str_contains($resolution['status'], 'Circular') || str_contains($resolution['status'], 'Multiple employees'))) {
+                        throw new ImportRowException($employee->employee_id.': '.$resolution['status'].'.');
+                    }
+                    if (isset($employees[$code])) {
+                        $primary = $employee->positions->first(fn ($position): bool => (bool) $position->pivot->is_primary);
+                        $manager = $allEmployees->get($resolution['manager'] ?? 0);
+                        $result->hierarchy[] = ['employee' => $employee->employee_id, 'position' => $primary?->code ?? '', 'reports_to_position' => $primary?->reportsTo?->code ?? '', 'manager' => $manager?->employee_id ?? '', 'status' => $resolution['status']];
+                    }
                 }
                 EmployeeReportingService::$deferred = false;
                 $service->synchronize();

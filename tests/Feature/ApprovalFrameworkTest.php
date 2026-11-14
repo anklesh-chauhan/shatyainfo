@@ -72,7 +72,7 @@ function approvalFixture(array $enabledModules = ['SalesTourPlan']): array
     return compact('record', 'territory', 'requesterRole', 'managerRole', 'directorRole', 'requester', 'manager', 'director');
 }
 
-test('it resolves the highest priority effective approval flow and snapshots the request', function () {
+test('it selects the effective approval flow and snapshots the request', function () {
     Event::fake([ApprovalStatusChanged::class]);
     $fixture = approvalFixture();
     $this->actingAs($fixture['requester']);
@@ -84,8 +84,8 @@ test('it resolves the highest priority effective approval flow and snapshots the
         'max_amount' => 1000,
         'priority' => 1,
         'version' => 1,
-        'effective_from' => now()->subDay(),
-        'effective_to' => now()->addDay(),
+        'effective_from' => now()->subDays(3),
+        'effective_to' => now()->subDays(2),
     ]);
 
     $selectedFlow = ApprovalFlow::query()->create([

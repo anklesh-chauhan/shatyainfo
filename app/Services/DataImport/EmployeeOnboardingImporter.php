@@ -38,7 +38,7 @@ class EmployeeOnboardingImporter
             'org_unit' => 'West Division', 'org_unit_type' => 'Division',
             'hire_date' => '2026-10-01', 'employment_type' => 'Permanent',
             'is_primary_position' => 'Yes', 'reports_to_position_code' => '',
-            'reports_to_employee_code' => '', 'reporting_action' => '', 'assignment_action' => '',
+            'reports_to_employee_code' => '', 'reporting_employee_action' => '', 'reporting_action' => '', 'assignment_action' => '',
             'temporary_password' => '',
         ];
 

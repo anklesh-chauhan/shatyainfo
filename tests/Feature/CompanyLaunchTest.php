@@ -252,15 +252,7 @@ it('does not count owned customers that the MR cannot see', function () {
 
 it('checks the DCR approver against the MR rather than the administrator', function () {
     $this->launch->saveWorkflow('direct_dcr', 0);
-    $role = JobRole::query()->create(['name' => 'Approver', 'code' => 'LAUNCH_APPROVER', 'level' => 2]);
-    $position = Position::query()->create(['name' => 'Approver', 'code' => 'LAUNCH_APPROVER', 'job_role_id' => $role->id]);
-    $this->rep->employee->positions()->attach($position->id);
-    $input = app(OnboardingApprovalService::class)->defaults();
-    $input['required'] = 'yes';
-    $input['modules'] = ['SalesDcr'];
-    $input['common']['l1_role_id'] = $role->id;
-    $input['common']['l1_user_id'] = $this->rep->id;
-    app(OnboardingApprovalService::class)->saveDraft($input);
+    app(OnboardingApprovalService::class)->saveDraft(['required' => 'yes']);
     $revision = $this->launch->proposal($this->organization->fresh());
     expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))->toThrow(ValidationException::class);
     expect(FieldPlanningActivation::query()->count())->toBe(0);
@@ -457,20 +449,13 @@ it('launches a structured monthly-plan team only with an independent plan approv
     $position = Position::query()->create(['name' => 'Monthly manager', 'code' => 'MONTHLY-MGR', 'job_role_id' => $role->id]);
     $position->territories()->attach($territory->id);
     $this->rep->employee->positions()->attach($position->id);
-    $input = app(OnboardingApprovalService::class)->defaults();
-    $input['required'] = 'yes';
-    $input['modules'] = ['SalesTourPlan'];
-    $input['common']['l1_role_id'] = $role->id;
-    $input['common']['l1_user_id'] = $this->rep->id;
-    app(OnboardingApprovalService::class)->saveDraft($input);
+    app(OnboardingApprovalService::class)->saveDraft(['required' => 'yes']);
     $revision = $this->launch->proposal($this->organization->fresh());
     expect(fn () => $this->launch->launch([$this->rep->employee->id], $revision->id))->toThrow(ValidationException::class);
     expect(FieldPlanningActivation::query()->count())->toBe(0);
 
     $manager = reportingUser('Independent monthly manager');
-    $manager->employee->positions()->attach($position->id);
-    $input['common']['l1_user_id'] = $manager->id;
-    app(OnboardingApprovalService::class)->saveDraft($input);
+    $this->rep->employee->update(['explicit_reporting_manager_id' => $manager->employee->id]);
     $hq = FieldUserHq::query()->where('user_id', $this->rep->id)->sole()->location;
     $hq->territories()->detach();
     expect($this->launch->readiness([$this->rep->employee->id])['members'][0]['issue_details'])->toHaveKey('hq');
@@ -482,7 +467,7 @@ it('launches a structured monthly-plan team only with an independent plan approv
         ->toMatchArray(['mode' => 'formal_mtp', 'supports_direct_calls' => false, 'supports_flexible_plans' => false, 'allows_unplanned_calls' => false]);
     expect($this->launch->forUser($this->rep)['launched'])->toBeTrue();
     expect(ApprovalSetting::moduleRequiresApproval('SalesTourPlan'))->toBeTrue()
-        ->and(ApprovalSetting::moduleRequiresApproval('SalesDcr'))->toBeFalse();
+        ->and(ApprovalSetting::moduleRequiresApproval('SalesDcr'))->toBeTrue();
 });
 
 it('requires a matching HQ territory when assigning a monthly-plan representative', function (string $case) {

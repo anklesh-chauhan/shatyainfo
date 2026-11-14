@@ -97,7 +97,9 @@ class EmploymentDetailRelationManager extends RelationManager
                     ->preload()
                     ->nullable(),
                 Select::make('reporting_manager_id')
-                    ->relationship('reportingManager', 'first_name') // Use a real column as fallback
+                    ->relationship('reportingManager', 'first_name')
+                    ->disabled()->dehydrated(false)
+                    ->helperText('Manage the reporting employee override on the employee record.')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                     ->searchable(['first_name', 'middle_name', 'last_name'])
                     ->preload()

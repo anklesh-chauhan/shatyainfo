@@ -142,40 +142,26 @@
                     </details>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="reviewFieldTravel" wire:loading.attr="disabled">Skip and complete later</button><x-filament::button wire:click="reviewFieldTravel" wire:loading.attr="disabled">Continue to approvals</x-filament::button></div></div>
                 @elseif ($step === 5)
-                    <h2>Does your team need approvals?</h2>
-                    @if ($this->requiresMonthlyPlans())<p class="setup-note">Monthly tour plan approvals are required for this working method. Enable Sales Tour Plan approvals and configure an approver for each MR. DCR and other reporting approvals remain separate choices.</p>@endif
-                    <p>We will create the settings and flows in your existing admin pages. L1 and L2 are human approval steps.</p>
+                    <h2>Are approvals required?</h2>
+                    @if ($this->requiresMonthlyPlans())
+                        <p class="setup-note">Formal monthly planning requires Sales Tour Plan approval. Choose Yes or change the planning method.</p>
+                    @endif
                     <form wire:submit="reviewApprovals" class="setup-form">
                         @if ($this->approvalSetup()->hasExistingConfiguration() || $this->approvalAlreadyApplied())
-                            <div class="setup-note">Approval configuration already exists. Continue to retain it. Use the links below to make changes.</div>
+                            <p class="setup-note">Your existing approval settings and flows will be used.</p>
                         @else
-                            <div class="setup-field"><label for="approval-required">Approval required?</label><x-filament::input.wrapper><x-filament::input.select id="approval-required" wire:model.live="approval.required"><option value="">Choose an option</option><option value="no">No approvals required</option><option value="yes">Yes, configure approvals</option></x-filament::input.select></x-filament::input.wrapper></div>
-                            @if (($approval['required'] ?? '') === 'no')
-                                <p class="setup-hint">Approval statuses will be hidden in the admin workspace and field app. You can enable approvals later in Approval Settings.</p>
-                            @endif
+                            <div class="setup-field">
+                                <label for="approval-required">Are approvals required?</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="approval-required" wire:model.live="approval.required">
+                                        <option value="">Choose an option</option>
+                                        <option value="yes">Yes</option>
+                                        <option value="no">No</option>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
                             @if (($approval['required'] ?? '') === 'yes')
-                                <p class="setup-hint">Choose modules with approval support.</p>
-                                @foreach ($this->approvalSetup()->groups() as $group => $modules)
-                                    <fieldset class="setup-note"><legend>{{ $group }}</legend>
-                                        @foreach ($modules as $module => $label)
-                                            <label style="display:block;margin:10px 0"><input type="checkbox" wire:model.live="approval.modules" value="{{ $module }}"> {{ $label }}</label>
-                                        @endforeach
-                                    </fieldset>
-                                @endforeach
-                                <p class="setup-hint">HR Change Requests shares one flow for salary, employment, attendance, overtime, and comp-off changes.</p>
-                                <h3>Common approval setup</h3>
-                                @include('filament.pages.partials.onboarding-approval-routing', ['prefix' => 'approval.common'])
-                                <p class="setup-hint">Choose a named approver when several employees share a role. Territory-scoped approvers require a flow territory. L1 and L2 must be different people. Requesters cannot approve their own requests.</p>
-                                @foreach (($approval['modules'] ?? []) as $module)
-                                    @if (isset($this->approvalSetup()->moduleOptions()[$module]))
-                                        <div class="setup-note" wire:key="approval-override-{{ $module }}">
-                                            <label><input type="checkbox" wire:model.live="approval.overrides.{{ $module }}.custom"> Customize {{ $this->approvalSetup()->moduleOptions()[$module] }}</label>
-                                            @if (data_get($approval, 'overrides.'.$module.'.custom'))
-                                                @include('filament.pages.partials.onboarding-approval-routing', ['prefix' => 'approval.overrides.'.$module])
-                                            @endif
-                                        </div>
-                                    @endif
-                                @endforeach
+                                @include('filament.pages.partials.onboarding-approval-routing', ['modules' => $this->approvalSetup()->moduleOptions()])
                             @endif
                         @endif
                         <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><div><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button type="submit" wire:loading.attr="disabled">Review setup</x-filament::button></div></div>
@@ -258,17 +244,17 @@
                     <div class="setup-note">
                         <h3>Approval setup</h3>
                         @if (($approvalReview['required'] ?? '') === 'existing')
-                            <p>Keep the existing approval settings and flows. Your admin changes are preserved.</p>
+                            <p>Your existing approval settings and flows will be used.</p>
+                            @if (($approvalReview['modules'] ?? []) !== [])
+                                <p>{{ implode(', ', $approvalReview['modules']) }}</p>
+                            @endif
                         @elseif (($approvalReview['required'] ?? '') === 'no')
                             <p>No approvals required. Approval statuses are hidden in the admin workspace and field app. You can enable approvals later in Approval Settings.</p>
                         @else
-                            @foreach (($approvalReview['flows'] ?? []) as $flow)
-                                <p><strong>{{ $flow['label'] }}</strong> — {{ $flow['territory'] }}</p>
-                                <ul>@foreach ($flow['steps'] as $route)<li>L{{ $loop->iteration }}: {{ $route['role'] }} — {{ $route['approver'] }} ({{ ['all' => 'Any territory', 'self' => 'Selected territory', 'children' => 'Selected territory and children'][$route['territory_scope']] }})</li>@endforeach</ul>
-                            @endforeach
-                            <p>These flows will become active when you finish setup.</p>
+                            @include('filament.pages.partials.onboarding-approval-routing', ['modules' => $approvalReview['modules'] ?? []])
                         @endif
                     </div>
+                    <a class="setup-review-link" href="{{ \App\Filament\Resources\Employees\EmployeeResource::getUrl('index', panel: 'admin') }}">Review reporting employees and logins →</a>
                     <a class="setup-review-link" href="{{ \App\Filament\Resources\Positions\PositionResource::getUrl('index', panel: 'admin') }}">Review positions and reporting →</a>
                     <div class="setup-actions"><button type="button" class="setup-text-button" wire:click="back">Back</button><button type="button" class="setup-text-button" wire:click="skip">Save and continue later</button><x-filament::button wire:click="finish" wire:loading.attr="disabled" size="lg">Launch selected team</x-filament::button></div>
                 @endif

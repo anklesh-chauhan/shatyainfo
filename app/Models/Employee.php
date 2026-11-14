@@ -6,10 +6,12 @@ use App\Notifications\UserAccountCreated;
 use App\Services\EmployeeReportingService;
 use App\Traits\HasApprovalWorkflow;
 use App\Traits\RequiresHrChangeApproval;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class Employee extends BaseModel
 {
@@ -26,7 +28,7 @@ class Employee extends BaseModel
         'date_of_birth', 'gender', 'country_id', 'marital_status', 'phone_number',
         'emergency_contact_name', 'emergency_contact_number', 'age', 'contact_details',
         'profile_picture', 'blood_group', 'is_active', 'login_id', 'created_by_user_id',
-        'updated_by_user_id', 'deleted_by_user_id', 'is_deleted', 'shift_master_id', 'approval_status',
+        'updated_by_user_id', 'deleted_by_user_id', 'is_deleted', 'shift_master_id', 'approval_status', 'explicit_reporting_manager_id',
     ];
 
     protected $casts = [
@@ -83,6 +85,11 @@ class Employee extends BaseModel
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by_user_id');
+    }
+
+    public function explicitReportingManager(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'explicit_reporting_manager_id');
     }
 
     public function employmentDetail()
@@ -149,8 +156,21 @@ class Employee extends BaseModel
 
     protected static function booted(): void
     {
+        static::saving(function (Employee $employee): void {
+            if (EmployeeReportingService::$deferred || ! $employee->isDirty('explicit_reporting_manager_id')) {
+                return;
+            }
+            $employee->unsetRelation('explicitReportingManager');
+            $resolution = app(EmployeeReportingService::class)->resolve($employee);
+            if ($resolution['manager'] === null && ($employee->explicit_reporting_manager_id !== null
+                || str_contains($resolution['status'], 'Circular') || str_contains($resolution['status'], 'Multiple employees'))) {
+                throw ValidationException::withMessages([
+                    'data.explicit_reporting_manager_id' => $resolution['status'],
+                ]);
+            }
+        });
         static::saved(function (Employee $employee): void {
-            if ($employee->wasChanged('is_active')) {
+            if ($employee->wasChanged(['is_active', 'explicit_reporting_manager_id'])) {
                 app(EmployeeReportingService::class)->synchronize();
             }
         });

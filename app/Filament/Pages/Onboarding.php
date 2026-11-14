@@ -11,6 +11,7 @@ use App\Filament\Resources\Patches\PatchResource;
 use App\Filament\Resources\Users\UserResource;
 use App\Jobs\ProcessAccountImport;
 use App\Jobs\SeedTenantMasters;
+use App\Models\ApprovalSetting;
 use App\Models\Employee;
 use App\Models\LocationMaster;
 use App\Models\Organization;
@@ -595,23 +596,6 @@ class Onboarding extends Page
         return app(OnboardingApprovalService::class);
     }
 
-    public function updatedApproval(mixed $value, ?string $key): void
-    {
-        if ($key !== null && preg_match('/^(common|overrides\.[^.]+)\.(territory_id|l[12]_(role_id|scope))$/', $key, $matches)) {
-            $section = $matches[1];
-            foreach (($matches[2] === 'territory_id' ? [1, 2] : [(int) $matches[2][1]]) as $level) {
-                data_set($this->approval, $section.'.l'.$level.'_user_id', '');
-            }
-        }
-        if ($key !== null && str_starts_with($key, 'overrides.') && str_ends_with($key, '.custom') && $value) {
-            $module = explode('.', $key)[1];
-            if (array_key_exists($module, $this->approvalSetup()->moduleOptions())) {
-                $this->approval['overrides'][$module] = array_merge($this->approval['common'], ['custom' => true]);
-            }
-        }
-        $this->saveDraft();
-    }
-
     public function reviewApprovals(): void
     {
         app(CompanyOnboardingService::class)->authorize();
@@ -742,7 +726,7 @@ class Onboarding extends Page
             $this->step = 5;
         }
         if ($this->approvalAlreadyApplied()) {
-            $this->approvalReview = ['required' => 'existing', 'flows' => []];
+            $this->approvalReview = ['required' => 'existing', 'modules' => ApprovalSetting::approvedModuleOptions()];
             $this->step = 6;
         }
         if (($organization?->metadata['company_setup']['approvals_draft']['required'] ?? '') !== '' && $this->step === 5) {
@@ -750,7 +734,7 @@ class Onboarding extends Page
                 $this->approvalReview = $this->approvalSetup()->review($this->approval);
                 $this->step = 6;
             } catch (ValidationException $exception) {
-                $this->addError('approval', 'Your saved approval setup needs attention. Review the approvers before continuing.');
+                $this->addError('approval', 'Your saved approval setup needs attention. Review the approval choice before continuing.');
             }
         }
         if (! $revision && ($organization?->metadata['company_setup']['organization_saved'] ?? false)) {

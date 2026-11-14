@@ -64,12 +64,12 @@ class EmployeeImportTemplate
             ['2. One row per assignment', 'Use one row per employee-position assignment. Repeat the employee code for additional positions; personal details must agree. Give exactly one position Yes for is_primary_position.'],
             ['3. Order does not matter', 'Managers can appear before or after their team. References must point to an existing company position/employee or one defined in this upload. Do not reference database row IDs or names.'],
             ['4. Preview and import', 'Upload .xlsx or UTF-8 CSV. Preview shows the first five rows as an example; confirm to import the entire file. The entire employee file is saved together; any validation error saves nothing. Fix the reported row and upload again. Review the hierarchy shown after a successful import.'],
-            ['Position is authoritative', 'reports_to_position_code defines the organization hierarchy. The manager is the single active employee occupying the parent position of the employee\'s primary position. Job role level does not create reporting relationships.'],
-            ['Expected manager is a check', 'reports_to_employee_code checks the resolved manager; it does not override the hierarchy or select between multiple occupants. For multiple occupants, correct assignments or use separate manager positions.'],
-            ['Vacant reporting positions', 'A parent position may have no active employee. Import succeeds with Reporting position vacant, unless an expected manager was supplied. Create unoccupied positions in Positions before referencing them.'],
+            ['Position fallback', 'reports_to_position_code defines the organization hierarchy. The manager is the single active employee occupying the parent position of the employee\'s primary position. Job role level does not create reporting relationships.'],
+            ['Reporting employee', 'The reporting employee HR code takes precedence. Blank preserves an existing override. Use reporting_employee_action = clear to restore position fallback.'],
+            ['Vacant reporting positions', 'A parent position may have no active employee. Import reports the vacancy when position fallback is needed. Fill the position or set an active reporting employee before submitting for approval. Create unoccupied positions in Positions before referencing them.'],
             ['Top-level employees', 'For a new top-level position, leave reports_to_position_code and reports_to_employee_code blank. For an existing position, use reporting_action = clear to remove its parent.'],
             ['Blank cells', 'Blank means preserve existing values, assignments and reporting links. On a new position, blank reporting means no parent. New employees still need their required personal details and a primary assignment.'],
-            ['Change primary position', 'Set Yes on the new primary position; other existing assignments become secondary. Set assignment_action = remove on a separate row to detach an old position. Exactly one primary must remain.'],
+            ['Change primary position', 'Set Yes on the new primary position; other existing assignments become secondary. Set assignment_action = remove on a separate row to detach an old position. Keep one primary when the employee has positions. Employee-only reporting can be imported without positions.'],
             ['Replace a manager', 'Assign the replacement to the manager position and remove the outgoing employee from it in the same upload. Give the outgoing employee another primary position. Dependent employee managers refresh automatically.'],
             ['Clear vs remove', 'reporting_action = clear removes the parent link for the position (affects everyone in that position). assignment_action = remove detaches only this employee from the position. Neither deletes a record.'],
             ['Hierarchy validation', 'Self-reporting, circular position/employee chains, missing codes, conflicting shared position details and ambiguous manager occupants are rejected. No first matching manager is chosen.'],
@@ -102,11 +102,12 @@ class EmployeeImportTemplate
             'org_unit_type' => 'Existing organizational-unit type, for example Division, Head Office, Plant or Department. Defaults to Division when an org unit is supplied.',
             'hire_date' => 'Optional date in YYYY-MM-DD format. Enter on the primary assignment row; blank preserves the existing date.',
             'employment_type' => 'Optional: Permanent, Contract, Part-Time, Intern, Temporary or Consultant. Enter on the primary assignment row.',
-            'is_primary_position' => 'Yes or No. Exactly one final primary position per imported employee. Blank keeps an existing flag; a new assignment defaults to secondary.',
+            'is_primary_position' => 'Yes or No. Employees with position assignments need exactly one primary position. Blank keeps an existing flag; a new assignment defaults to secondary.',
             'reports_to_position_code' => 'Parent position code. Must exist in this file or company. A nonblank code sets the link; blank preserves it unless reporting_action is clear.',
-            'reports_to_employee_code' => 'Optional expected manager HR code for this employee\'s primary assignment. Must match the single active occupant of the reporting position. Not a manager override.',
+            'reports_to_employee_code' => 'Active reporting employee HR code. Overrides position reporting. Blank preserves the existing override.',
+            'reporting_employee_action' => 'Leave blank or enter clear with a blank reporting employee code to restore position fallback.',
             'reporting_action' => 'Blank, set or clear. set requires reports_to_position_code; clear requires that code blank. Leave blank with a code to set it automatically.',
-            'assignment_action' => 'Blank or assign adds/keeps this employee-position assignment. remove detaches it. A removed assignment cannot have is_primary_position = Yes or an expected manager.',
+            'assignment_action' => 'Blank or assign adds/keeps this employee-position assignment. remove detaches it. A removed assignment cannot have is_primary_position = Yes.',
         ];
     }
 
@@ -119,7 +120,7 @@ class EmployeeImportTemplate
             [...$base, 'employee_id' => 'EMP004', 'first_name' => 'Asha', 'last_name' => 'Shah', 'mobile_number' => '9000000004', 'job_role' => 'Medical Representative', 'job_role_level' => '4', 'position' => 'Medical Representative - Mumbai 01', 'position_code' => 'MR-MUM-01', 'reports_to_position_code' => 'ASM-MUMBAI', 'reports_to_employee_code' => 'EMP003'],
             [...$base, 'employee_id' => 'EMP001', 'first_name' => 'Ravi', 'last_name' => 'Shah', 'mobile_number' => '9000000001', 'job_role' => 'Sales Head', 'job_role_level' => '1', 'position' => 'Sales Head', 'position_code' => 'SALES-HEAD'],
             [...$base, 'employee_id' => 'EMP003', 'first_name' => 'Meera', 'last_name' => 'Patel', 'mobile_number' => '9000000003', 'job_role' => 'Area Sales Manager', 'job_role_level' => '3', 'position' => 'Area Sales Manager - Mumbai', 'position_code' => 'ASM-MUMBAI', 'reports_to_position_code' => 'RSM-WEST', 'reports_to_employee_code' => 'EMP002'],
-            [...$base, 'employee_id' => 'EMP002', 'first_name' => 'Kiran', 'last_name' => 'Patel', 'mobile_number' => '9000000002', 'job_role' => 'Regional Sales Manager', 'job_role_level' => '2', 'position' => 'Regional Sales Manager - West', 'position_code' => 'RSM-WEST', 'reports_to_position_code' => 'SALES-HEAD', 'reports_to_employee_code' => 'EMP001'],
+            [...$base, 'employee_id' => 'EMP002', 'first_name' => 'Kiran', 'last_name' => 'Patel', 'mobile_number' => '9000000002', 'job_role' => 'Regional Sales Manager', 'job_role_level' => '2', 'position' => 'Regional Sales Manager - West', 'position_code' => 'RSM-WEST', 'reports_to_position_code' => 'SALES-HEAD'],
         ];
     }
 }

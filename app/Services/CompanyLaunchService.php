@@ -142,6 +142,8 @@ class CompanyLaunchService
             ->select('owner_id')->selectRaw('COUNT(*) AS customer_count')->groupBy('owner_id')->pluck('customer_count', 'owner_id');
         $launched = $organization?->metadata['company_setup']['launched_users'] ?? [];
         $rows = [];
+        $setup = $organization?->metadata['company_setup'] ?? [];
+        $checkDraftManager = ! ($setup['approvals_applied'] ?? false) && ($setup['approvals_draft']['required'] ?? '') === 'yes';
         foreach ($employees as $employee) {
             $issues = [];
             $user = $employee->user;
@@ -172,6 +174,13 @@ class CompanyLaunchService
             }
             if (($revision?->rules['require_patch'] ?? false) && ! Patch::query()->whereIn('territory_id', $territories)->exists()) {
                 $issues['patch'] = 'Create a patch in the assigned territory.';
+            }
+            if ($checkDraftManager) {
+                try {
+                    app(ApprovalService::class)->managerApprover($employee);
+                } catch (LogicException $exception) {
+                    $issues['approvals'] = $exception->getMessage();
+                }
             }
             if ($user && ($organization?->metadata['company_setup']['approvals_applied'] ?? false)) {
                 try {

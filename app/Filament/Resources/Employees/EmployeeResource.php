@@ -338,7 +338,7 @@ class EmployeeResource extends BaseResource
                                             ->disabled()
                                             ->dehydrated(false)
                                             ->helperText(
-                                                'This is automatically derived from the employee’s position hierarchy.'
+                                                'Resolved from the reporting employee override or the primary position.'
                                             ),
 
                                         DatePicker::make('hire_date')
@@ -394,6 +394,13 @@ class EmployeeResource extends BaseResource
                                             ->columnSpanFull()
                                             ->nullable(),
                                     ]),
+                                Select::make('explicit_reporting_manager_id')
+                                    ->label('Reporting employee override')
+                                    ->relationship('explicitReportingManager', 'first_name', fn ($query, ?Employee $record) => $query
+                                        ->where('is_active', true)->when($record?->exists, fn ($query) => $query->whereKeyNot($record->id)))
+                                    ->getOptionLabelFromRecordUsing(fn (Employee $record): string => $record->full_name.' ('.$record->employee_id.')')
+                                    ->searchable(['first_name', 'last_name', 'employee_id'])
+                                    ->helperText('Clear this field to use the active occupant of the primary position’s reporting position.'),
                                 Select::make('positions')
                                     ->multiple()
                                     ->relationship('positions', 'name')

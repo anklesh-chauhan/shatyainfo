@@ -10,11 +10,14 @@ use App\Models\Approval;
 use App\Models\ApprovalActivity;
 use App\Models\ApprovalDelegation;
 use App\Models\ApprovalFlow;
+use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalSetting;
 use App\Models\ApprovalStep;
+use App\Models\Employee;
 use App\Models\LeaveApplication;
 use App\Models\Territory;
 use App\Models\User;
+use App\Services\EmployeeReportingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -64,7 +67,9 @@ class ApprovalService
                 $amount = $approvable->approvalAmount();
             }
             $amount ??= $this->resolveAmount($approvable);
-            $flow = $this->resolveApprovalFlow($module, $territoryId, $amount);
+            $subject = $this->requestEmployee($approvable, Auth::user());
+            $route = $this->resolveRoute($subject, $module, $territoryId, $amount, requesterId: Auth::id());
+            $flow = $route['flow'];
 
             $approval = $approvable->approval()->create([
                 'approval_flow_id' => $flow->id,
@@ -76,57 +81,21 @@ class ApprovalService
                 'territory_id' => $territoryId,
                 'flow_version' => $flow->version,
                 'approval_status' => ApprovalStatus::Pending->value,
-                'submitted_record_summary' => $this->submittedRecordSummary($approvable),
+                'submitted_record_summary' => [...$this->submittedRecordSummary($approvable), 'flow_name' => $flow->display_name, 'employee_id' => $subject?->id],
             ]);
 
             $selectedSteps = [];
             $selectedApprovers = [];
 
-            foreach ($flow->steps as $flowStep) {
-                $stepRole = $flowStep->jobRole;
-
-                if (! $stepRole) {
-                    if ($flowStep->can_skip) {
-                        $this->logActivity($approval, ApprovalActivityAction::Skipped, metadata: [
-                            'flow_step_id' => $flowStep->id,
-                            'reason' => 'missing_job_role',
-                        ]);
-
-                        continue;
-                    }
-
-                    throw new LogicException("No job role configured for approval flow step [{$flowStep->id}].");
-                }
-
-                $user = $this->resolveApprover(
-                    $flowStep->job_role_id,
-                    $territoryId,
-                    $flowStep->territory_scope,
-                    $flowStep->approver_user_id
-                );
-
-                if (! $user && $flowStep->can_skip) {
+            foreach ($route['steps'] as $resolved) {
+                ['step' => $flowStep, 'original' => $user, 'assigned' => $assignedUser, 'reason' => $reason] = $resolved;
+                if (! $assignedUser) {
                     $this->logActivity($approval, ApprovalActivityAction::Skipped, metadata: [
                         'flow_step_id' => $flowStep->id,
-                        'reason' => 'no_approver_found',
+                        'reason' => $reason,
                     ]);
 
                     continue;
-                }
-
-                if (! $user) {
-                    throw new LogicException("No approver found for approval flow step [{$flowStep->step_order}].");
-                }
-
-                $assignedUser = $this->resolveDelegatedApprover($user, $module);
-
-                if ($assignedUser->id === Auth::id()) {
-                    throw new LogicException('The requester cannot approve their own request, including through delegation.');
-                }
-
-                if (in_array($approvable::class, [...HrApprovalHandler::supports(), LeaveApplication::class], true)
-                    && (int) $approvable->employee?->login_id === (int) $assignedUser->id) {
-                    throw new LogicException('An employee cannot approve an HR request about themselves.');
                 }
 
                 $step = ApprovalStep::create([
@@ -144,6 +113,9 @@ class ApprovalService
                     'approval_step_id' => $step->id,
                     'step_order' => $flowStep->step_order,
                     'job_role_id' => $flowStep->job_role_id,
+                    'routing_type' => $flowStep->routing_type,
+                    'reason' => $reason,
+                    'approver_employee_id' => $flowStep->approver_employee_id,
                     'territory_scope' => $flowStep->territory_scope,
                     'can_skip' => (bool) $flowStep->can_skip,
                     'sla_hours' => $flowStep->sla_hours,
@@ -154,6 +126,8 @@ class ApprovalService
                     'step_order' => $step->step_order,
                     'user_id' => $assignedUser->id,
                     'name' => $assignedUser->name,
+                    'original_name' => $user->name,
+                    'reason' => $reason,
                     'delegated_from_user_id' => $assignedUser->is($user) ? null : $user->id,
                 ];
 
@@ -298,76 +272,125 @@ class ApprovalService
         });
     }
 
-    protected function resolveApprovalFlow(string $module, ?int $territoryId, float $amount): ApprovalFlow
+    private function requestEmployee(Model $record, User $requester): ?Employee
     {
-        $flow = ApprovalFlow::query()
-            ->where('module', $module)
-            ->where('active', true)
-            ->effectiveOn()
-            ->where(fn ($query) => $query->whereNull('territory_id')->orWhere('territory_id', $territoryId))
-            ->where(fn ($query) => $query->whereNull('min_amount')->orWhere('min_amount', '<=', $amount))
-            ->where(fn ($query) => $query->whereNull('max_amount')->orWhere('max_amount', '>=', $amount))
-            ->with('steps.jobRole')
-            ->orderByDesc('priority')
-            ->orderByDesc('territory_id')
-            ->orderByDesc('version')
-            ->first();
-
-        if (! $flow) {
-            throw new LogicException("No approval flow found for module [{$module}]");
-        }
-
-        return $flow;
+        return match (class_basename($record)) {
+            'LeaveApplication', 'LeaveAdjustment', 'LeaveEncashment', 'LeaveCancellation', 'HrChangeRequest' => $record->employee,
+            'SalesDcr', 'SalesTourPlan' => $record->user?->employee,
+            'SalesTourPlanDetail' => $record->tourPlan?->user?->employee,
+            'Quote', 'SalesOrder', 'SalesInvoice', 'PurchaseOrder', 'GoodsReceiptNote',
+            'InventoryAdjustment', 'InventoryTransfer', 'DeliveryChallan' => $requester->employee,
+            default => throw new LogicException('No employee ownership mapping for this approval module.'),
+        };
     }
 
-    public function previewApprover(int $roleId, ?int $territoryId, string $scope, string $module, ?int $approverUserId = null): User
+    public function resolveRoute(?Employee $employee, string $module, ?int $territoryId = null, ?float $amount = null, ?string $date = null, ?int $requesterId = null): array
     {
-        $user = $this->resolveApprover($roleId, $territoryId, $scope, $approverUserId);
-        if (! $user) {
-            throw new LogicException($approverUserId === null
-                ? 'No active approver with a login matches this role and scope, excluding the requester.'
-                : 'The selected approver must be active, have a login, match this role and territory scope, and be different from the requester.');
+        $module = class_basename($module);
+        if (! ApprovalSetting::moduleRequiresApproval($module)) {
+            throw new LogicException('Approval is disabled for this module.');
         }
-        $user = $this->resolveDelegatedApprover($user, $module);
-        if ($user->id === Auth::id()) {
-            throw new LogicException('The requester cannot be their own delegated approver.');
+        $flows = ApprovalFlow::query()->matching($module, $territoryId, $amount, $date)
+            ->with('steps')->limit(2)->get();
+
+        if ($flows->count() > 1) {
+            throw new LogicException("Conflicting active approval flows match {$module}.");
+        }
+        $flow = $flows->first() ?? throw new LogicException("No approval flow found for module [{$module}]. Check the territory, amount and date.");
+
+        $previous = null;
+        $steps = [];
+        $originals = [];
+        $assignedUsers = [];
+        $excluded = array_filter([$requesterId, $employee?->login_id]);
+
+        foreach ($flow->steps as $step) {
+            try {
+                [$original, $reason] = match ($step->routing_type) {
+                    'reporting_manager' => $this->managerApprover($employee),
+                    'previous_manager' => $this->managerApprover($previous?->employee),
+                    'specific_employee' => [$this->employeeLogin(Employee::query()->find($step->approver_employee_id)), 'Specific employee'],
+                    'job_role' => [$this->roleApprover($step, $territoryId, $requesterId), 'Matching job role'],
+                    default => throw new LogicException('Unknown approval step type.'),
+                };
+            } catch (LogicException $exception) {
+                if (! $step->can_skip || $step->routing_type !== 'job_role' || $step->approver_employee_id || $step->approver_user_id || $exception->getMessage() !== 'No approver found for this job role.') {
+                    throw new LogicException('Level '.$step->step_order.'. '.$exception->getMessage(), previous: $exception);
+                }
+                $steps[] = ['step' => $step, 'original' => null, 'assigned' => null, 'reason' => $exception->getMessage()];
+                $previous = null;
+
+                continue;
+            }
+
+            $assigned = $this->resolveDelegatedApprover($original, $module, $date);
+            if ($requesterId !== null && in_array($requesterId, [$original->id, $assigned->id])) {
+                throw new LogicException('The requester cannot approve their own request, including through delegation.');
+            }
+            if (in_array($original->id, $excluded) || in_array($assigned->id, $excluded)) {
+                throw new LogicException('Employees cannot approve requests about themselves, including through delegation.');
+            }
+            if (isset($originals[$original->id]) || isset($assignedUsers[$assigned->id])
+                || isset($assignedUsers[$original->id]) || isset($originals[$assigned->id])) {
+                throw new LogicException('Each approval level must resolve to a different approver, including through delegation.');
+            }
+            $originals[$original->id] = true;
+            $assignedUsers[$assigned->id] = true;
+            $steps[] = compact('step', 'original', 'assigned', 'reason');
+            $previous = $original;
+        }
+        if ($assignedUsers === []) {
+            throw new LogicException('No actionable approval steps remain. Configure at least one available approver; automatic approval is not permitted.');
         }
 
-        return $user;
+        return compact('flow', 'steps');
+    }
+
+    public function managerApprover(?Employee $employee): array
+    {
+        if (! $employee?->is_active || $employee->is_deleted) {
+            throw new LogicException('The employee concerned is missing or inactive.');
+        }
+        $resolution = app(EmployeeReportingService::class)->resolve($employee);
+        if (! $resolution['manager']) {
+            throw new LogicException($employee->employee_id.': '.$resolution['status'].'.');
+        }
+
+        return [$this->employeeLogin(Employee::query()->find($resolution['manager'])), $employee->full_name.' — '.$resolution['source']];
+    }
+
+    private function employeeLogin(?Employee $employee): User
+    {
+        if (! $employee?->is_active || $employee->is_deleted) {
+            throw new LogicException('The selected employee is missing or inactive.');
+        }
+
+        return $employee->user ?? throw new LogicException($employee->employee_id.' needs a valid login to approve requests.');
+    }
+
+    private function roleApprover(ApprovalFlowStep $step, ?int $territoryId, ?int $requesterId): User
+    {
+        if (! $step->job_role_id) {
+            throw new LogicException('Select a job role for this approval level.');
+        }
+        $query = $this->matchingApprovers($step->job_role_id, $territoryId, $step->territory_scope, $step->approver_employee_id || $step->approver_user_id ? null : $requesterId);
+        if ($step->approver_employee_id) {
+            $query->whereKey($this->employeeLogin(Employee::query()->find($step->approver_employee_id))->id);
+        } elseif ($step->approver_user_id) {
+            $query->whereKey($step->approver_user_id);
+        }
+        $candidates = $query->limit(2)->get();
+        if ($candidates->count() > 1) {
+            throw new LogicException('Several people match this role and territory. Choose a named approver for this step.');
+        }
+
+        return $candidates->first() ?? throw new LogicException('No approver found for this job role.');
     }
 
     public function validateRouteFor(User $requester, string $module, ?int $territoryId = null): void
     {
-        if (! ApprovalSetting::moduleRequiresApproval($module)) {
-            return;
-        }
-
-        $flow = $this->resolveApprovalFlow($module, $territoryId, 0);
-        $resolved = 0;
-        foreach ($flow->steps as $step) {
-            if (! $step->jobRole) {
-                if ($step->can_skip) {
-                    continue;
-                }
-                throw new LogicException('An approval step has no job role.');
-            }
-            $candidates = $this->matchingApprovers($step->job_role_id, $territoryId, $step->territory_scope, $requester->id)
-                ->when($step->approver_user_id, fn (Builder $query) => $query->whereKey($step->approver_user_id))
-                ->limit(2)->get();
-            if ($candidates->isEmpty() && $step->can_skip) {
-                continue;
-            }
-            if ($candidates->count() !== 1) {
-                throw new LogicException('Choose one active approver for each required step, excluding the MR.');
-            }
-            $approver = $this->resolveDelegatedApprover($candidates->first(), $module);
-            if ($approver->is($requester)) {
-                throw new LogicException('The MR cannot approve their own report through delegation.');
-            }
-            $resolved++;
-        }
-        if ($resolved === 0) {
-            throw new LogicException('No approval steps resolve for this MR.');
+        if (ApprovalSetting::moduleRequiresApproval($module)) {
+            $this->resolveRoute($requester->employee, $module, $territoryId, 0, requesterId: $requester->id);
         }
     }
 
@@ -376,27 +399,12 @@ class ApprovalService
         return $this->matchingApprovers($jobRoleId, $territoryId, $territoryScope)->with('employee')->orderBy('name')->get();
     }
 
-    protected function resolveApprover(int $jobRoleId, ?int $territoryId, string $territoryScope = 'self', ?int $approverUserId = null): ?User
-    {
-        $query = $this->matchingApprovers($jobRoleId, $territoryId, $territoryScope);
-        if ($approverUserId !== null) {
-            return $query->whereKey($approverUserId)->first();
-        }
-        $candidates = $query->limit(2)->get();
-
-        if ($candidates->count() > 1) {
-            throw new LogicException('Several people match this role and territory. Choose a named approver for this step.');
-        }
-
-        return $candidates->first();
-    }
-
     private function matchingApprovers(int $jobRoleId, ?int $territoryId, string $territoryScope, ?int $requesterId = null): Builder
     {
         $territoryIds = $this->resolveTerritoryIds($territoryId, $territoryScope);
 
         return User::query()
-            ->whereKeyNot($requesterId ?? Auth::id())
+            ->when($requesterId !== null, fn (Builder $query) => $query->whereKeyNot($requesterId))
             ->whereHas('employee', fn ($employeeQuery) => $employeeQuery
                 ->where('is_active', true)
                 ->whereHas('positions', fn ($positionQuery) => $positionQuery
@@ -408,10 +416,10 @@ class ApprovalService
             );
     }
 
-    protected function resolveDelegatedApprover(User $user, string $module): User
+    protected function resolveDelegatedApprover(User $user, string $module, ?string $date = null): User
     {
         $delegations = ApprovalDelegation::query()
-            ->activeFor($user->id, $module)
+            ->activeFor($user->id, $module, $date)
             ->with('delegate.employee')
             ->limit(2)
             ->get();
@@ -421,7 +429,7 @@ class ApprovalService
         }
 
         $delegation = $delegations->first();
-        if ($delegation && (! $delegation->delegate || ! $delegation->delegate->employee?->is_active)) {
+        if ($delegation && (! $delegation->delegate || ! $delegation->delegate->employee?->is_active || $delegation->delegate->employee->is_deleted)) {
             throw new LogicException('The delegated approver must have an active employee record.');
         }
 

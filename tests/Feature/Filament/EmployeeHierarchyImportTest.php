@@ -21,6 +21,7 @@ use App\Services\DataImport\EmployeeOnboardingImporter;
 use App\Services\DataImport\ImportResult;
 use App\Services\DataImport\ResourceCsvImporter;
 use App\Services\DataImport\ResourceImportCatalog;
+use App\Services\EmployeeReportingService;
 use App\Services\OrganizationalUnitService;
 use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
 use Database\Seeders\DepartmentRoleSeeder;
@@ -317,8 +318,8 @@ it('rolls back the whole file for invalid reporting references', function (strin
         $rows[0]['reports_to_position_code'] = 'MISSING';
     } elseif ($failure === 'missing employee') {
         $rows[0]['reports_to_employee_code'] = 'MISSING';
-    } elseif ($failure === 'wrong manager') {
-        $rows[0]['reports_to_employee_code'] = 'EMP001';
+    } elseif ($failure === 'mixed cycle') {
+        $rows[1]['reports_to_employee_code'] = 'EMP002';
     } elseif ($failure === 'self position') {
         $rows[0]['reports_to_position_code'] = 'MR-MUM-01';
     } elseif ($failure === 'cycle') {
@@ -332,32 +333,34 @@ it('rolls back the whole file for invalid reporting references', function (strin
     } elseif ($failure === 'self employee') {
         $rows[] = ['employee_id' => 'EMP004', 'position' => 'Vacant parent', 'position_code' => 'PARENT', 'job_role' => 'Manager', 'is_primary_position' => 'No'];
         $rows[0]['reports_to_position_code'] = 'PARENT';
+        $rows[0]['reports_to_employee_code'] = '';
     }
     $result = hierarchyUpload($rows);
     expect($result->failed)->not->toBeEmpty()->and($result->created)->toBe(0)
         ->and($result->failed[0]['message'])->toContain('No rows were saved')
         ->and(Employee::count())->toBe(0)->and(Position::count())->toBe(0);
-})->with(['missing position', 'missing employee', 'wrong manager', 'self position', 'cycle', 'multiple primary', 'no primary', 'ambiguous manager', 'self employee']);
+})->with(['missing position', 'missing employee', 'mixed cycle', 'self position', 'cycle', 'multiple primary', 'no primary', 'ambiguous manager', 'self employee']);
 
 it('preserves blanks and clears a reporting link only when explicitly requested', function () {
     expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
     $row = ['employee_id' => 'EMP004', 'position_code' => 'MR-MUM-01'];
     expect(hierarchyUpload([$row])->failed)->toBe([]);
     expect(Employee::where('employee_id', 'EMP004')->first()->employmentDetail->reportingManager->employee_id)->toBe('EMP003');
-    expect(hierarchyUpload([...[$row + ['reporting_action' => 'clear']]])->failed)->toBe([]);
+    expect(hierarchyUpload([...[$row + ['reporting_action' => 'clear', 'reporting_employee_action' => 'clear']]])->failed)->toBe([]);
     expect(Position::where('code', 'MR-MUM-01')->first()->reports_to_position_id)->toBeNull();
     expect(Employee::where('employee_id', 'EMP004')->first()->employmentDetail->reporting_manager_id)->toBeNull();
 });
 
 it('refreshes managers when occupants change outside an import and displays vacancies', function () {
     expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
+    expect(hierarchyUpload([['employee_id' => 'EMP004', 'reporting_employee_action' => 'clear']])->failed)->toBe([]);
     $manager = Employee::where('employee_id', 'EMP003')->first();
     $employee = Employee::where('employee_id', 'EMP004')->first();
     $position = Position::where('code', 'ASM-MUMBAI')->first();
     $manager->positions()->detach($position->id);
     expect($employee->employmentDetail()->first()->reporting_manager_id)->toBeNull();
     $result = hierarchyUpload([['employee_id' => 'EMP004', 'position_code' => 'MR-MUM-01']]);
-    expect($result->failed)->toBe([])->and($result->hierarchy[0]['status'])->toBe('Reporting position vacant');
+    expect($result->failed)->toBe([])->and($result->hierarchy[0]['status'])->toContain('is vacant');
     $replacement = Employee::where('employee_id', 'EMP002')->first();
     $position->employees()->attach($replacement->id, ['is_primary' => false]);
     expect($employee->employmentDetail()->first()->reporting_manager_id)->toBe($replacement->id);
@@ -407,8 +410,10 @@ it('provides a blank upload sheet with complete instructions and separate exampl
     }
 });
 
-it('replaces a manager atomically and refreshes reports not included in the file', function () {
-    expect(hierarchyUpload(app(EmployeeImportTemplate::class)->examples())->failed)->toBe([]);
+it('replaces a manager atomically and refreshes position-derived reports not included in the file', function () {
+    $rows = app(EmployeeImportTemplate::class)->examples();
+    $rows[0]['reports_to_employee_code'] = '';
+    expect(hierarchyUpload($rows)->failed)->toBe([]);
     $result = hierarchyUpload([
         ['employee_id' => 'EMP002', 'position_code' => 'ASM-MUMBAI', 'is_primary_position' => 'No'],
         ['employee_id' => 'EMP003', 'position_code' => 'BENCH', 'position' => 'Advisor', 'job_role' => 'Advisor', 'is_primary_position' => 'Yes'],
@@ -456,4 +461,31 @@ it('rejects position cycles from normal model edits too', function () {
     $child = Position::where('code', 'MR-MUM-01')->first();
     expect(fn () => $head->update(['reports_to_position_id' => $child->id]))->toThrow(ValidationException::class);
     expect($head->fresh()->reports_to_position_id)->toBeNull();
+});
+
+it('uses the employee code before position fallback and keeps it through synchronization', function () {
+    $rows = app(EmployeeImportTemplate::class)->examples();
+    $rows[0]['reports_to_employee_code'] = 'EMP001';
+    expect(hierarchyUpload($rows)->failed)->toBe([]);
+    $employee = Employee::where('employee_id', 'EMP004')->sole();
+    $manager = Employee::where('employee_id', 'EMP001')->sole();
+    app(EmployeeReportingService::class)->synchronize();
+    expect($employee->fresh()->explicit_reporting_manager_id)->toBe($manager->id)
+        ->and($employee->employmentDetail()->sole()->reporting_manager_id)->toBe($manager->id)
+        ->and(Position::where('code', 'MR-MUM-01')->sole()->reportsTo->code)->toBe('ASM-MUMBAI');
+
+    expect(hierarchyUpload([['employee_id' => 'EMP004', 'reporting_employee_action' => 'clear']])->failed)->toBe([]);
+    expect($employee->fresh()->explicit_reporting_manager_id)->toBeNull()
+        ->and($employee->employmentDetail()->sole()->reportingManager->employee_id)->toBe('EMP003');
+});
+
+it('imports an employee-only reporting relationship', function () {
+    $rows = [
+        ['employee_id' => 'REP', 'first_name' => 'Field', 'last_name' => 'Rep', 'mobile_number' => '9001234001', 'reports_to_employee_code' => 'MGR'],
+        ['employee_id' => 'MGR', 'first_name' => 'Line', 'last_name' => 'Manager', 'mobile_number' => '9001234002'],
+    ];
+    expect(hierarchyUpload($rows)->failed)->toBe([]);
+    $employee = Employee::where('employee_id', 'REP')->sole();
+    expect($employee->positions()->count())->toBe(0)
+        ->and($employee->explicitReportingManager->employee_id)->toBe('MGR');
 });

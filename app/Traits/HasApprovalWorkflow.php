@@ -37,7 +37,7 @@ trait HasApprovalWorkflow
 
     /**
      * Does ANY approval flow exist for this module?
-     * (cached, used for UI gating)
+     * Used for UI gating.
      */
     public static function moduleHasApprovalFlow(): bool
     {
@@ -45,14 +45,7 @@ trait HasApprovalWorkflow
             return false;
         }
 
-        return cache()->remember(
-            'approval:module:'.static::approvalModule(),
-            now()->addMinutes(10),
-            fn () => ApprovalFlow::query()
-                ->where('module', static::approvalModule())
-                ->where('active', true)
-                ->exists()
-        );
+        return ApprovalFlow::query()->forModule(static::approvalModule())->where('active', true)->exists();
     }
 
     /**
@@ -65,20 +58,7 @@ trait HasApprovalWorkflow
             return false;
         }
 
-        return ApprovalFlow::query()
-            ->where('module', static::approvalModule())
-            ->where('active', true)
-            ->effectiveOn()
-            ->where(fn ($q) => $q->whereNull('territory_id')
-                ->orWhere('territory_id', $this->resolveApprovalTerritoryId())
-            )
-            ->where(fn ($q) => $q->whereNull('min_amount')
-                ->orWhere('min_amount', '<=', $this->resolveApprovalAmount())
-            )
-            ->where(fn ($q) => $q->whereNull('max_amount')
-                ->orWhere('max_amount', '>=', $this->resolveApprovalAmount())
-            )
-            ->exists();
+        return ApprovalFlow::query()->matching(static::approvalModule(), $this->resolveApprovalTerritoryId(), $this->resolveApprovalAmount())->exists();
     }
 
     /**
@@ -103,12 +83,6 @@ trait HasApprovalWorkflow
         ?int $territoryId = null,
         ?float $amount = null
     ): Approval {
-        if (! $this->approvalApplies()) {
-            throw new LogicException(
-                'No applicable approval flow for this record.'
-            );
-        }
-
         if ($this->approval()->whereIn('approval_status', ['pending', 'approved'])->exists()) {
             throw new LogicException(
                 'Approval already started for this record.'

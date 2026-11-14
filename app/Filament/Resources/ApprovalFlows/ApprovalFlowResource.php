@@ -24,7 +24,7 @@ class ApprovalFlowResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;
 
-    protected static ?string $recordTitleAttribute = 'module';
+    protected static ?string $recordTitleAttribute = 'display_name';
 
     protected static ?int $navigationSort = 10;
 
@@ -36,13 +36,6 @@ class ApprovalFlowResource extends Resource
     public static function table(Table $table): Table
     {
         return ApprovalFlowsTable::configure($table);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            RelationManagers\ApprovalFlowStepsRelationManager::class,
-        ];
     }
 
     public static function getPages(): array
