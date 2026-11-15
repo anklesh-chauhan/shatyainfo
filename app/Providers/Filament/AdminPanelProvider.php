@@ -9,6 +9,7 @@ use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Http\Middleware\PromptCompanySetup;
 use App\Http\Middleware\RedirectMarketingToPunchIn;
+use App\Services\Mobile\MobileNavigationRegistry;
 use App\Support\Tenancy\TenantBranding;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
@@ -42,6 +43,33 @@ class AdminPanelProvider extends PanelProvider
             Css::make('custom-css', asset('css/filament-custom.css')), // Custom CSS
             // Js::make('sidebar-js', asset('js/sidebar.js')),             // Sidebar JavaScript
         ], true); // ✅ Use `isGlobal` to load for all panels
+
+        $icons = [
+            'workspace' => Heroicon::OutlinedHome,
+            'field' => Heroicon::OutlinedMap,
+            'customers' => Heroicon::OutlinedUsers,
+            'sales' => Heroicon::OutlinedBriefcase,
+            'secondary' => Heroicon::OutlinedDocumentChartBar,
+            'marketing' => Heroicon::OutlinedMegaphone,
+            'inventory' => Heroicon::OutlinedCube,
+            'hr' => Heroicon::OutlinedUserGroup,
+            'reports' => Heroicon::OutlinedChartBar,
+            'settings' => Heroicon::OutlinedCog6Tooth,
+        ];
+        $navigationGroups = array_map(
+            function (array $group) use ($icons): NavigationGroup {
+                $navigation = NavigationGroup::make()
+                    ->label($group['label'])
+                    ->icon($icons[$group['key']]);
+
+                if ($group['collapsed']) {
+                    $navigation->collapsed();
+                }
+
+                return $navigation;
+            },
+            app(MobileNavigationRegistry::class)->webGroups(),
+        );
 
         return $panel
             ->default()
@@ -91,7 +119,7 @@ class AdminPanelProvider extends PanelProvider
                 //
             ])
             ->plugins([
-                FilamentShieldPlugin::make()->navigationGroup('') ,
+                FilamentShieldPlugin::make()->navigationGroup(''),
             ])
             ->widgets([
                 // Widgets displayed in the dashboard
@@ -113,18 +141,7 @@ class AdminPanelProvider extends PanelProvider
                 PromptCompanySetup::class,
             ])
             ->viteTheme('resources/css/app.css')
-            ->navigationGroups([
-                NavigationGroup::make()->label('My Workspace')->icon(Heroicon::OutlinedHome),
-                NavigationGroup::make()->label('Field Operations')->icon(Heroicon::OutlinedMap)->collapsed(),
-                NavigationGroup::make()->label('Customers & Territories')->icon(Heroicon::OutlinedUsers)->collapsed(),
-                NavigationGroup::make()->label('Sales & CRM')->icon(Heroicon::OutlinedBriefcase)->collapsed(),
-                NavigationGroup::make()->label('Secondary Sales')->icon(Heroicon::OutlinedDocumentChartBar)->collapsed(),
-                NavigationGroup::make()->label('Marketing & Samples')->icon(Heroicon::OutlinedMegaphone)->collapsed(),
-                NavigationGroup::make()->label('Inventory & Purchasing')->icon(Heroicon::OutlinedCube)->collapsed(),
-                NavigationGroup::make()->label('HR & Attendance')->icon(Heroicon::OutlinedUserGroup)->collapsed(),
-                NavigationGroup::make()->label('Reports')->icon(Heroicon::OutlinedChartBar)->collapsed(),
-                NavigationGroup::make()->label('Settings & Administration')->icon(Heroicon::OutlinedCog6Tooth)->collapsed(),
-            ])
+            ->navigationGroups($navigationGroups)
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('15rem')
             ->authGuard('web');

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\FieldPlanningMode;
 use App\Filament\Pages\SalesAssistant;
 use App\Filament\Widgets\VisitPreCallBriefingWidget;
 use App\Models\AccountMaster;
@@ -16,10 +17,13 @@ use App\Models\SgipDistributionItem;
 use App\Models\SgipLimit;
 use App\Models\Visit;
 use App\Models\VisitOutcome;
+use App\Services\Field\FieldPlanningService;
+use App\Services\Field\FieldPlanningSettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 
 use function Pest\Livewire\livewire;
 
@@ -514,4 +518,62 @@ it('shows today priorities on the sales assistant page', function () {
 
     livewire(VisitPreCallBriefingWidget::class, ['visitId' => $current->id])
         ->assertSee('Asked about samples');
+});
+
+it('keeps the day route and tour plan draft on the signed in users plan', function () {
+    $owner = reportingUser('Route Owner');
+    $other = reportingUser('Route Other');
+    $territory = reportingTerritory('Route Scope Terr');
+    $ownerPatch = reportingPatch($territory, 'Owner Patch');
+    $otherPatch = reportingPatch($territory, 'Other Patch');
+    $ownerDoctor = reportingDoctor($owner, 'Dr Owner');
+    $otherDoctor = reportingDoctor($other, 'Dr Other');
+    $ownerPatch->companies()->attach($ownerDoctor->id, ['sequence_no' => 1]);
+    $otherPatch->companies()->attach($otherDoctor->id, ['sequence_no' => 1]);
+
+    foreach ([[$owner, $ownerPatch], [$other, $otherPatch]] as [$user, $patch]) {
+        $this->actingAs($user);
+        $plan = SalesTourPlan::forceCreate([
+            'user_id' => $user->id,
+            'month' => '2026-08',
+            'approval_status' => 'approved',
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+        $detail = SalesTourPlanDetail::forceCreate([
+            'sales_tour_plan_id' => $plan->id,
+            'date' => '2026-08-10',
+            'territory_id' => $territory->id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+        $detail->patches()->attach($patch->id);
+    }
+
+    Sanctum::actingAs($owner);
+
+    $route = $this->getJson('/api/v1/day-route?date=2026-08-10')
+        ->assertSuccessful()
+        ->json('data.stops');
+    expect(collect($route)->pluck('name')->all())->toBe([$ownerDoctor->name]);
+
+    $draft = $this->getJson('/api/v1/tour-plan-draft?month=2026-09')
+        ->assertSuccessful()
+        ->json('data');
+    expect(collect($draft['days'])->flatMap(fn (array $day): array => $day['patch_names'])->all())->toBe([$ownerPatch->name])
+        ->and(collect($draft['uncovered_accounts'])->pluck('name')->all())->toBe([$ownerDoctor->name]);
+
+    $owner->givePermissionTo(Permission::findOrCreate('Manage:FieldPlanningPreference', 'web'));
+    $settings = app(FieldPlanningSettingsService::class);
+    $revision = $settings->saveProposal($owner, [
+        'mode' => FieldPlanningMode::DirectDcr->value,
+        'rules' => app(FieldPlanningService::class)->preset(FieldPlanningMode::DirectDcr),
+        'reason' => 'Turn monthly tour plans off',
+        'proposed_effective_on' => null,
+    ], 0);
+    $settings->activate($owner, $revision->id, 1);
+
+    $this->getJson('/api/v1/tour-plan-draft?month=2026-09')
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Monthly tour plans are unavailable for the selected reporting method.');
 });

@@ -2,33 +2,41 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use App\Traits\HasCustomerInteractionFields;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
 use App\Traits\HasApprovalWorkflow;
+use App\Traits\HasCustomerInteractionFields;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Deal extends BaseModel
 {
-    use HasFactory, HasCustomerInteractionFields, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasCustomerInteractionFields, HasFactory;
 
     protected $fillable = [
-        'owner_id', 'reference_code','deal_name', 'transaction_date', 'contact_detail_id', 'company_id', 'account_master_id', 'address_id',
-        'type', 'amount', 'expected_revenue', 'expected_close_date', 'lead_source_id', 'description', 'status_id', 'status_type',
+        'owner_id', 'reference_code', 'deal_name', 'transaction_date', 'contact_detail_id', 'company_id', 'account_master_id', 'address_id',
+        'type', 'type_id', 'type_type', 'amount', 'expected_revenue', 'expected_close_date', 'lead_source_id', 'description', 'status_id', 'status_type',
     ];
 
     public function scopeApplyOwnVisibility(Builder $query, $user): Builder
     {
-        return $query->where('sales_employee_id', $user->employee->id);
+        if ($user === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        // Ownership is deals.owner_id (users.id). Users without an employee
+        // mapping still see only their owned deals; they do not crash.
+        return $query->where($query->getModel()->getTable().'.owner_id', $user->id);
     }
 
     public function scopeApplyTerritoryVisibility(Builder $query, array $territoryIds): Builder
     {
-        return $query->whereHas('lead', fn ($q) =>
-            $q->applyTerritoryVisibility($territoryIds)
+        if ($territoryIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas(
+            'accountMaster',
+            fn (Builder $accounts): Builder => $accounts->whereIn('territory_id', $territoryIds),
         );
     }
 
@@ -120,13 +128,13 @@ class Deal extends BaseModel
         } elseif ($this->contactDetail) {
             return $this->contactDetail->full_name; // Otherwise, show contact name
         }
+
         return 'N/A'; // Default if neither is available
     }
 
     protected $casts = [
         'custom_fields' => 'array',
     ];
-
 
     protected static function boot()
     {
@@ -137,7 +145,7 @@ class Deal extends BaseModel
         });
 
         static::saving(function ($deal) {
-            if ($deal->type_id && !$deal->type_type) {
+            if ($deal->type_id && ! $deal->type_type) {
                 $deal->type_type = TypeMaster::class;
             }
         });
@@ -146,5 +154,4 @@ class Deal extends BaseModel
             NumberSeries::incrementNextNumber(Deal::class);
         });
     }
-
 }

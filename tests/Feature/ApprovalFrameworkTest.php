@@ -2,6 +2,7 @@
 
 use App\Enums\ApprovalActivityAction;
 use App\Events\ApprovalStatusChanged;
+use App\Filament\Resources\Approvals\ApprovalResource;
 use App\Models\ApprovalActivity;
 use App\Models\ApprovalDelegation;
 use App\Models\ApprovalFlow;
@@ -15,6 +16,7 @@ use App\Models\SalesTourPlan;
 use App\Models\Territory;
 use App\Models\User;
 use App\Services\Approval\ApprovalService;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Validation\ValidationException;
@@ -144,6 +146,67 @@ test('it approves sequentially and finalizes once', function () {
         ->and($approval->finalized_at)->not->toBeNull();
 
     expect($approval->finalized_at)->not->toBeNull();
+});
+
+test('it leaves a pending approval unchanged for a user who is not the current assignee', function () {
+    Event::fake([ApprovalStatusChanged::class]);
+    $fixture = approvalFixture();
+    $this->actingAs($fixture['requester']);
+
+    $flow = ApprovalFlow::query()->create([
+        'module' => 'SalesTourPlan',
+        'territory_id' => $fixture['territory']->id,
+    ]);
+    ApprovalFlowStep::query()->create([
+        'approval_flow_id' => $flow->id,
+        'step_order' => 1,
+        'job_role_id' => $fixture['managerRole']->id,
+        'territory_scope' => 'self',
+    ]);
+
+    $approval = app(ApprovalService::class)->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id, 100);
+    $step = $approval->steps()->sole();
+
+    expect(app(ApprovalService::class)->approve($approval, $fixture['director']->id))->toBeFalse();
+
+    $approval->refresh();
+    $step->refresh();
+
+    expect($approval->approval_status)->toBe('pending')
+        ->and($approval->finalized_at)->toBeNull()
+        ->and($step->status->value)->toBe('pending')
+        ->and($step->assigned_user_id)->toBe($fixture['manager']->id)
+        ->and(ApprovalActivity::query()->where('approval_id', $approval->id)->where('action', ApprovalActivityAction::Approved->value)->exists())->toBeFalse();
+});
+
+test('it lists another requesters approval without access to all records', function () {
+    Event::fake([ApprovalStatusChanged::class]);
+    $fixture = approvalFixture();
+    $this->actingAs($fixture['requester']);
+
+    $flow = ApprovalFlow::query()->create([
+        'module' => 'SalesTourPlan',
+        'territory_id' => $fixture['territory']->id,
+    ]);
+    ApprovalFlowStep::query()->create([
+        'approval_flow_id' => $flow->id,
+        'step_order' => 1,
+        'job_role_id' => $fixture['managerRole']->id,
+        'territory_scope' => 'self',
+    ]);
+
+    $approval = app(ApprovalService::class)->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id, 100);
+    $viewer = $fixture['director'];
+
+    expect($viewer->id)->not->toBe($approval->requested_by)
+        ->and($viewer->hasRole('super_admin'))->toBeFalse()
+        ->and($viewer->hasRole('administration_admin'))->toBeFalse()
+        ->and($viewer->can('AccessAllRecords'))->toBeFalse();
+
+    $this->actingAs($viewer);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    expect(ApprovalResource::getEloquentQuery()->whereKey($approval->id)->exists())->toBeTrue();
 });
 
 test('it rejects the current step and writes immutable activity', function () {

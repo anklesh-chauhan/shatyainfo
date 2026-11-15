@@ -194,13 +194,44 @@ class FieldMtpService
 
     public function submit(User $user, int $id, string $revision): SalesTourPlan
     {
-        return $user->getConnection()->transaction(function () use ($user, $id, $revision): SalesTourPlan {
-            $plan = $this->find($user, $id, true);
-            abort_unless($this->canEdit($user, $plan), 403, 'Only your editable drafts can be submitted.');
-            $this->assertRevision($plan, $revision);
+        return $this->submitPlan($user, $id, $revision);
+    }
+
+    public function canSubmitFromAdmin(User $user, SalesTourPlan $plan): bool
+    {
+        $gate = Gate::forUser($user);
+
+        return $gate->allows('viewAny', SalesTourPlan::class)
+            && $gate->allows('update', $plan)
+            && (in_array($this->status($plan), ['draft', 'rejected'], true)
+                || ($plan->approval_status === 'pending' && $plan->approval === null));
+    }
+
+    public function submitFromAdmin(User $user, int $id): SalesTourPlan
+    {
+        return $this->submitPlan($user, $id, null);
+    }
+
+    private function submitPlan(User $user, int $id, ?string $revision): SalesTourPlan
+    {
+        $missingConfiguration = null;
+
+        $plan = $user->getConnection()->transaction(function () use ($user, $id, $revision, &$missingConfiguration): SalesTourPlan {
+            if ($revision === null) {
+                abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+                abort_unless(Gate::forUser($user)->allows('viewAny', SalesTourPlan::class), 403);
+                $plan = SalesTourPlan::query()->applyVisibility('SalesTourPlan', $user)
+                    ->with($this->relations())->lockForUpdate()->findOrFail($id);
+                abort_unless($this->canSubmitFromAdmin($user, $plan), 403, 'This tour plan cannot be submitted.');
+            } else {
+                $plan = $this->find($user, $id, true);
+                abort_unless($this->canEdit($user, $plan), 403, 'Only your editable drafts can be submitted.');
+                $this->assertRevision($plan, $revision);
+            }
+
             abort_if($plan->details->isEmpty(), 422, 'Add daily plans before submitting.');
             abort_unless($plan->details->contains(fn ($day) => $day->visit_type_id !== null || filled($day->remarks)), 422, 'Set a visit type or remarks for at least one day before submitting.');
-            $this->validateDetails($user, [
+            $this->validateDetails($plan->user, [
                 'month' => $plan->month->format('Y-m'),
                 'details' => $plan->details->map(fn ($day) => [
                     'date' => $day->date->toDateString(), 'territory_id' => $day->territory_id,
@@ -208,6 +239,11 @@ class FieldMtpService
                     'visit_purpose_ids' => $day->visit_purpose_ids ?? [], 'joint_with' => $day->joint_with ?? [],
                 ])->all(),
             ]);
+            if ($plan->approval) {
+                $plan->approval->delete();
+                $plan->unsetRelation('approval');
+            }
+
             if (! ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class)) {
                 $plan->update(['approval_status' => 'approved', 'manager_remarks' => null, 'approved_by' => null, 'approved_at' => now()]);
                 app(TravelSegmentService::class)->regenerateFromTourPlan($plan);
@@ -215,19 +251,24 @@ class FieldMtpService
                 return $plan->fresh($this->relations());
             }
             $territories = $plan->details->pluck('territory_id')->filter()->unique();
-            if ($plan->approval) {
-                $plan->approval->delete();
-                $plan->unsetRelation('approval');
-            }
             try {
                 $approval = app(ApprovalService::class)->start($plan, SalesTourPlan::approvalModule(), $territories->count() === 1 ? (int) $territories->first() : null);
             } catch (LogicException $error) {
-                throw ValidationException::withMessages(['approval' => $error->getMessage()]);
+                $plan->update(['approval_status' => 'draft', 'manager_remarks' => null, 'approved_by' => null, 'approved_at' => null]);
+                $missingConfiguration = $error->getMessage();
+
+                return $plan->fresh($this->relations());
             }
             $plan->update(['approval_status' => $approval->approval_status, 'manager_remarks' => null, 'approved_by' => null, 'approved_at' => null]);
 
             return $plan->fresh($this->relations());
         });
+
+        if ($missingConfiguration !== null) {
+            throw ValidationException::withMessages(['approval' => $missingConfiguration]);
+        }
+
+        return $plan;
     }
 
     public function decide(User $user, int $id, array $data, bool $approve): SalesTourPlan

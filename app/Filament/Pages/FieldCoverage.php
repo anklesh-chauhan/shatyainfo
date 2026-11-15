@@ -81,7 +81,7 @@ class FieldCoverage extends Page implements HasForms, HasTable
 
     public static function canAccess(): bool
     {
-        return FieldTeamOnboardingService::canManage(auth()->user()) || (bool) auth()->user()?->can('ViewAny:AccountMaster');
+        return (bool) auth()->user()?->can('ViewAny:AccountMaster');
     }
 
     public function mount(): void

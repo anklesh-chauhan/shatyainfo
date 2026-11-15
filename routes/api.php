@@ -6,8 +6,11 @@ use App\Http\Controllers\Api\V1\AccountTypeController;
 use App\Http\Controllers\Api\V1\AddressTypeController;
 use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\ContactController;
+use App\Http\Controllers\Api\V1\DashboardTodayController;
 use App\Http\Controllers\Api\V1\DcrController;
 use App\Http\Controllers\Api\V1\DcrExpenseController;
+use App\Http\Controllers\Api\V1\DealController;
 use App\Http\Controllers\Api\V1\EDetailingController;
 use App\Http\Controllers\Api\V1\ExpenseTypeController;
 use App\Http\Controllers\Api\V1\FieldCoverageController;
@@ -17,11 +20,14 @@ use App\Http\Controllers\Api\V1\FieldExpenseEventController;
 use App\Http\Controllers\Api\V1\FieldSyncRecoveryController;
 use App\Http\Controllers\Api\V1\FieldVisitEventController;
 use App\Http\Controllers\Api\V1\FlexiblePlanController;
+use App\Http\Controllers\Api\V1\FollowUpController;
 use App\Http\Controllers\Api\V1\GeoExceptionController;
 use App\Http\Controllers\Api\V1\GpsPointController;
 use App\Http\Controllers\Api\V1\ItemController;
+use App\Http\Controllers\Api\V1\LeadController;
 use App\Http\Controllers\Api\V1\LeaveController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\MobileNavigationController;
 use App\Http\Controllers\Api\V1\MonthlyTourPlanController;
 use App\Http\Controllers\Api\V1\OrderCatalogController;
 use App\Http\Controllers\Api\V1\PinCodeController;
@@ -89,6 +95,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('visits/{visit}/e-detailing', [EDetailingController::class, 'store'])->whereNumber('visit');
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', MeController::class);
+        Route::get('dashboard/today', DashboardTodayController::class);
+        Route::get('mobile-navigation', MobileNavigationController::class);
         Route::get('flexible-plans', [FlexiblePlanController::class, 'index']);
         Route::post('flexible-plans', [FlexiblePlanController::class, 'store']);
         Route::get('field-coverage', FieldCoverageController::class);
@@ -168,7 +176,31 @@ Route::prefix('v1')->group(function (): void {
         Route::post('visits/{visit}/voice-note/apply', [SalespersonAiController::class, 'applyVoiceNote'])->whereNumber('visit');
         Route::get('visits/{visit}/sgip/suggestions', [SalespersonAiController::class, 'sgipSuggestions'])->whereNumber('visit');
         Route::get('follow-ups/{followUp}/script', [SalespersonAiController::class, 'followUpScript'])->whereNumber('followUp');
+        Route::get('contacts', [ContactController::class, 'index']);
+
+        Route::get('follow-ups/options', [FollowUpController::class, 'options']);
+        Route::get('follow-ups', [FollowUpController::class, 'index']);
+        Route::post('follow-ups', [FollowUpController::class, 'store']);
+        Route::get('follow-ups/{followUp}', [FollowUpController::class, 'show'])->whereNumber('followUp');
+        Route::patch('follow-ups/{followUp}', [FollowUpController::class, 'update'])->whereNumber('followUp');
+
+        Route::get('leads/options', [LeadController::class, 'options']);
+        Route::get('leads', [LeadController::class, 'index']);
+        Route::post('leads', [LeadController::class, 'store']);
+        Route::get('leads/{lead}', [LeadController::class, 'show'])->whereNumber('lead');
+        Route::patch('leads/{lead}', [LeadController::class, 'update'])->whereNumber('lead');
+        Route::get('leads/{lead}/activities', [LeadController::class, 'activities'])->whereNumber('lead');
+        Route::get('leads/{lead}/items', [LeadController::class, 'items'])->whereNumber('lead');
+        Route::get('leads/{lead}/notes', [LeadController::class, 'notes'])->whereNumber('lead');
+        Route::post('leads/{lead}/notes', [LeadController::class, 'storeNote'])->whereNumber('lead');
+        Route::post('leads/{lead}/convert', [LeadController::class, 'convert'])->whereNumber('lead');
         Route::get('leads/{lead}/next-action', [SalespersonAiController::class, 'leadNextAction'])->whereNumber('lead');
+
+        Route::get('deals/options', [DealController::class, 'options']);
+        Route::get('deals', [DealController::class, 'index']);
+        Route::post('deals', [DealController::class, 'store']);
+        Route::get('deals/{deal}', [DealController::class, 'show'])->whereNumber('deal');
+        Route::patch('deals/{deal}', [DealController::class, 'update'])->whereNumber('deal');
         Route::get('deals/{deal}/next-action', [SalespersonAiController::class, 'dealNextAction'])->whereNumber('deal');
 
         Route::post('gps-points', [GpsPointController::class, 'store']);

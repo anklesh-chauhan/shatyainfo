@@ -110,3 +110,79 @@ it('hides another users tour plan', function () {
         'patch_id' => 1, 'company_id' => 1,
     ])->assertNotFound();
 });
+
+it('rejects opening another users tour day', function () {
+    $owner = reportingUser('TourDayOwner');
+    $other = reportingUser('TourDayOther');
+    $territory = reportingTerritory('Owned Terr');
+    $patch = reportingPatch($territory, 'Owned Patch');
+    $doctor = reportingDoctor($owner, 'Dr Owned');
+    $patch->companies()->attach($doctor->id);
+
+    $this->actingAs($owner);
+
+    $plan = SalesTourPlan::forceCreate([
+        'user_id' => $owner->id,
+        'month' => now()->format('Y-m'),
+        'approval_status' => 'approved',
+        'created_by' => $owner->id,
+        'updated_by' => $owner->id,
+    ]);
+
+    $detail = SalesTourPlanDetail::forceCreate([
+        'sales_tour_plan_id' => $plan->id,
+        'date' => today(),
+        'territory_id' => $territory->id,
+        'created_by' => $owner->id,
+        'updated_by' => $owner->id,
+    ]);
+    $detail->patches()->attach($patch->id);
+
+    Sanctum::actingAs($other);
+
+    $this->postJson('/api/v1/tour-plan-details/'.$detail->id.'/visits', [
+        'patch_id' => $patch->id,
+        'company_id' => $doctor->id,
+    ])->assertNotFound()
+        ->assertJsonPath('message', 'Tour day not found.');
+
+    expect(Visit::query()->count())->toBe(0);
+});
+
+it('rejects an account outside the planned patch', function () {
+    $user = reportingUser('TourPatchScope');
+    $territory = reportingTerritory('Patch Terr');
+    $patch = reportingPatch($territory, 'Patch Scope');
+    $planned = reportingDoctor($user, 'Dr Planned');
+    $outside = reportingDoctor($user, 'Dr Unplanned');
+    $patch->companies()->attach($planned->id);
+
+    $this->actingAs($user);
+
+    $plan = SalesTourPlan::forceCreate([
+        'user_id' => $user->id,
+        'month' => now()->format('Y-m'),
+        'approval_status' => 'approved',
+        'created_by' => $user->id,
+        'updated_by' => $user->id,
+    ]);
+
+    $detail = SalesTourPlanDetail::forceCreate([
+        'sales_tour_plan_id' => $plan->id,
+        'date' => today(),
+        'territory_id' => $territory->id,
+        'created_by' => $user->id,
+        'updated_by' => $user->id,
+    ]);
+    $detail->patches()->attach($patch->id);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/v1/tour-plan-details/'.$detail->id.'/visits', [
+        'patch_id' => $patch->id,
+        'company_id' => $outside->id,
+    ])->assertUnprocessable()
+        ->assertJsonPath('message', 'Select an account in a planned patch.');
+
+    expect(Visit::query()->where('sales_tour_plan_detail_id', $detail->id)->count())->toBe(0);
+});

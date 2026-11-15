@@ -2,6 +2,7 @@
 
 use App\Enums\FieldPlanningMode;
 use App\Events\ApprovalStatusChanged;
+use App\Filament\Resources\SalesTourPlans\Pages\ListSalesTourPlans;
 use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
 use App\Models\ApprovalFlow;
 use App\Models\ApprovalFlowStep;
@@ -12,13 +13,18 @@ use App\Models\SalesTourPlan;
 use App\Models\Visit;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
+use App\Services\Field\FieldMtpService;
 use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldPlanningSettingsService;
+use Filament\Actions\Testing\TestAction;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
@@ -134,6 +140,8 @@ it('submits locks edits and requires sequential assigned approvals', function ()
     $plan = $this->postJson('/api/v1/monthly-tour-plans', $f['body'])->json('data');
     $path = '/api/v1/monthly-tour-plans/'.$plan['id'];
     $submitted = $this->postJson($path.'/submit', ['revision' => $plan['revision']])->assertSuccessful()->assertJsonPath('data.approval_status', 'pending')->json('data');
+    $this->postJson($path.'/submit', ['revision' => $plan['revision']])->assertForbidden();
+    expect(SalesTourPlan::findOrFail($plan['id'])->approval()->count())->toBe(1);
     $this->putJson($path, [...$f['body'], 'revision' => $submitted['revision']])->assertForbidden();
     $this->postJson($path.'/approve', ['revision' => $submitted['revision']])->assertForbidden();
     Sanctum::actingAs($f['director']);
@@ -244,4 +252,106 @@ it('hides existing monthly plans after switching to direct reporting', function 
     expect(SalesTourPlanResource::canViewAny())->toBeFalse()
         ->and(SalesTourPlanResource::canCreate())->toBeFalse()
         ->and(SalesTourPlan::query()->whereKey($plan['id'])->exists())->toBeTrue();
+});
+
+it('routes a legacy pending plan submitted in Admin to the same assigned mobile inbox', function () {
+    $fixture = fieldMtpFixture();
+    $plan = SalesTourPlan::findOrFail($this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data.id'));
+    $plan->update(['approval_status' => 'pending']);
+    $rep = $fixture['rep'];
+    $rep->givePermissionTo(Permission::findOrCreate('ViewAny:SalesTourPlan', 'web'));
+    $this->actingAs($rep, 'web');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $action = TestAction::make('submit_tour_plan')->table($plan);
+
+    Livewire::test(ListSalesTourPlans::class)
+        ->callAction($action)
+        ->assertNotified('Tour plan submitted for approval')
+        ->assertActionHidden($action);
+
+    $approval = $plan->fresh()->approval;
+    expect($approval->requested_by)->toBe($rep->id)
+        ->and($approval->steps->pluck('assigned_user_id')->all())->toBe([$fixture['manager']->id, $fixture['director']->id]);
+
+    Sanctum::actingAs($fixture['manager']);
+    $this->getJson('/api/v1/monthly-tour-plans/inbox?month=2026-10')->assertSuccessful()->assertJsonPath('data.0.id', $plan->id);
+});
+
+it('finalizes an Admin bulk submission when tour-plan approvals are disabled', function () {
+    $fixture = fieldMtpFixture();
+    $plan = SalesTourPlan::findOrFail($this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data.id'));
+    ApprovalSetting::instance()->update(['enabled_modules' => []]);
+    $rep = $fixture['rep'];
+    $rep->givePermissionTo(Permission::findOrCreate('ViewAny:SalesTourPlan', 'web'));
+    $this->actingAs($rep, 'web');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    Livewire::test(ListSalesTourPlans::class)
+        ->selectTableRecords([$plan])
+        ->callAction(TestAction::make('submit_tour_plans')->table()->bulk())
+        ->assertNotified('Tour plans submitted: 1. Skipped: 0.');
+
+    $plan->refresh();
+    expect($plan->approval_status)->toBe('approved')
+        ->and($plan->approved_at)->not->toBeNull()
+        ->and($plan->approval)->toBeNull();
+});
+
+it('rejects an Admin submission without an approval route or update permission', function () {
+    $fixture = fieldMtpFixture();
+    $plan = SalesTourPlan::findOrFail($this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data.id'));
+    ApprovalFlow::query()->where('module', 'SalesTourPlan')->update(['active' => false]);
+    $rep = $fixture['rep'];
+    $rep->givePermissionTo(Permission::findOrCreate('ViewAny:SalesTourPlan', 'web'));
+    $this->actingAs($rep, 'web');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $action = TestAction::make('submit_tour_plan')->table($plan);
+
+    Livewire::test(ListSalesTourPlans::class)->callAction($action)->assertNotified('Tour plan could not be submitted');
+
+    $rep->revokePermissionTo('Update:SalesTourPlan');
+    Livewire::test(ListSalesTourPlans::class)->assertActionHidden($action);
+    expect(fn () => app(FieldMtpService::class)->submitFromAdmin($rep, $plan->id))
+        ->toThrow(HttpException::class, 'This tour plan cannot be submitted.');
+    expect($plan->fresh()->approval_status)->toBe('draft')
+        ->and($plan->approval()->exists())->toBeFalse();
+});
+
+it('restores a stranded pending plan when approval configuration is missing and ignores a repeated submit', function () {
+    $fixture = fieldMtpFixture();
+    $plan = SalesTourPlan::findOrFail($this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data.id'));
+    $plan->update(['approval_status' => 'pending']);
+    ApprovalFlow::query()->where('module', 'SalesTourPlan')->update(['active' => false]);
+    $rep = $fixture['rep'];
+    $rep->givePermissionTo(Permission::findOrCreate('ViewAny:SalesTourPlan', 'web'));
+    $this->actingAs($rep, 'web');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $action = TestAction::make('submit_tour_plan')->table($plan);
+
+    Livewire::test(ListSalesTourPlans::class)->callAction($action)->assertNotified('Tour plan could not be submitted');
+    expect($plan->fresh()->approval_status)->toBe('draft')
+        ->and($plan->approval()->exists())->toBeFalse();
+
+    ApprovalFlow::query()->where('module', 'SalesTourPlan')->update(['active' => true]);
+    Livewire::test(ListSalesTourPlans::class)
+        ->callAction($action)
+        ->assertNotified('Tour plan submitted for approval');
+
+    $approval = $plan->fresh()->approval;
+    $stepIds = $approval->steps->pluck('assigned_user_id')->all();
+    expect($approval->requested_by)->toBe($rep->id)
+        ->and($stepIds)->toBe([$fixture['manager']->id, $fixture['director']->id]);
+
+    expect(fn () => app(FieldMtpService::class)->submitFromAdmin($rep, $plan->id))
+        ->toThrow(HttpException::class, 'This tour plan cannot be submitted.');
+    $plan->refresh();
+    expect($plan->approval_status)->toBe('pending')
+        ->and($plan->approval->id)->toBe($approval->id)
+        ->and($plan->approval->steps->pluck('assigned_user_id')->all())->toBe($stepIds);
+
+    Sanctum::actingAs($rep);
+    $this->postJson('/api/v1/monthly-tour-plans/'.$plan->id.'/submit', [
+        'revision' => app(FieldMtpService::class)->revision($plan),
+    ])->assertForbidden();
+    expect($plan->fresh()->approval->id)->toBe($approval->id);
 });

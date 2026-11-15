@@ -176,3 +176,28 @@ it('combines missed and patch review filters and shows an empty filtered view wi
         ->assertDontSee('Patchless missed doctor');
     expect(FlexiblePlanEntry::query()->count())->toBe(3)->and(Visit::query()->count())->toBe(0);
 });
+
+it('keeps the Admin review available and refuses a new intention when flexible planning is off', function () {
+    $this->postJson('/api/v1/flexible-plans', $this->proposal)->assertSuccessful();
+    $revision = $this->settings->saveProposal($this->rep, [
+        'mode' => FieldPlanningMode::DirectDcr->value,
+        'rules' => app(FieldPlanningService::class)->preset(FieldPlanningMode::DirectDcr),
+        'reason' => 'Turn flexible planning off',
+    ], 1);
+    $this->settings->activate($this->rep, $revision->id, 2);
+
+    $this->actingAs($this->rep);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    expect(FlexiblePlanning::shouldRegisterNavigation())->toBeFalse()
+        ->and(FlexiblePlanning::canAccess())->toBeTrue();
+
+    $page = Livewire::test(FlexiblePlanning::class)
+        ->assertSee('Planned Doctor')
+        ->assertSee('Flexible planning is not enabled')
+        ->assertDontSee('Save intention');
+
+    $page->fillForm([...$this->proposal, 'client_plan_id' => (string) Str::uuid()])
+        ->call('save')
+        ->assertStatus(422);
+    expect(FlexiblePlanEntry::query()->count())->toBe(1);
+});

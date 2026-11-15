@@ -13,8 +13,11 @@ class FieldCoverageService
 {
     public function forMonth(User $actor, int $userId, string $month): array
     {
-        abort_unless(FieldTeamOnboardingService::canManage($actor)
-            || ($actor->id === $userId && $actor->can('ViewAny:AccountMaster')), 403);
+        abort_unless($actor->can('ViewAny:AccountMaster'), 403);
+        abort_unless(
+            $actor->id === $userId || FieldTeamOnboardingService::canManage($actor),
+            403,
+        );
         if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
             throw ValidationException::withMessages(['month' => 'Choose a valid month.']);
         }

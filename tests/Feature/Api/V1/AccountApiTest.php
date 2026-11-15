@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -149,6 +150,69 @@ it('allows sales users to update accounts they can see', function () {
         'geo_latitude' => 91, 'geo_longitude' => 181, 'geo_radius_meters' => 251, 'rcpa_tier' => 'C',
     ])->assertUnprocessable()->assertJsonValidationErrors(['geo_latitude', 'geo_longitude', 'geo_radius_meters', 'rcpa_tier']);
     expect((float) $doctor->fresh()->geo_latitude)->toBe(20.5);
+});
+
+it('denies a direct account update without Update:AccountMaster', function () {
+    $user = reportingUser('AccountDirectDenied');
+    $this->actingAs($user);
+    $doctor = reportingDoctor($user, 'Dr Untouched');
+
+    Sanctum::actingAs($user);
+
+    $this->patchJson("/api/v1/accounts/{$doctor->id}", [
+        'name' => 'Dr Forced',
+    ])->assertForbidden();
+
+    expect($doctor->fresh()->name)->toBe('Dr Untouched');
+});
+
+it('rejects an invalid account email without renaming the account', function () {
+    $user = fieldSalesUser('AccountInvalidEmail');
+    $this->actingAs($user);
+    $doctor = reportingDoctor($user, 'Dr Valid');
+
+    Sanctum::actingAs($user);
+
+    $this->patchJson("/api/v1/accounts/{$doctor->id}", [
+        'email' => 'not-an-email',
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['email']);
+
+    expect($doctor->fresh()->name)->toBe('Dr Valid')
+        ->and($doctor->fresh()->email)->toBeNull();
+});
+
+it('denies account update after the sales role is removed', function () {
+    $user = fieldSalesUser('AccountRoleRemoved');
+    $this->actingAs($user);
+    $doctor = reportingDoctor($user, 'Dr Kept');
+
+    $user->removeRole('sales_user');
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+    Sanctum::actingAs($user->fresh());
+
+    $this->patchJson("/api/v1/accounts/{$doctor->id}", [
+        'name' => 'Dr Changed',
+    ])->assertForbidden();
+
+    expect($doctor->fresh()->name)->toBe('Dr Kept');
+});
+
+it('does not update an account outside the sales user visibility', function () {
+    $owner = reportingUser('AccountHiddenOwner');
+    $this->actingAs($owner);
+    $hidden = reportingDoctor($owner, 'Dr Hidden');
+
+    $user = fieldSalesUser('AccountHiddenViewer');
+
+    Sanctum::actingAs($user);
+
+    $this->patchJson("/api/v1/accounts/{$hidden->id}", [
+        'name' => 'Dr Stolen',
+    ])->assertNotFound();
+
+    expect($hidden->fresh()->name)->toBe('Dr Hidden');
 });
 
 it('lists account types', function () {
