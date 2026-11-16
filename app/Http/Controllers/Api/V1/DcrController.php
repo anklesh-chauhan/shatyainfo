@@ -17,7 +17,7 @@ class DcrController extends Controller
     public function today(DcrForDateRequest $request): SalesDcrResource
     {
         return new SalesDcrResource(
-            $this->dcrService->forDate($request->user(), $request->onDate()),
+            $this->dcrService->forDate($request->user(), $request->onDate(), authorizeCreation: true),
         );
     }
 

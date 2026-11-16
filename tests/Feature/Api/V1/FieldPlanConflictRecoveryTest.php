@@ -18,9 +18,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('PlanRecoveryRep');
-    $this->manager = reportingUser('PlanRecoveryManager');
-    $this->unrelated = reportingUser('PlanRecoveryOther');
+    $this->rep = fieldReportingUser('PlanRecoveryRep');
+    $this->manager = fieldReportingUser('PlanRecoveryManager');
+    $this->unrelated = fieldReportingUser('PlanRecoveryOther');
     foreach (['Create:Visit', 'Manage:FieldPlanningPreference', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster', 'Review:FieldSyncRecovery'] as $permission) {
         Permission::findOrCreate($permission, 'web');
     }

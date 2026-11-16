@@ -22,14 +22,14 @@ class MobileNavigationService
      *     groups: list<array{key: string, label: string, sort: int, items: list<array{key: string, label: string, sort: int, screen_key: string}>}>
      * }
      */
-    public function forUser(User $user): array
+    public function forUser(User $user, bool $standalone = false): array
     {
         $guard = auth()->getDefaultDriver();
         auth()->shouldUse('web');
         auth()->setUser($user);
 
         try {
-            return $this->payload($user);
+            return $this->payload($user, $standalone);
         } finally {
             auth()->shouldUse($guard);
         }
@@ -43,20 +43,27 @@ class MobileNavigationService
      *     groups: list<array{key: string, label: string, sort: int, items: list<array{key: string, label: string, sort: int, screen_key: string}>}>
      * }
      */
-    private function payload(User $user): array
+    private function payload(User $user, bool $standalone): array
     {
         $items = [];
 
-        foreach ($this->registry->entries() as $entry) {
-            if (! $this->visible($entry)) {
+        foreach ($this->registry->entries($standalone) as $entry) {
+            if (! $this->visible($entry, $standalone)) {
                 continue;
             }
 
+            $parent = $entry['parent'];
+            if ($parent !== null) {
+                unset($parent['source']);
+            }
+            $destination = $standalone ? $this->registry->standaloneDestination($entry['key']) : null;
             $items[$entry['group']][] = [
                 'key' => $entry['key'],
                 'label' => $entry['label'],
                 'sort' => $entry['sort'],
                 'screen_key' => $entry['screen_key'],
+                ...($parent === null ? [] : ['parent' => $parent]),
+                ...($destination === null ? [] : ['standalone_screen_key' => $destination]),
             ];
         }
 
@@ -92,17 +99,28 @@ class MobileNavigationService
                 'user_id' => $user->id,
                 'company_key' => $this->companyKey(),
             ],
-            'home' => $this->registry->homeFor($screenKeys),
+            'home' => $standalone && ! collect($items['workspace'] ?? [])->contains('key', 'g01-03')
+                ? 'modules' : $this->registry->homeFor($screenKeys),
             'groups' => $groups,
         ];
     }
 
     /**
-     * @param  array{permission_key: string, source: class-string}  $entry
+     * @param  array{permission_key: string, screen_key: string, source: class-string}  $entry
      */
-    private function visible(array $entry): bool
+    private function visible(array $entry, bool $standalone): bool
     {
         if (! $this->modules->navigationEnabled($entry['permission_key'])) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'dcr'
+            && ! auth()->user()?->can(['ViewAny:SalesDcr', 'View:SalesDcr'])) {
+            return false;
+        }
+
+        if ($standalone && in_array($entry['screen_key'], ['visit', 'sgip'], true)
+            && ! auth()->user()?->can(['ViewAny:Visit', 'View:Visit'])) {
             return false;
         }
 

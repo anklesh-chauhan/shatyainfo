@@ -267,6 +267,10 @@ class EmployeeOnboardingImporter
                 $permissions[] = Permission::findOrCreate($action.':'.$model, $role->guard_name);
             }
         }
+        foreach (config('permission-map.page_permissions.'.$profile, []) as $permission) {
+            $permissions[] = Permission::findOrCreate($permission, $role->guard_name);
+        }
+
         $role->syncPermissions($permissions);
     }
 

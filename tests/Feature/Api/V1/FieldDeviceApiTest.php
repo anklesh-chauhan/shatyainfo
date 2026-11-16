@@ -17,8 +17,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('DeviceRep');
-    $this->manager = reportingUser('DeviceManager');
+    $this->rep = fieldReportingUser('DeviceRep');
+    $this->manager = fieldReportingUser('DeviceManager');
     Permission::findOrCreate('Review:FieldSyncRecovery', 'web');
     $this->manager->givePermissionTo('Review:FieldSyncRecovery');
     VisitPreference::current()->update(['allow_backdated_dcr' => false, 'enforce_geo_fencing' => false]);
@@ -79,7 +79,7 @@ it('requires an empty queue to close, a manager to retire a device with pending 
     $this->postJson('/api/v1/field-devices/'.$phone->id.'/retire', ['reason' => 'Phone was lost on the route'])->assertForbidden();
     $this->getJson('/api/v1/field-devices?user_id='.$this->rep->id)->assertForbidden();
 
-    Sanctum::actingAs(reportingUser('UnrelatedDeviceUser'));
+    Sanctum::actingAs(fieldReportingUser('UnrelatedDeviceUser'));
     $this->getJson('/api/v1/field-devices')->assertSuccessful()->assertJsonCount(0, 'data');
     $this->postJson('/api/v1/field-devices/'.$phone->id.'/retire', ['reason' => 'Trying another account'])->assertNotFound();
 
@@ -100,7 +100,7 @@ it('requires an empty queue to close, a manager to retire a device with pending 
 
 it('renders the device registry in the ERP scoped to the signed-in representative', function () {
     reportDevice($this, $this->phone, 'Field phone', [['date' => $this->today, 'count' => 2]]);
-    Sanctum::actingAs(reportingUser('OtherDeviceRep'));
+    Sanctum::actingAs(fieldReportingUser('OtherDeviceRep'));
     reportDevice($this, $this->tablet, 'Other tablet', []);
     $this->actingAs($this->rep);
     Filament::setCurrentPanel(Filament::getPanel('admin'));

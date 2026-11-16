@@ -27,12 +27,9 @@ class PunchIn extends Page
 
     protected static ?string $navigationLabel = 'Punch In/Out';
 
-    public static function shouldRegisterNavigation(): bool
+    public static function canAccess(): bool
     {
-        $user = Auth::user();
-
-        // Show in sidebar ONLY if user has 'marketing' role
-        return $user?->hasRole('marketing') ?? false;
+        return Auth::user()?->canPunchAttendance() ?? false;
     }
 
     protected function getHeaderActions(): array
@@ -92,6 +89,8 @@ class PunchIn extends Page
 
     public function doPunchIn(array $data): void
     {
+        abort_unless(Auth::user()?->canPunchAttendance(), 403);
+
         $employee = Auth::user()->employee;
 
         if (! isset($data['latitude'], $data['longitude'])) {
@@ -155,6 +154,8 @@ class PunchIn extends Page
 
     public function doPunchOut(array $data): void
     {
+        abort_unless(Auth::user()?->canPunchAttendance(), 403);
+
         $employee = Auth::user()->employee;
 
         if (! isset($data['latitude'], $data['longitude'])) {

@@ -18,7 +18,7 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('RcpaRep');
+    $this->rep = fieldReportingUser('RcpaRep');
     foreach (['Capture:Rcpa', 'View:Rcpa', 'Manage:RcpaCompetitor', 'View:AccountMaster', 'AccessAllRecords'] as $name) {
         Permission::findOrCreate($name, 'web');
     }

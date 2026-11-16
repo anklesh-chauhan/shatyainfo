@@ -2,6 +2,7 @@
 
 use App\Models\ExpenseType;
 use App\Models\Media;
+use App\Models\Organization;
 use App\Models\SalesDcr;
 use App\Models\SalesDcrExpense;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,7 +14,8 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 it('creates a manual expense only once when a queued upload is retried', function () {
-    Sanctum::actingAs(reportingUser('ExpenseRep'));
+    $rep = fieldReportingUser('ExpenseRep');
+    Sanctum::actingAs($rep);
     $id = $this->getJson('/api/v1/dcrs/today')->assertSuccessful()->json('data.id');
     $type = ExpenseType::query()->create(['name' => 'Meals', 'code' => 'MEAL', 'is_active' => true]);
     $payload = ['expense_type_id' => $type->id, 'amount' => 125, 'remarks' => 'Field lunch'];
@@ -21,10 +23,20 @@ it('creates a manual expense only once when a queued upload is retried', functio
     $this->postJson('/api/v1/dcrs/'.$id.'/expenses', $payload, $headers)->assertSuccessful();
     $this->postJson('/api/v1/dcrs/'.$id.'/expenses', $payload, $headers)->assertSuccessful()->assertHeader('Idempotency-Replayed', 'true');
     expect(SalesDcrExpense::query()->where('sales_dcr_id', $id)->count())->toBe(1);
+
+    $this->getJson('/api/v1/dcr-expenses')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.sales_dcr_id', $id)->assertJsonPath('data.0.expense_type.name', 'Meals');
+    Sanctum::actingAs(fieldReportingUser('Other Expense Rep'));
+    $this->getJson('/api/v1/dcr-expenses')->assertOk()->assertJsonCount(0, 'data');
+    Sanctum::actingAs($rep);
+
+    Organization::query()->create(['name' => 'Expenses Disabled', 'metadata' => ['company_setup' => ['organization_saved' => true]]]);
+    $this->postJson('/api/v1/dcrs/'.$id.'/expenses', $payload, $headers)->assertForbidden();
+    $this->getJson('/api/v1/dcr-expenses')->assertForbidden();
 });
 
 it('rejects invalid expense amounts', function () {
-    Sanctum::actingAs(reportingUser('InvalidExpenseRep'));
+    Sanctum::actingAs(fieldReportingUser('InvalidExpenseRep'));
     $id = $this->getJson('/api/v1/dcrs/today')->assertSuccessful()->json('data.id');
     $type = ExpenseType::query()->create(['name' => 'Meals', 'code' => 'MEAL', 'is_active' => true]);
     $this->postJson('/api/v1/dcrs/'.$id.'/expenses', ['expense_type_id' => $type->id, 'amount' => -1])
@@ -34,7 +46,7 @@ it('rejects invalid expense amounts', function () {
 describe('private expense receipts', function () {
     beforeEach(function () {
         Storage::fake('local');
-        $this->rep = reportingUser('ReceiptRep');
+        $this->rep = fieldReportingUser('ReceiptRep');
         Sanctum::actingAs($this->rep);
         $this->dcrId = $this->getJson('/api/v1/dcrs/today')->assertSuccessful()->json('data.id');
         $type = ExpenseType::query()->create(['name' => 'Conveyance', 'code' => 'RCPT', 'is_active' => true]);
@@ -69,7 +81,7 @@ describe('private expense receipts', function () {
     });
 
     it('hides receipts and rejects upload by another employee', function () {
-        Sanctum::actingAs(reportingUser('OtherReceiptRep'));
+        Sanctum::actingAs(fieldReportingUser('OtherReceiptRep'));
         $this->postJson($this->receiptUrl, ['receipt' => UploadedFile::fake()->createWithContent('receipt.png',
             base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='))])
             ->assertNotFound();

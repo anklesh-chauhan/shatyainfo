@@ -2,6 +2,7 @@
 
 namespace App\Services\Travel;
 
+use App\Models\AccountMaster;
 use App\Models\Patch;
 use App\Models\SalesDcr;
 use App\Models\SalesTourPlanDetail;
@@ -12,7 +13,7 @@ class TravelSegmentValidation
 {
     public function validate(array $data): void
     {
-        $dcr = SalesDcr::find($data['sales_dcr_id'] ?? null);
+        $dcr = SalesDcr::query()->applyVisibility('SalesDcr')->find($data['sales_dcr_id'] ?? null);
         if (! $dcr) {
             $this->fail('sales_dcr_id', 'Choose an accessible daily call report.');
         }
@@ -24,6 +25,11 @@ class TravelSegmentValidation
         }
         if (! empty($data['sales_tour_plan_detail_id']) && (! $dcr->sales_tour_plan_id || ! SalesTourPlanDetail::whereKey($data['sales_tour_plan_detail_id'])->where('sales_tour_plan_id', $dcr->sales_tour_plan_id)->whereDate('date', $dcr->dcr_date)->exists())) {
             $this->fail('sales_tour_plan_detail_id', 'The plan detail must match the report plan and date.');
+        }
+        foreach (['from_account_id', 'to_account_id'] as $field) {
+            if (! empty($data[$field]) && ! AccountMaster::query()->applyVisibility('AccountMaster')->whereKey($data[$field])->exists()) {
+                $this->fail($field, 'Choose an accessible customer.');
+            }
         }
         if (! empty($data['patch_id'])) {
             $patch = Patch::find($data['patch_id']);

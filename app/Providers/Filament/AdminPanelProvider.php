@@ -8,7 +8,8 @@ use App\Filament\Pages\MyQuickLinks;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Organizations\OrganizationResource;
 use App\Http\Middleware\PromptCompanySetup;
-use App\Http\Middleware\RedirectMarketingToPunchIn;
+use App\Http\Middleware\RedirectFromUnavailableDashboard;
+use App\Http\Middleware\RedirectToRequiredPunchIn;
 use App\Services\Mobile\MobileNavigationRegistry;
 use App\Support\Tenancy\TenantBranding;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -134,7 +135,8 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                RedirectMarketingToPunchIn::class,
+                RedirectToRequiredPunchIn::class,
+                RedirectFromUnavailableDashboard::class,
             ])
             ->authMiddleware([
                 Authenticate::class,

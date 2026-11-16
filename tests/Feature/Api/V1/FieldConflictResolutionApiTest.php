@@ -23,8 +23,8 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->travelTo(now()->setTime(15, 0));
-    $this->rep = reportingUser('ConflictRep');
-    $this->manager = reportingUser('ConflictManager');
+    $this->rep = fieldReportingUser('ConflictRep');
+    $this->manager = fieldReportingUser('ConflictManager');
     Permission::findOrCreate('Review:FieldSyncRecovery', 'web');
     $this->manager->givePermissionTo('Review:FieldSyncRecovery');
     Sanctum::actingAs($this->rep);
@@ -87,7 +87,7 @@ it('requires independent confirmation, scopes evidence and denies self or stale 
     $this->rep->givePermissionTo('Review:FieldSyncRecovery');
     $this->postJson($url, [...$this->proposal, 'reviewer_id' => $this->rep->id])->assertUnprocessable();
     proposeKeepServer($this);
-    Sanctum::actingAs(reportingUser('UnrelatedConflictRep'));
+    Sanctum::actingAs(fieldReportingUser('UnrelatedConflictRep'));
     $this->getJson('/api/v1/field-sync-recoveries')->assertJsonCount(0, 'data');
     $this->postJson($url, $this->proposal)->assertNotFound();
     Sanctum::actingAs($this->manager);
@@ -178,6 +178,7 @@ it('requires the manager to review the same proposal that was displayed', functi
 });
 
 it('retains an existing commercial order and rejects a review if its lines change', function () {
+    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder');
     $company = reportingDoctor($this->rep, 'Conflict order customer');
     $contact = ContactDetail::forceCreate(['first_name' => 'Order Contact', 'created_by' => $this->rep->id, 'updated_by' => $this->rep->id]);
     $company->contactDetails()->attach($contact->id);

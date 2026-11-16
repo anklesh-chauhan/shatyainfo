@@ -2,12 +2,18 @@
 
 namespace App\Filament\Resources\SalesDcrs\Schemas;
 
+use App\Models\User;
 use App\Models\VisitPreference;
+use App\Services\PositionService;
+use App\Services\Reports\ReportVisibility;
 use Closure;
 use Filament\Forms;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class SalesDcrForm
 {
@@ -63,8 +69,18 @@ class SalesDcrForm
                                 };
                             }),
                         Forms\Components\Select::make('user_id')
-                            ->relationship('user', 'name')
-                            ->required(), //
+                            ->relationship('user', 'name', modifyQueryUsing: function (Builder $query): Builder {
+                                $ids = self::assignableUserIds();
+
+                                return $ids === null ? $query : $query->whereKey($ids);
+                            })
+                            ->rule(function (): Exists {
+                                $rule = Rule::exists(User::class, 'id');
+                                $ids = self::assignableUserIds();
+
+                                return $ids === null ? $rule : $rule->whereIn('id', $ids);
+                            })
+                            ->required(),
                         Forms\Components\Select::make('approval_status')
                             ->disabled()
                             ->dehydrated(false)
@@ -77,5 +93,18 @@ class SalesDcrForm
                     ])
                     ->columns(3),
             ]);
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private static function assignableUserIds(): ?array
+    {
+        $user = auth()->user();
+        if (ReportVisibility::hasFullAccess($user)) {
+            return null;
+        }
+
+        return $user instanceof User ? PositionService::getVisibleUserIdsFor($user)->values()->all() : [];
     }
 }

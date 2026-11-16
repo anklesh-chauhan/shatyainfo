@@ -32,7 +32,7 @@ it('lists visible leads on the pipeline', function () {
     $other = reportingUser('HiddenLead');
     $status = reportingLeadStatus('Qualified');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:LeadPipeline'));
 
     $visibleAccount = reportingDoctor($rep, 'Visible Pipeline Account');
     $hiddenAccount = reportingDoctor($other, 'Hidden Pipeline Account');
@@ -111,7 +111,7 @@ it('includes owned leads when territory and ou visibility add an exists clause',
     $ownedAccount = reportingDoctor($rep, 'Owned Pipeline Account');
     $hiddenAccount = reportingDoctor($other, 'Unrelated Pipeline Account');
 
-    $this->actingAs($rep->fresh());
+    $this->actingAs(grantPagePermissions($rep->fresh(), 'View:LeadPipeline'));
 
     Lead::forceCreate([
         'owner_id' => $rep->id,
@@ -149,7 +149,7 @@ it('lists visible deals on the pipeline', function () {
     $other = reportingUser('HiddenDeal');
     $stage = reportingDealStage('Negotiation');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:DealPipeline'));
 
     Deal::forceCreate([
         'owner_id' => $rep->id,
@@ -190,7 +190,7 @@ it('lists visible quotes and orders on the sales document register', function ()
     $account = reportingDoctor($rep, 'Visible Clinic Account');
     $contact = reportingContact('Priya', 'Shah');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:SalesDocumentRegister'));
 
     $visibleQuoteNumber = 'QT-VIS-'.fake()->unique()->numerify('####');
     $hiddenQuoteNumber = 'QT-HID-'.fake()->unique()->numerify('####');
@@ -248,7 +248,7 @@ it('lists overdue open follow-ups and hides closed ones', function () {
     $other = reportingUser('HiddenFollow');
     $status = reportingLeadStatus('Open');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:OverdueFollowUps'));
 
     $ownLead = Lead::forceCreate([
         'owner_id' => $rep->id,
@@ -309,7 +309,7 @@ it('lists overdue open follow-ups and hides closed ones', function () {
 it('exposes phase 3 reports on the overview catalog', function () {
     $user = reportingUser('SalesCatalog');
 
-    $this->actingAs($user);
+    $this->actingAs(grantPagePermissions($user, 'View:ReportsOverview'));
 
     livewire(ReportsOverview::class)
         ->assertSuccessful()

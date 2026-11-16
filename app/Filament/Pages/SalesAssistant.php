@@ -46,6 +46,11 @@ class SalesAssistant extends Page
      */
     public array $features = [];
 
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->canAccessBusinessPage('View:SalesAssistant') ?? false;
+    }
+
     public function mount(): void
     {
         $user = Auth::user();

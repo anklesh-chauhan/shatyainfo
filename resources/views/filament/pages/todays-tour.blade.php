@@ -174,7 +174,7 @@
                                                     } }}"
                                                     wire:click="openVisit({{ $detail->id }}, {{ $detail->sales_tour_plan_id }}, {{ $detail->territory_id }}, {{ $patch->id }}, {{ $company->id }})"
                                                     class="w-full shadow-sm"
-                                                    :disabled="in_array($status, ['completed', 'cancelled', 'rescheduled'])"
+                                                    :disabled="!auth()->user()?->can(['ViewAny:Visit', 'View:Visit', 'Update:Visit']) || in_array($status, ['completed', 'cancelled', 'rescheduled'])"
                                                 >
                                                     @if($status === 'started')
                                                         Started

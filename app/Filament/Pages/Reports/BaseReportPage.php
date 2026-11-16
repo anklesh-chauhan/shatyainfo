@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Reports;
 
 use App\Filament\Clusters\Reports\ReportsCluster;
 use App\Filament\Pages\Reports\Concerns\AuthorizesReportAccess;
+use App\Jobs\RunReportExport;
 use App\Models\Territory;
 use App\Models\User;
 use Filament\Actions\ExportAction;
@@ -18,6 +19,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Expression;
 
 abstract class BaseReportPage extends Page implements HasTable
 {
@@ -159,7 +161,11 @@ abstract class BaseReportPage extends Page implements HasTable
 
         return [
             ExportAction::make()
-                ->exporter(static::$exporter),
+                ->exporter(static::$exporter)
+                ->fileDisk('local')
+                ->job(RunReportExport::class)
+                ->authorize(fn (): bool => static::canAccess()
+                    && (auth()->user()?->canAccessBusinessPage('Export:Reports') ?? false)),
         ];
     }
 
@@ -202,7 +208,12 @@ abstract class BaseReportPage extends Page implements HasTable
         return [
             SelectFilter::make('employee')
                 ->label('Employee')
-                ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->all())
+                ->options(fn (): array => User::query()
+                    ->whereExists($this->applyUserFilter(
+                        $this->constrainVisibility($this->getReportQuery()),
+                        new Expression('users.id'),
+                    )->toBase())
+                    ->orderBy('name')->pluck('name', 'id')->all())
                 ->searchable()
                 ->query(fn (Builder $query, array $data): Builder => $this->applyUserFilter($query, $data['value'] ?? null)),
         ];
@@ -222,7 +233,12 @@ abstract class BaseReportPage extends Page implements HasTable
         return [
             SelectFilter::make('territory')
                 ->label('Territory')
-                ->options(fn (): array => Territory::query()->orderBy('name')->pluck('name', 'id')->all())
+                ->options(fn (): array => Territory::query()
+                    ->whereExists($this->applyTerritoryFilter(
+                        $this->constrainVisibility($this->getReportQuery()),
+                        new Expression('territories.id'),
+                    )->toBase())
+                    ->orderBy('name')->pluck('name', 'id')->all())
                 ->searchable()
                 ->query(fn (Builder $query, array $data): Builder => $this->applyTerritoryFilter($query, $data['value'] ?? null)),
         ];

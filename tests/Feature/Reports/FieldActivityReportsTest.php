@@ -23,7 +23,7 @@ it('lists visible DCRs on the register', function () {
     ]);
     $rep = reportingUser('DcrRep');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:DcrRegister'));
 
     SalesDcr::forceCreate([
         'dcr_date' => today(),
@@ -50,7 +50,7 @@ it('lists tour plan days on visit coverage', function () {
     ]);
     $rep = reportingUser('CoverageRep');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:VisitCoverage'));
 
     $plan = SalesTourPlan::forceCreate([
         'user_id' => $rep->id,
@@ -87,7 +87,7 @@ it('hides another representative’s expenses without full access', function () 
     $rep = reportingUser('ExpRep');
     $other = reportingUser('OtherExp');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:ExpenseSummary'));
 
     $ownDcr = SalesDcr::forceCreate([
         'dcr_date' => today(),
@@ -135,8 +135,10 @@ it('hides another representative’s expenses without full access', function () 
 
     expect(app(ExpenseSummaryQuery::class)->builder()->count())->toBe(1);
 
-    livewire(ExpenseSummary::class)
+    $page = livewire(ExpenseSummary::class)
         ->assertSuccessful()
         ->assertSee($type->name)
         ->assertDontSee('250.00');
+    $options = $page->instance()->getTable()->getFilter('employee')->getOptions();
+    expect($options)->toHaveKey($rep->id)->not->toHaveKey($other->id);
 });

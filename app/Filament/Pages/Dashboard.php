@@ -35,6 +35,11 @@ class Dashboard extends BaseDashboard
 
     protected static ?int $navigationSort = 10;
 
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->canAccessBusinessPage('View:Dashboard') ?? false;
+    }
+
     public function booted(): void
     {
         $period = is_array($this->filters) ? ($this->filters['period'] ?? null) : null;
@@ -152,12 +157,13 @@ class Dashboard extends BaseDashboard
      */
     protected function attendanceActions(): array
     {
-        $employee = Auth::user()?->employee;
+        $user = Auth::user();
 
-        if (! $employee) {
+        if (! $user?->canPunchAttendance()) {
             return [];
         }
 
+        $employee = $user->employee;
         $todayAttendance = DailyAttendance::where('employee_id', $employee->id)
             ->whereDate('attendance_date', today())
             ->first();
@@ -274,6 +280,8 @@ class Dashboard extends BaseDashboard
 
     public function doPunchIn(array $data): void
     {
+        abort_unless(Auth::user()?->canPunchAttendance(), 403);
+
         $employee = Auth::user()->employee;
 
         if (! isset($data['latitude'], $data['longitude'])) {
@@ -337,6 +345,8 @@ class Dashboard extends BaseDashboard
 
     public function doPunchOut(array $data): void
     {
+        abort_unless(Auth::user()?->canPunchAttendance(), 403);
+
         $employee = Auth::user()->employee;
 
         if (! isset($data['latitude'], $data['longitude'])) {
@@ -348,6 +358,7 @@ class Dashboard extends BaseDashboard
             return;
         }
 
+        $employee = $user->employee;
         $todayAttendance = DailyAttendance::where('employee_id', $employee->id)
             ->whereDate('attendance_date', today())
             ->first();

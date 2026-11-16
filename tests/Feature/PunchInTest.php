@@ -10,6 +10,7 @@ uses(RefreshDatabase::class);
 it('shows the punch in action for an employee with no attendance today', function () {
     $user = reportingUser('PunchRep');
 
+    grantPagePermissions($user, 'View:PunchIn');
     $this->actingAs($user);
 
     livewire(PunchIn::class)

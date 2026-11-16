@@ -1,15 +1,17 @@
 <?php
 
+use App\Filament\Pages\TodaysTour;
 use App\Models\SalesTourPlan;
 use App\Models\SalesTourPlanDetail;
 use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
 it('lists the authenticated users tour plan for today', function () {
-    $user = reportingUser('TourApi');
+    $user = fieldReportingUser('TourApi');
     $territory = reportingTerritory('Tour Terr');
     $patch = reportingPatch($territory, 'Tour Patch');
     $doctor = reportingDoctor($user, 'Dr Tour');
@@ -35,7 +37,7 @@ it('lists the authenticated users tour plan for today', function () {
 
     $detail->patches()->attach($patch->id);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:TodaysTour', 'Create:Quote', 'ViewAny:Quote', 'View:Quote', 'ViewOwn:Quote'));
 
     $this->getJson('/api/v1/todays-tour')
         ->assertSuccessful()
@@ -60,7 +62,14 @@ it('lists the authenticated users tour plan for today', function () {
         ->assertSuccessful()
         ->assertJsonPath('data.type', 'quote');
     $this->getJson('/api/v1/visits/'.$visit['id'])
-        ->assertJsonPath('data.workspace.documents.0.type', 'quote');
+        ->assertJsonPath('data.workspace.documents.0.type', 'quote')
+        ->assertJsonPath('data.workspace.documents.0.web_path', null)
+        ->assertJsonPath('data.workspace.quote_summary.count', 1);
+    $user->revokePermissionTo('View:Quote');
+    Sanctum::actingAs($user->fresh());
+    $this->getJson('/api/v1/visits/'.$visit['id'])
+        ->assertJsonPath('data.workspace.documents', [])
+        ->assertJsonPath('data.workspace.quote_summary.count', 0);
     $unplannedDoctor = reportingDoctor($user, 'Dr Outside Patch');
     $this->postJson($path, ['patch_id' => $patch->id, 'company_id' => $unplannedDoctor->id])
         ->assertUnprocessable();
@@ -79,8 +88,8 @@ it('lists the authenticated users tour plan for today', function () {
 });
 
 it('hides another users tour plan', function () {
-    $owner = reportingUser('TourOwner');
-    $other = reportingUser('TourOther');
+    $owner = fieldReportingUser('TourOwner');
+    $other = fieldReportingUser('TourOther');
     $territory = reportingTerritory('Hidden Terr');
 
     $this->actingAs($owner);
@@ -101,7 +110,7 @@ it('hides another users tour plan', function () {
         'updated_by' => $owner->id,
     ]);
 
-    Sanctum::actingAs($other);
+    Sanctum::actingAs(grantPagePermissions($other, 'View:TodaysTour'));
 
     $this->getJson('/api/v1/todays-tour')
         ->assertSuccessful()
@@ -112,8 +121,8 @@ it('hides another users tour plan', function () {
 });
 
 it('rejects opening another users tour day', function () {
-    $owner = reportingUser('TourDayOwner');
-    $other = reportingUser('TourDayOther');
+    $owner = fieldReportingUser('TourDayOwner');
+    $other = fieldReportingUser('TourDayOther');
     $territory = reportingTerritory('Owned Terr');
     $patch = reportingPatch($territory, 'Owned Patch');
     $doctor = reportingDoctor($owner, 'Dr Owned');
@@ -146,11 +155,16 @@ it('rejects opening another users tour day', function () {
     ])->assertNotFound()
         ->assertJsonPath('message', 'Tour day not found.');
 
+    $this->actingAs(grantPagePermissions($other, 'View:TodaysTour'), 'web');
+    Livewire::test(TodaysTour::class)
+        ->call('openVisit', $detail->id, $plan->id, $territory->id, $patch->id, $doctor->id)
+        ->assertNotFound();
+
     expect(Visit::query()->count())->toBe(0);
 });
 
 it('rejects an account outside the planned patch', function () {
-    $user = reportingUser('TourPatchScope');
+    $user = fieldReportingUser('TourPatchScope');
     $territory = reportingTerritory('Patch Terr');
     $patch = reportingPatch($territory, 'Patch Scope');
     $planned = reportingDoctor($user, 'Dr Planned');

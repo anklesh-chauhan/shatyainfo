@@ -179,7 +179,7 @@ test('it leaves a pending approval unchanged for a user who is not the current a
         ->and(ApprovalActivity::query()->where('approval_id', $approval->id)->where('action', ApprovalActivityAction::Approved->value)->exists())->toBeFalse();
 });
 
-test('it lists another requesters approval without access to all records', function () {
+test('it scopes approval register records to requesters and assigned reviewers', function () {
     Event::fake([ApprovalStatusChanged::class]);
     $fixture = approvalFixture();
     $this->actingAs($fixture['requester']);
@@ -206,6 +206,13 @@ test('it lists another requesters approval without access to all records', funct
     $this->actingAs($viewer);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
+    expect(ApprovalResource::getEloquentQuery()->whereKey($approval->id)->exists())->toBeFalse()
+        ->and(ApprovalResource::getRecordRouteBindingEloquentQuery()->whereKey($approval->id)->exists())->toBeFalse();
+
+    $this->actingAs($fixture['requester']);
+    expect(ApprovalResource::getEloquentQuery()->whereKey($approval->id)->exists())->toBeTrue();
+
+    $this->actingAs($fixture['manager']);
     expect(ApprovalResource::getEloquentQuery()->whereKey($approval->id)->exists())->toBeTrue();
 });
 

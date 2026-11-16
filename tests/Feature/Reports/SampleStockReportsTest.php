@@ -23,7 +23,7 @@ it('lists visible sample lines on the doctor sample ledger', function () {
     $rep = reportingUser('SampleRep');
     $other = reportingUser('HiddenRep');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:DoctorSampleLedger'));
 
     $visibleDoctor = reportingDoctor($rep, 'Dr Visible Sample');
     $hiddenDoctor = reportingDoctor($other, 'Dr Hidden Sample');
@@ -79,7 +79,7 @@ it('lists visible SGIP violations', function () {
     $rep = reportingUser('ComplianceRep');
     $other = reportingUser('OtherCompliance');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:SgipCompliance'));
 
     $doctor = reportingDoctor($rep, 'Dr Quota Breach');
     $hiddenDoctor = reportingDoctor($other, 'Dr Hidden Quota');
@@ -153,7 +153,7 @@ it('lists own stock movements', function () {
     $rep = reportingUser('StockRep');
     $other = reportingUser('OtherStock');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:StockMovementRegister'));
 
     $item = reportingSampleItem('STK', 'Visible Stock Item');
     $hiddenItem = reportingSampleItem('HID', 'Hidden Stock Item');
@@ -193,7 +193,7 @@ it('lists own stock movements', function () {
 it('exposes phase 2 reports on the overview catalog', function () {
     $user = reportingUser('CatalogUser');
 
-    $this->actingAs($user);
+    $this->actingAs(grantPagePermissions($user, 'View:ReportsOverview'));
 
     livewire(ReportsOverview::class)
         ->assertSuccessful()

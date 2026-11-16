@@ -1,11 +1,15 @@
 <?php
 
+use App\Filament\Exports\Reports\DcrRegisterExporter;
 use App\Filament\Pages\Reports\ReportsOverview;
 use App\Models\SalesDcr;
 use App\Models\Territory;
 use App\Services\Reports\DashboardMetrics;
+use Filament\Actions\Exports\Models\Export;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 use function Pest\Livewire\livewire;
 
@@ -83,7 +87,7 @@ it('counts only visible pending DCRs', function () {
 it('renders the reports overview catalog', function () {
     $user = reportingUser('Overview');
 
-    $this->actingAs($user);
+    $this->actingAs(grantPagePermissions($user, 'View:ReportsOverview'));
 
     $page = livewire(ReportsOverview::class);
 
@@ -110,4 +114,47 @@ it('renders the reports overview catalog', function () {
             'Sales',
             'HR',
         ]);
+});
+
+it('requires the report page permission independently of record visibility', function () {
+    $user = reportingUser('Report Page Gate');
+    $user->givePermissionTo(Permission::findOrCreate('AccessAllRecords', 'web'));
+    $this->actingAs($user);
+
+    livewire(ReportsOverview::class)->assertForbidden();
+
+    grantPagePermissions($user, 'View:ReportsOverview');
+    $this->actingAs($user->fresh());
+    livewire(ReportsOverview::class)->assertSuccessful();
+    expect(collect((new ReportsOverview)->getCatalog())->firstWhere('label', 'DCR register')['url'])->toBeNull();
+});
+
+it('denies downloading an existing report export when permission is revoked', function () {
+    $owner = grantPagePermissions(reportingUser('Report Exporter'), 'View:DcrRegister', 'Export:Reports');
+    $recordScope = Role::findOrCreate('Report Test Scope', 'web');
+    $recordScope->givePermissionTo(Permission::findOrCreate('AccessAllRecords', 'web'));
+    $owner->assignRole($recordScope);
+    Storage::fake('local');
+    $export = Export::query()->create([
+        'exporter' => DcrRegisterExporter::class,
+        'user_id' => $owner->id,
+        'file_disk' => 'local',
+        'file_name' => 'dcr-register',
+        'total_rows' => 1,
+    ]);
+    $url = route('filament.exports.download', ['export' => $export, 'format' => 'csv']);
+
+    Storage::disk('local')->put($export->getFileDirectory().'/headers.csv', "Report\n");
+    $this->actingAs($owner)->get($url)->assertSuccessful()->assertDownload('dcr-register.csv');
+
+    $other = reportingUser('Other Exporter')->assignRole(Role::findOrCreate('super_admin', 'web'));
+    $this->actingAs($other);
+    $this->get($url)->assertForbidden();
+
+    $owner->removeRole($recordScope);
+    $this->actingAs($owner->fresh())->get($url)->assertForbidden();
+
+    $owner->revokePermissionTo('Export:Reports');
+    $this->actingAs($owner->fresh());
+    $this->get($url)->assertForbidden();
 });

@@ -7,6 +7,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class SalesDcrExpenseForm
 {
@@ -15,7 +16,8 @@ class SalesDcrExpenseForm
         return $schema
             ->components([
                 Select::make('sales_dcr_id')
-                    ->relationship('salesDcr', 'id')
+                    ->relationship('salesDcr', 'id', modifyQueryUsing: fn (Builder $query): Builder => $query->applyVisibility('SalesDcr'))
+                    ->disabledOn('edit')
                     ->required(),
                 Select::make('expense_type_id')
                     ->relationship('expenseType', 'name')
@@ -34,12 +36,6 @@ class SalesDcrExpenseForm
                 TextInput::make('meta'),
                 Textarea::make('remarks')
                     ->columnSpanFull(),
-                TextInput::make('created_by')
-                    ->numeric(),
-                TextInput::make('updated_by')
-                    ->numeric(),
-                TextInput::make('deleted_by')
-                    ->numeric(),
             ]);
     }
 }

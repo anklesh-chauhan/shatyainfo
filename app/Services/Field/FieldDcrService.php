@@ -12,9 +12,9 @@ use Illuminate\Validation\ValidationException;
 
 class FieldDcrService
 {
-    public function forDate(User $user, ?string $date = null): SalesDcr
+    public function forDate(User $user, ?string $date = null, bool $authorizeCreation = false): SalesDcr
     {
-        return $this->getOrCreateForUser($user, $date ?? today()->toDateString());
+        return $this->getOrCreateForUser($user, $date ?? today()->toDateString(), $authorizeCreation);
     }
 
     public function findOwned(User $user, int $dcrId): SalesDcr
@@ -91,7 +91,7 @@ class FieldDcrService
         }
     }
 
-    private function getOrCreateForUser(User $user, Carbon|string $date): SalesDcr
+    private function getOrCreateForUser(User $user, Carbon|string $date, bool $authorizeCreation): SalesDcr
     {
         $dcrDate = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
         $preference = VisitPreference::current();
@@ -105,6 +105,7 @@ class FieldDcrService
             return $existing->load($this->defaultRelations());
         }
 
+        abort_if($authorizeCreation && $user->cannot('create', SalesDcr::class), 403);
         $preference->assertDcrDateIsReportable($dcrDate);
 
         $dcr = SalesDcr::query()->firstOrCreate(

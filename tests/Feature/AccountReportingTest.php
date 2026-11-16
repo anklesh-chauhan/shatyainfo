@@ -3,8 +3,10 @@
 use App\Models\AccountMaster;
 use App\Models\AccountReportingMaster;
 use App\Models\AccountStatus;
+use App\Models\JobRole;
 use App\Models\OrganizationalUnit;
 use App\Models\Patch;
+use App\Models\Position;
 use App\Models\RatingType;
 use App\Models\TypeMaster;
 use App\Models\User;
@@ -117,12 +119,27 @@ it('saves reporting details and activation atomically through the account api', 
     $user = fieldSalesUser('Reporting API');
     Sanctum::actingAs($user);
     $type = TypeMaster::create(['name' => 'Doctor API', 'typeable_type' => AccountMaster::class, 'activation_requirements' => ['patch']]);
-    $patch = Patch::withoutEvents(fn () => reportingPatch(reportingTerritory('Reporting API'), 'Reporting API'));
+    $territory = reportingTerritory('Reporting API');
+    $patch = Patch::withoutEvents(fn () => reportingPatch($territory, 'Reporting API'));
+    $role = JobRole::create(['name' => 'Reporting Rep', 'code' => 'RPTREP', 'level' => 1]);
+    $position = Position::create(['name' => 'Reporting Rep', 'code' => 'RPTREP', 'job_role_id' => $role->id]);
+    $position->territories()->attach($territory->id);
+    $user->employee->positions()->attach($position->id, ['is_primary' => true]);
+    $divisionType = TypeMaster::create(['name' => 'Division', 'typeable_type' => OrganizationalUnit::class]);
+    $division = OrganizationalUnit::create(['name' => 'Reporting Division', 'code' => 'RPTDIV', 'type_master_id' => $divisionType->id, 'is_active' => true]);
+    $inactive = OrganizationalUnit::create(['name' => 'Inactive Division', 'code' => 'RPTOLD', 'type_master_id' => $divisionType->id, 'is_active' => false]);
+    $this->getJson('/api/v1/accounts/reporting-options')->assertSuccessful()
+        ->assertJsonFragment(['id' => $division->id, 'code' => 'RPTDIV', 'name' => 'Reporting Division'])
+        ->assertJsonMissing(['name' => 'Inactive Division']);
     $rating = RatingType::create(['name' => 'A API']);
     $response = $this->postJson('/api/v1/accounts', ['name' => 'API Report Account', 'type_master_id' => $type->id, 'patch_ids' => [$patch->id], 'account_status_id' => AccountStatus::where('code', 'active')->value('id'),
-        'division_profiles' => [['rating_type_id' => $rating->id, 'effective_from' => '2026-01-01']],
+        'division_profiles' => [['division_ou_id' => $division->id, 'rating_type_id' => $rating->id, 'effective_from' => '2026-01-01']],
         'call_targets' => [['calls_per_month' => 2, 'effective_from' => '2026-01-01']],
-    ])->assertSuccessful()->assertJsonPath('data.call_targets.0.calls_per_month', 2);
+    ])->assertSuccessful()->assertJsonPath('data.call_targets.0.calls_per_month', 2)
+        ->assertJsonPath('data.division_profiles.0.division_ou_id', $division->id);
+    $this->patchJson('/api/v1/accounts/'.$response->json('data.id'), [
+        'division_profiles' => [['division_ou_id' => $inactive->id, 'rating_type_id' => $rating->id, 'effective_from' => '2026-01-01']],
+    ])->assertUnprocessable()->assertJsonValidationErrors('division_profiles');
     $this->postJson('/api/v1/accounts', ['name' => 'Must Roll Back', 'type_master_id' => $type->id, 'call_targets' => [['calls_per_month' => 2, 'effective_from' => '2026-01-02']]])->assertUnprocessable();
     expect(AccountMaster::where('name', 'Must Roll Back')->exists())->toBeFalse();
     $this->patchJson('/api/v1/accounts/'.$response->json('data.id'), ['call_targets' => [['id' => 999999, 'calls_per_month' => 2, 'effective_from' => '2026-03-01']]])->assertUnprocessable();

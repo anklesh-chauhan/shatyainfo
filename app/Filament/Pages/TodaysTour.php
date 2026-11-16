@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\Quotes\QuoteResource;
+use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Helpers\SalesDocumentQuickCreate;
 use App\Models\AccountMaster;
 use App\Models\Quote;
@@ -48,6 +50,11 @@ class TodaysTour extends Page implements HasActions, HasForms
 
     // Search property
     public ?string $search = '';
+
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->canAccessBusinessPage('View:TodaysTour') ?? false;
+    }
 
     public function mount(): void
     {
@@ -138,7 +145,7 @@ class TodaysTour extends Page implements HasActions, HasForms
         int $patchId,
         int $companyId
     ) {
-        // using the trait to ensure visit exists or create a new one
+        abort_unless(Auth::user()?->can('Update:Visit'), 403);
         $visit = $this->ensureVisitExists($salesTourPlanDetailId, $patchId, $companyId);
 
         // Redirect to Visit edit page
@@ -150,6 +157,8 @@ class TodaysTour extends Page implements HasActions, HasForms
 
     public function createQuote(int $salesTourPlanDetailId, int $patchId, int $companyId)
     {
+        abort_unless(QuoteResource::canCreate(), 403);
+
         $visit = $this->ensureVisitExists($salesTourPlanDetailId, $patchId, $companyId);
 
         $document = SalesDocumentQuickCreate::createFromVisit($visit, Quote::class);
@@ -159,6 +168,8 @@ class TodaysTour extends Page implements HasActions, HasForms
 
     public function createSalesOrder(int $salesTourPlanDetailId, int $patchId, int $companyId)
     {
+        abort_unless(SalesOrderResource::canCreate(), 403);
+
         $visit = $this->ensureVisitExists($salesTourPlanDetailId, $patchId, $companyId);
 
         $document = SalesDocumentQuickCreate::createFromVisit($visit, SalesOrder::class);
@@ -169,6 +180,7 @@ class TodaysTour extends Page implements HasActions, HasForms
     public function cancelAction(): Action
     {
         return Action::make('cancel')
+            ->authorize(fn (): bool => (bool) Auth::user()?->can('Update:Visit'))
             ->label('Cancel')
             ->icon('heroicon-m-x-mark')
             ->color('danger')
@@ -207,6 +219,7 @@ class TodaysTour extends Page implements HasActions, HasForms
     public function rescheduleAction(): Action
     {
         return Action::make('reschedule')
+            ->authorize(fn (): bool => (bool) Auth::user()?->can('Update:Visit'))
             ->label('Reschedule')
             ->color('info')
             ->icon('heroicon-m-calendar-days')

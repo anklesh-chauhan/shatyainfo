@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\SalesDcrs\RelationManagers;
 
 use App\AutoCalculateExpensesAction;
+use App\Models\SalesDcrExpense;
+use App\Services\OptionalModuleService;
 use Filament\Actions\AssociateAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -22,11 +24,18 @@ use Filament\Tables;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrExpensesRelationManager extends RelationManager
 {
     protected static string $relationship = 'expenses';
+
+    public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
+    {
+        return app(OptionalModuleService::class)->navigationEnabled('SalesDcrExpense')
+            && parent::canViewForRecord($ownerRecord, $pageClass);
+    }
 
     public function form(Schema $schema): Schema
     {
@@ -88,8 +97,15 @@ class SalesDcrExpensesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make(),
-                AssociateAction::make(),
-                AutoCalculateExpensesAction::make(),
+                AssociateAction::make()
+                    ->authorize(fn (): bool => (bool) auth()->user()?->can('Update:SalesDcrExpense'))
+                    ->recordSelectOptionsQuery(fn (Builder $query): Builder => $query
+                        ->whereHas('salesDcr', fn (Builder $reports): Builder => $reports
+                            ->applyVisibility('SalesDcr')
+                            ->whereIn('approval_status', ['draft', 'rejected']))),
+                AutoCalculateExpensesAction::make()
+                    ->authorize(fn (): bool => (bool) auth()->user()?->can('create', SalesDcrExpense::class)
+                        && (bool) auth()->user()?->can('update', $this->getOwnerRecord())),
             ])
             ->recordActions([
                 EditAction::make(),

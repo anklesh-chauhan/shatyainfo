@@ -19,6 +19,7 @@ class SalesDcrExpenseResource extends JsonResource
         return [
             'id' => $this->id,
             'sales_dcr_id' => $this->sales_dcr_id,
+            'dcr_date' => $this->whenLoaded('salesDcr', fn (): ?string => $this->salesDcr?->dcr_date?->toDateString()),
             'expense_type_id' => $this->expense_type_id,
             'transport_mode_id' => $this->transport_mode_id,
             'amount' => $this->amount !== null ? (float) $this->amount : null,

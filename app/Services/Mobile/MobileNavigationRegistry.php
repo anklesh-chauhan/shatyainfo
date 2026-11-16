@@ -2,6 +2,10 @@
 
 namespace App\Services\Mobile;
 
+use App\Filament\Clusters\HR\AttendanceCluster;
+use App\Filament\Clusters\HR\EmployeeManagementCluster;
+use App\Filament\Clusters\HR\LeaveManagementCluster;
+use App\Filament\Clusters\Reports\ReportsCluster;
 use App\Filament\Pages\FieldCoverage;
 use App\Filament\Pages\FlexiblePlanning;
 use App\Filament\Pages\PunchIn;
@@ -19,6 +23,7 @@ use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
 use App\Filament\Resources\TerritorySalesTargets\TerritorySalesTargetResource;
 use App\Filament\Resources\Visits\VisitResource;
 use BackedEnum;
+use Filament\Facades\Filament;
 use ReflectionProperty;
 use UnitEnum;
 
@@ -80,11 +85,11 @@ class MobileNavigationRegistry
     }
 
     /**
-     * Schema 1 screens in Admin order. Labels and sorts come from the Filament classes.
+     * Schema 1 screens with negotiated cluster and sort metadata.
      *
-     * @return list<array{key: string, label: string, sort: int, group: string, screen_key: string, source: class-string, permission_key: string}>
+     * @return list<array{key: string, label: string, sort: int, group: string, screen_key: string, source: class-string, permission_key: string, parent: array{key: string, label: string, sort: int, source: class-string}|null}>
      */
-    public function entries(): array
+    public function entries(bool $adminOrder = false): array
     {
         $groupSort = [];
 
@@ -92,13 +97,20 @@ class MobileNavigationRegistry
             $groupSort[$group['key']] = $group['sort'];
         }
 
-        $entries = array_map(function (array $binding): array {
+        $rank = [];
+        if ($adminOrder) {
+            $panel = Filament::getPanel('admin');
+            $rank = array_flip([...$panel->getPages(), ...$panel->getResources()]);
+        }
+
+        $entries = array_map(function (array $binding) use ($adminOrder): array {
             $metadata = $this->navigationMetadata($binding['source']);
 
             return [
                 'key' => $binding['key'],
                 'label' => $metadata['label'],
-                'sort' => $metadata['sort'],
+                'sort' => $adminOrder ? $binding['source']::getNavigationSort() ?? -1 : $metadata['sort'],
+                'parent' => $adminOrder ? $this->parentFor($binding['source']) : null,
                 'group' => $binding['group'],
                 'screen_key' => $binding['screen_key'],
                 'source' => $binding['source'],
@@ -106,7 +118,7 @@ class MobileNavigationRegistry
             ];
         }, $this->bindings());
 
-        usort($entries, function (array $left, array $right) use ($groupSort): int {
+        usort($entries, function (array $left, array $right) use ($groupSort, $rank, $adminOrder): int {
             $byGroup = ($groupSort[$left['group']] ?? PHP_INT_MAX) <=> ($groupSort[$right['group']] ?? PHP_INT_MAX);
 
             if ($byGroup !== 0) {
@@ -116,6 +128,16 @@ class MobileNavigationRegistry
             $leftSort = is_int($left['sort']) ? $left['sort'] : PHP_INT_MAX;
             $rightSort = is_int($right['sort']) ? $right['sort'] : PHP_INT_MAX;
             $bySort = $leftSort <=> $rightSort;
+
+            if ($adminOrder) {
+                $leftSort = $left['parent']['sort'] ?? $leftSort;
+                $rightSort = $right['parent']['sort'] ?? $rightSort;
+                $leftParent = $left['parent']['source'] ?? $left['source'];
+                $rightParent = $right['parent']['source'] ?? $right['source'];
+
+                return [$leftSort, $rank[$leftParent] ?? PHP_INT_MAX, $left['sort'], $rank[$left['source']] ?? PHP_INT_MAX, $left['key']]
+                    <=> [$rightSort, $rank[$rightParent] ?? PHP_INT_MAX, $right['sort'], $rank[$right['source']] ?? PHP_INT_MAX, $right['key']];
+            }
 
             return $bySort !== 0 ? $bySort : $left['key'] <=> $right['key'];
         });
@@ -150,6 +172,38 @@ class MobileNavigationRegistry
             'sort' => $group['sort'],
             'items' => $items[$group['key']] ?? [],
         ], $groups);
+    }
+
+    /** @return array{key: string, label: string, sort: int, source: class-string}|null */
+    public function parentFor(string $source): ?array
+    {
+        $cluster = $source::getCluster();
+        $key = match ($cluster) {
+            EmployeeManagementCluster::class => 'employee-management',
+            AttendanceCluster::class => 'attendance',
+            LeaveManagementCluster::class => 'leave-management',
+            ReportsCluster::class => 'all-reports',
+            default => null,
+        };
+
+        return $key === null ? null : [
+            'key' => $key,
+            'label' => (string) $cluster::getNavigationLabel(),
+            'sort' => $cluster::getNavigationSort() ?? -1,
+            'source' => $cluster,
+        ];
+    }
+
+    public function standaloneDestination(string $itemKey): ?string
+    {
+        return match ($itemKey) {
+            'g01-02' => 'punch',
+            'g02-03' => 'visit-register',
+            'g02-06' => 'expense-register',
+            'g06-03' => 'e-detailing-library',
+            'g06-07' => 'sgip-register',
+            default => null,
+        };
     }
 
     public function homeFor(array $screenKeys): string

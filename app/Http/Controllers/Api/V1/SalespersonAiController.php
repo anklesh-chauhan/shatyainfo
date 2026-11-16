@@ -29,8 +29,10 @@ class SalespersonAiController extends Controller
 {
     public function __construct(private FieldVisitService $visits) {}
 
-    public function roadmap(): JsonResponse
+    public function roadmap(Request $request): JsonResponse
     {
+        abort_unless($this->user($request)->canAccessBusinessPage('View:SalesAssistant'), 403);
+
         return response()->json([
             'data' => SalespersonAiFeature::roadmap(app(FieldPlanningService::class)->capabilities()['supports_mtp']),
         ]);
@@ -71,6 +73,8 @@ class SalespersonAiController extends Controller
 
     public function priorities(SalespersonAiDateRequest $request): JsonResponse
     {
+        abort_unless($this->user($request)->canAccessBusinessPage('View:SalesAssistant'), 403);
+
         return response()->json([
             'data' => app(TodayPriorityService::class)->forUser($this->user($request), $request->onDate()),
         ]);
@@ -78,6 +82,8 @@ class SalespersonAiController extends Controller
 
     public function tourPlanDraft(SalespersonAiMonthRequest $request): JsonResponse
     {
+        abort_unless($this->user($request)->canAccessBusinessPage('View:SalesAssistant'), 403);
+
         return response()->json([
             'data' => app(TourPlanDraftService::class)->forUser($this->user($request), $request->month()),
         ]);
@@ -103,6 +109,8 @@ class SalespersonAiController extends Controller
 
     public function dayRoute(SalespersonAiDateRequest $request): JsonResponse
     {
+        abort_unless($this->user($request)->canAccessBusinessPage('View:SalesAssistant'), 403);
+
         return response()->json([
             'data' => app(DayRouteOrderService::class)->forUser($this->user($request), $request->onDate()),
         ]);

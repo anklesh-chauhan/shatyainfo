@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SgipDistributions;
 
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\SgipDistributions\Pages\CreateSgipDistribution;
 use App\Filament\Resources\SgipDistributions\Pages\EditSgipDistribution;
 use App\Filament\Resources\SgipDistributions\Pages\ListSgipDistributions;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SgipDistributionResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()

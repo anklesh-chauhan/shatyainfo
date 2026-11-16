@@ -16,7 +16,7 @@ use App\Models\ShiftMaster;
 use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
-use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -60,6 +60,26 @@ expect()->extend('toBeOne', function () {
 | global functions to help you to reduce the number of lines of code in your test files.
 |
 */
+
+function grantPagePermissions(User $user, string ...$permissions): User
+{
+    foreach ($permissions as $permission) {
+        $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    return $user;
+}
+
+function fieldReportingUser(string $name): User
+{
+    return grantPagePermissions(
+        reportingUser($name),
+        'ViewAny:Visit', 'View:Visit', 'Create:Visit', 'Update:Visit',
+        'ViewAny:SalesDcr', 'View:SalesDcr', 'Create:SalesDcr', 'Update:SalesDcr',
+        'ViewAny:SalesDcrExpense', 'View:SalesDcrExpense', 'Create:SalesDcrExpense',
+        'Update:SalesDcrExpense', 'Delete:SalesDcrExpense',
+    );
+}
 
 function reportingUser(string $name): User
 {
@@ -209,10 +229,13 @@ function reportingApiToken(User $user, string $name = 'field-api'): string
 
 function fieldSalesUser(string $name): User
 {
-    test()->seed(ConfigDrivenShieldPermissionSeeder::class);
+    $role = Role::findOrCreate('sales_user', 'web');
+    foreach (['ViewAny', 'View', 'Create', 'Update', 'ViewOwn'] as $action) {
+        $role->givePermissionTo(Permission::findOrCreate($action.':AccountMaster', 'web'));
+    }
 
     $user = reportingUser($name);
-    $user->assignRole(Role::findByName('sales_user', 'web'));
+    $user->assignRole($role);
 
     return $user;
 }

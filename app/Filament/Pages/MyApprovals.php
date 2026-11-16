@@ -28,6 +28,11 @@ class MyApprovals extends Page implements HasTable
 
     protected string $view = 'filament.pages.my-approvals';
 
+    public static function canAccess(): bool
+    {
+        return Auth::user()?->canAccessBusinessPage('View:MyApprovals') ?? false;
+    }
+
     public function table(Table $table): Table
     {
         return $table

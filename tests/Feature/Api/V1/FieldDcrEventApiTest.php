@@ -8,7 +8,7 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 it('records non-visit work once and permits a reporting-only DCR without claiming leave approval', function () {
-    $rep = reportingUser('DayReportRep');
+    $rep = fieldReportingUser('DayReportRep');
     Sanctum::actingAs($rep);
     $event = ['event_id' => (string) Str::uuid(), 'date' => today()->toDateString(),
         'category' => 'training', 'remarks' => 'Product training at HQ', 'captured_at' => now()->utc()->toIso8601String()];
@@ -23,7 +23,7 @@ it('records non-visit work once and permits a reporting-only DCR without claimin
 });
 
 it('rejects day-report date tampering and missing replay headers', function () {
-    Sanctum::actingAs(reportingUser('InvalidDayReportRep'));
+    Sanctum::actingAs(fieldReportingUser('InvalidDayReportRep'));
     $event = ['event_id' => (string) Str::uuid(), 'date' => today()->subDay()->toDateString(),
         'category' => 'meeting', 'remarks' => 'Meeting', 'captured_at' => now()->utc()->toIso8601String()];
     $this->postJson('/api/v1/field-dcr-events', $event)->assertUnprocessable();

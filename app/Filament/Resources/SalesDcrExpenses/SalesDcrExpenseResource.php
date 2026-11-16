@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SalesDcrExpenses;
 
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\SalesDcrExpenses\Pages\CreateSalesDcrExpense;
 use App\Filament\Resources\SalesDcrExpenses\Pages\EditSalesDcrExpense;
 use App\Filament\Resources\SalesDcrExpenses\Pages\ListSalesDcrExpenses;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SalesDcrExpenseResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()
@@ -68,6 +71,11 @@ class SalesDcrExpenseResource extends Resource
             'create' => CreateSalesDcrExpense::route('/create'),
             'edit' => EditSalesDcrExpense::route('/{record}/edit'),
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->whereHas('salesDcr', fn (Builder $query): Builder => $query->applyVisibility('SalesDcr'));
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder

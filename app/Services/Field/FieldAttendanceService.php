@@ -185,6 +185,8 @@ class FieldAttendanceService
             ]);
         }
 
+        abort_unless($employee->is_active && ! $employee->is_deleted, 403);
+
         return $employee;
     }
 

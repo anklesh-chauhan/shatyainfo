@@ -25,6 +25,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -104,7 +105,7 @@ beforeEach(function (): void {
     (require database_path('migrations/tenant/2025_03_10_160426_create_permission_tables.php'))->up();
     $this->rep = User::withoutEvents(fn () => User::create(['name' => 'Rep', 'email' => 'rep@example.test', 'password' => 'password']));
     $this->visit = Visit::withoutEvents(fn () => Visit::create(['employee_id' => $this->rep->id, 'visit_status' => 'started', 'start_time' => now()]));
-    Sanctum::actingAs($this->rep);
+    Sanctum::actingAs(grantPagePermissions($this->rep, 'ViewAny:EDetailingMaterial', 'View:EDetailingMaterial', 'ViewAny:Visit', 'View:Visit', 'Update:Visit'));
     $this->material = EDetailingMaterial::factory()->create(['title' => 'Product presentation']);
     $this->payload = ['material_id' => $this->material->id, 'content_version' => $this->material->content_version, 'notes' => 'Discussed product information.'];
     $this->endpoint = '/api/v1/visits/'.$this->visit->id.'/e-detailing';
@@ -121,9 +122,19 @@ it('lists published material without leaking private paths and streams the authe
         ->assertOk()->assertHeader('Content-Type', 'application/pdf');
 });
 
+it('denies direct file access after the material view permission is revoked', function (): void {
+    $this->rep->revokePermissionTo('View:EDetailingMaterial');
+    Sanctum::actingAs($this->rep->fresh());
+
+    $this->getJson('/api/v1/e-detailing')->assertOk();
+    $this->getJson('/api/v1/e-detailing/'.$this->material->id.'/file?version='.$this->material->content_version)
+        ->assertForbidden();
+    $this->postJson($this->endpoint, $this->payload)->assertForbidden();
+});
+
 it('rejects another representatives visit for reads downloads and recording', function (): void {
     $other = User::withoutEvents(fn () => User::create(['name' => 'Other', 'email' => 'other@example.test', 'password' => 'password']));
-    Sanctum::actingAs($other);
+    Sanctum::actingAs(grantPagePermissions($other, 'ViewAny:EDetailingMaterial', 'View:EDetailingMaterial', 'ViewAny:Visit', 'View:Visit', 'Update:Visit'));
     $this->getJson($this->endpoint)->assertNotFound();
     $this->getJson($this->endpoint.'/'.$this->material->id.'/file?version='.$this->material->content_version)->assertNotFound();
     $this->postJson($this->endpoint, $this->payload)->assertNotFound();
@@ -164,10 +175,19 @@ it('rejects foreign company paths and unsupported file contents', function (): v
     expect(fn () => EDetailingMaterial::create(['title' => 'Invalid', 'file_path' => $path]))->toThrow(ValidationException::class);
 });
 
-it('allows only administrators to manage and preview the library', function (): void {
+it('keeps library management separate from material preview permission', function (): void {
     expect(Gate::forUser($this->rep)->allows('create', EDetailingMaterial::class))->toBeFalse();
+    $this->getJson(route('e-detailing.preview', $this->material))->assertSuccessful();
+
+    $this->material->update(['is_active' => false]);
+    $this->getJson(route('e-detailing.preview', $this->material))->assertNotFound();
+    $this->material->update(['is_active' => true]);
+
+    $this->rep->revokePermissionTo('View:EDetailingMaterial');
+    Sanctum::actingAs($this->rep->fresh());
     $this->getJson(route('e-detailing.preview', $this->material))->assertForbidden();
-    Role::create(['name' => 'administration_admin', 'guard_name' => 'web']);
+    Role::create(['name' => 'administration_admin', 'guard_name' => 'web'])
+        ->givePermissionTo(Permission::findOrCreate('Create:EDetailingMaterial', 'web'));
     $this->rep->assignRole('administration_admin');
     expect(Gate::forUser($this->rep->fresh())->allows('create', EDetailingMaterial::class))->toBeTrue();
 });
@@ -244,11 +264,13 @@ it('rejects invalid offline presentation state without persisting journal record
 ]);
 
 it('uploads a private image through the admin form as a draft', function (): void {
-    Role::create(['name' => 'administration_admin', 'guard_name' => 'web']);
+    Role::create(['name' => 'administration_admin', 'guard_name' => 'web'])
+        ->givePermissionTo(Permission::findOrCreate('Create:EDetailingMaterial', 'web'));
     $this->rep->assignRole('administration_admin');
     $this->actingAs($this->rep, 'web');
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Livewire::test(CreateEDetailingMaterial::class)
+        ->assertSuccessful()
         ->fillForm([
             'title' => 'New product image',
             'file_path' => UploadedFile::fake()->image('product.png'),

@@ -13,7 +13,7 @@ it('punches in with gps and creates daily attendance', function () {
     $shift = reportingShift('Field Shift');
     reportingAssignShift($user, $shift);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -30,7 +30,7 @@ it('punches in with gps and creates daily attendance', function () {
 it('rejects punch in without a linked employee', function () {
     $user = User::factory()->create();
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -44,7 +44,7 @@ it('rejects punch in without a linked employee', function () {
 it('rejects punch in without a shift', function () {
     $user = reportingUser('NoShiftApi');
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -60,7 +60,7 @@ it('rejects a second punch in for the same day', function () {
     $shift = reportingShift('Second Shift');
     reportingAssignShift($user, $shift);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -84,7 +84,7 @@ it('rejects a punch out before punch in', function () {
     $inAt = now()->subDay()->setTime(15, 0, 0);
     $outAt = now()->subDay()->setTime(14, 0, 0);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -107,7 +107,7 @@ it('punches out after punch in', function () {
     $shift = reportingShift('Out Shift');
     reportingAssignShift($user, $shift);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->postJson('/api/v1/attendance/punch-in', [
         'latitude' => 19.0760,
@@ -129,7 +129,7 @@ it('returns today attendance', function () {
     $shift = reportingShift('Today Shift');
     reportingAssignShift($user, $shift);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:PunchIn'));
 
     $this->getJson('/api/v1/attendance/today')
         ->assertSuccessful()

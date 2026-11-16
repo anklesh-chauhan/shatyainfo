@@ -15,6 +15,6 @@ class MobileNavigationController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 
-        return response()->json($navigation->forUser($user));
+        return response()->json($navigation->forUser($user, $request->query('destinations') === 'standalone'));
     }
 }

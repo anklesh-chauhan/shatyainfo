@@ -79,11 +79,6 @@ class LeadResource extends BaseResource
             ->applyVisibility(static::getModelLabel());
     }
 
-    public static function canViewAny(): bool
-    {
-        return true;
-    }
-
     public static function createLead(): bool
     {
         return true;

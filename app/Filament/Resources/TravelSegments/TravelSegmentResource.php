@@ -63,6 +63,11 @@ class TravelSegmentResource extends Resource
         ];
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->whereHas('salesDcr', fn (Builder $query): Builder => $query->applyVisibility('SalesDcr'));
+    }
+
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
         return parent::getRecordRouteBindingEloquentQuery()

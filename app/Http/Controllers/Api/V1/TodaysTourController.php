@@ -12,6 +12,8 @@ class TodaysTourController extends Controller
 {
     public function __invoke(Request $request, FieldTourService $tourService): AnonymousResourceCollection
     {
+        abort_unless($request->user()->canAccessBusinessPage('View:TodaysTour'), 403);
+
         $date = $request->query('date');
 
         $details = $tourService->forDate(

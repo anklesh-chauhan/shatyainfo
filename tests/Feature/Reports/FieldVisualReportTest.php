@@ -181,7 +181,7 @@ it('counts only visible field work inside the selected period', function () {
 it('saves a personal chart selection and hides the rest', function () {
     $rep = reportingUser('LayoutRep');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:Dashboard'));
 
     expect(app(DashboardLayout::class)->chartWidgets($rep))->toHaveCount(7)
         ->and(app(DashboardLayout::class)->sanitize(['calls_by_day', 'not-a-chart']))->toBe(['calls_by_day']);

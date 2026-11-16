@@ -4,16 +4,20 @@ namespace App\Providers;
 
 use App\Database\Macros\BlueprintMacros;
 use App\Events\ApprovalStatusChanged;
+use App\Http\Middleware\AuthorizeReportExportDownload;
 use App\Listeners\ApprovalListener;
 use App\Models\ApprovalSetting;
 use App\Models\Media;
+use App\Models\User;
 use App\Models\Visit;
 use App\Observers\MediaObserver;
 use App\Observers\VisitObserver;
+use App\Policies\ReportExportPolicy;
 use App\Services\DateFormatService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\Exports\ExportColumn;
+use Filament\Actions\Exports\Models\Export;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Field;
 use Filament\Infolists\Components\Entry;
@@ -21,6 +25,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\Column;
 use Filament\Tables\Filters\BaseFilter;
 use Filament\Tables\Table;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Multitenancy\Commands\TenantsArtisanCommand;
@@ -43,6 +48,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        app(Router::class)->pushMiddlewareToGroup('filament.actions', AuthorizeReportExportDownload::class);
+        Export::creating(function (Export $export): void {
+            $policy = app(ReportExportPolicy::class);
+            if ($policy->isReport($export) && $export->user instanceof User) {
+                $export->scope_fingerprint = $policy->fingerprint($export->user);
+            }
+        });
+
         $isApprovalField = fn (string $name): bool => array_intersect(explode('.', $name), [
             'approval_status', 'approved_by', 'approved_at', 'approvedBy', 'approved_remarks', 'rejected_by', 'rejected_at', 'rejected_remarks',
         ]) !== [];

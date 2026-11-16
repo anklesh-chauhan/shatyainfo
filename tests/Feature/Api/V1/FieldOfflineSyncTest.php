@@ -11,7 +11,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->travelTo(now()->setTime(15, 0));
-    $this->rep = reportingUser('OfflineRep');
+    $this->rep = fieldReportingUser('OfflineRep');
     $territory = reportingTerritory('Offline territory');
     $patch = reportingPatch($territory, 'Offline patch');
     $this->actingAs($this->rep);
@@ -59,7 +59,7 @@ it('does not allow another user to replay a receipt', function () {
     $headers = ['Idempotency-Key' => (string) Str::uuid()];
     $path = '/api/v1/visits/'.$this->visit->id.'/check-in';
     $this->postJson($path, ['latitude' => 19, 'longitude' => 72], $headers)->assertSuccessful();
-    Sanctum::actingAs(reportingUser('OtherOfflineRep'));
+    Sanctum::actingAs(fieldReportingUser('OtherOfflineRep'));
     $this->postJson($path, ['latitude' => 19, 'longitude' => 72], $headers)->assertNotFound();
 });
 

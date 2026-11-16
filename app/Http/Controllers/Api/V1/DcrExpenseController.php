@@ -23,6 +23,14 @@ class DcrExpenseController extends Controller
         private FieldExpenseService $expenseService,
     ) {}
 
+    public function register(Request $request): AnonymousResourceCollection
+    {
+        return SalesDcrExpenseResource::collection(SalesDcrExpense::query()
+            ->whereHas('salesDcr', fn ($reports) => $reports->where('user_id', $request->user()->id))
+            ->with(['expenseType', 'salesDcr:id,dcr_date'])
+            ->latest('id')->paginate(25));
+    }
+
     public function index(Request $request, int $dcr): AnonymousResourceCollection
     {
         $record = $this->dcrService->findOwned($request->user(), $dcr);

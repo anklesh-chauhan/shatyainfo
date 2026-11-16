@@ -22,8 +22,8 @@ use Spatie\Permission\Models\Permission;
 uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-11-08 12:00:00'));
-    $this->rep = reportingUser('FlexibleRep');
-    $this->other = reportingUser('FlexibleOther');
+    $this->rep = fieldReportingUser('FlexibleRep');
+    $this->other = fieldReportingUser('FlexibleOther');
     foreach (['Create:Visit', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster', 'Manage:FieldPlanningPreference'] as $name) {
         Permission::findOrCreate($name, 'web');
         $this->rep->givePermissionTo($name);

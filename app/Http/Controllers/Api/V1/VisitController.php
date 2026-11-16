@@ -15,6 +15,7 @@ use App\Services\Field\FieldVisitWorkspaceService;
 use App\Services\Visit\VisitEnforcementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class VisitController extends Controller
 {
@@ -22,6 +23,14 @@ class VisitController extends Controller
         private FieldVisitService $visitService,
         private VisitEnforcementService $enforcement,
     ) {}
+
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        return VisitResource::collection(Visit::query()
+            ->where('employee_id', $request->user()->id)
+            ->with('visitables.visitable')
+            ->orderByDesc('visit_date')->orderByDesc('id')->paginate(25));
+    }
 
     public function openDirect(OpenDirectVisitRequest $request): VisitResource
     {

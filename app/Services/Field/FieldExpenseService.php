@@ -8,6 +8,7 @@ use App\Models\SalesDcr;
 use App\Models\SalesDcrExpense;
 use App\Models\User;
 use App\Services\Expense\ExpenseCalculationService;
+use App\Services\OptionalModuleService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +19,7 @@ class FieldExpenseService
     public function __construct(
         private FieldDcrService $dcrService,
         private ExpenseCalculationService $expenseCalculation,
+        private OptionalModuleService $modules,
     ) {}
 
     /**
@@ -25,6 +27,7 @@ class FieldExpenseService
      */
     public function listForDcr(User $user, SalesDcr $dcr): Collection
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
 
         return $dcr->expenses()
@@ -38,6 +41,7 @@ class FieldExpenseService
      */
     public function storeManual(User $user, SalesDcr $dcr, array $data): SalesDcrExpense
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->dcrService->assertEditable($dcr);
 
@@ -59,6 +63,7 @@ class FieldExpenseService
      */
     public function updateManual(User $user, SalesDcr $dcr, SalesDcrExpense $expense, array $data): SalesDcrExpense
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->dcrService->assertEditable($dcr);
         $this->assertExpenseBelongsToDcr($dcr, $expense);
@@ -79,6 +84,7 @@ class FieldExpenseService
 
     public function deleteManual(User $user, SalesDcr $dcr, SalesDcrExpense $expense): void
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->dcrService->assertEditable($dcr);
         $this->assertExpenseBelongsToDcr($dcr, $expense);
@@ -92,6 +98,7 @@ class FieldExpenseService
      */
     public function autoCalculate(User $user, SalesDcr $dcr): Collection
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->dcrService->assertEditable($dcr);
 
@@ -105,10 +112,17 @@ class FieldExpenseService
      */
     public function activeTypes(): Collection
     {
+        $this->authorizeModule();
+
         return ExpenseType::query()
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
+    }
+
+    private function authorizeModule(): void
+    {
+        abort_unless($this->modules->navigationEnabled('SalesDcrExpense'), 403);
     }
 
     private function assertExpenseBelongsToDcr(SalesDcr $dcr, SalesDcrExpense $expense): void
@@ -120,6 +134,7 @@ class FieldExpenseService
 
     public function storeReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, UploadedFile $receipt): Media
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->dcrService->assertEditable($dcr);
         $this->assertExpenseBelongsToDcr($dcr, $expense);
@@ -151,6 +166,7 @@ class FieldExpenseService
 
     public function findReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, int $receipt): Media
     {
+        $this->authorizeModule();
         $this->dcrService->assertOwned($user, $dcr);
         $this->assertExpenseBelongsToDcr($dcr, $expense);
 

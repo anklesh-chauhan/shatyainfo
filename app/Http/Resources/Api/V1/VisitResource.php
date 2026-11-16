@@ -3,11 +3,17 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\ApprovalSetting;
+use App\Models\Quote;
+use App\Models\SalesDcr;
+use App\Models\SalesOrder;
 use App\Models\SgipDistribution;
+use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitPreference;
+use App\Services\OptionalModuleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 
 /**
  * @mixin Visit
@@ -19,17 +25,25 @@ class VisitResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $request->user();
+        $modules = app(OptionalModuleService::class);
+        $hasWorkspace = $this->relationLoaded('feedbacks');
+        $crmEnabled = ($hasWorkspace || $this->relationLoaded('fieldOrders')) && $modules->navigationEnabled('SalesOrder');
+        $orders = $crmEnabled ? $this->visibleDocuments($user, SalesOrder::class) : collect();
+
         return [
             'id' => $this->id,
+            'can_update' => (bool) $request->user()?->can('Update:Visit'),
             'geo_assessments' => $this->whenLoaded('geoAssessments', fn () => $this->geoAssessments->map(fn ($row) => [
                 'stage' => $row->stage, 'result' => $row->result, 'distance_meters' => $row->distance_meters,
                 'radius_meters' => $row->radius_meters, 'low_accuracy' => $row->low_accuracy, 'decision' => $row->decision,
             ])->values()),
-            'field_orders' => $this->whenLoaded('fieldOrders', fn () => $this->fieldOrders->map(fn ($state) => [
-                'order_id' => $state->order_id, 'fields' => $state->fields, 'clocks' => $state->clocks,
-                'document_number' => $state->salesOrder?->document_number,
-                'status' => $state->salesOrder?->status,
-            ])->values()),
+            'field_orders' => $this->whenLoaded('fieldOrders', fn () => $this->fieldOrders
+                ->filter(fn ($state): bool => $orders->has($state->sales_order_id))->map(fn ($state) => [
+                    'order_id' => $state->order_id, 'fields' => $state->fields, 'clocks' => $state->clocks,
+                    'document_number' => $state->salesOrder?->document_number,
+                    'status' => $state->salesOrder?->status,
+                ])->values()),
             'document_number' => $this->document_number,
             'employee_id' => $this->employee_id,
             'territory_id' => $this->territory_id,
@@ -46,7 +60,13 @@ class VisitResource extends JsonResource
             'reschedule_state' => $this->reschedule_state,
             'rescheduled_for' => optional($this->rescheduled_for)?->toDateString(),
             'cancel_reason' => $this->cancel_reason,
-            'workspace' => $this->when($this->relationLoaded('feedbacks'), function (): array {
+            'workspace' => $this->when($hasWorkspace, function () use ($user, $modules, $orders, $crmEnabled): array {
+                $quotes = $crmEnabled ? $this->visibleDocuments($user, Quote::class) : collect();
+                $dcr = $this->salesDcr;
+                $canViewDcr = $dcr && $user?->can('viewAny', SalesDcr::class)
+                    && $user->can('view', $dcr) && (int) $dcr->user_id === (int) $user->id;
+                $canViewExpenses = $modules->navigationEnabled('SalesDcrExpense') && $user?->can('ViewAny:SalesDcrExpense');
+
                 $customer = $this->primaryCompany();
                 $lastFollowUp = $this->followUps->sortByDesc('id')->first();
 
@@ -86,28 +106,32 @@ class VisitResource extends JsonResource
                         'last_visit_date' => $customer->visits()->whereKeyNot($this->id)
                             ->latest('visit_date')->value('visit_date'),
                     ] : null,
-                    'dcr' => $this->salesDcr ? [
-                        'id' => $this->salesDcr->id,
-                        'date' => $this->salesDcr->dcr_date?->toDateString(),
-                        'total_expense' => (float) $this->salesDcr->total_expense,
-                        'expenses' => SalesDcrExpenseResource::collection($this->salesDcr->expenses),
+                    'dcr' => $canViewDcr ? [
+                        'id' => $dcr->id,
+                        'date' => $dcr->dcr_date?->toDateString(),
+                        'total_expense' => $canViewExpenses ? (float) $dcr->total_expense : null,
+                        'expenses' => $canViewExpenses ? SalesDcrExpenseResource::collection($dcr->expenses) : [],
                     ] : null,
-                    'documents' => $this->visitDocumentLinks->map(function ($link): array {
-                        $document = $link->documentable;
-                        $type = class_basename($link->documentable_type) === 'Quote' ? 'quote' : 'sales_order';
+                    'documents' => $quotes->values()->concat($orders->values())->map(function (Quote|SalesOrder $document) use ($user): array {
+                        $type = $document instanceof Quote ? 'quote' : 'sales_order';
 
                         return [
-                            'id' => $document?->id,
+                            'id' => $document->id,
                             'type' => $type,
-                            'document_number' => $document?->document_number,
-                            'status' => $document?->status,
-                            'total' => (float) ($document?->total ?? 0),
-                            'web_path' => '/admin/'.($type === 'quote' ? 'quotes' : 'sales-orders').'/'.$document?->id.'/edit',
+                            'document_number' => $document->document_number,
+                            'status' => $document->status,
+                            'total' => (float) $document->total,
+                            'web_path' => $user->can('update', $document)
+                                ? '/admin/'.($type === 'quote' ? 'quotes' : 'sales-orders').'/'.$document->id.'/edit'
+                                : null,
                         ];
                     })->values(),
                     'sales_document_ready' => $customer && $customer->contactDetails()->exists(),
-                    'quote_summary' => $this->quoteSummary(),
-                    'sales_order_summary' => $this->salesOrderSummary(),
+                    'can_create_quote' => $crmEnabled && (bool) $user?->can('create', Quote::class),
+                    'can_create_sales_order' => $crmEnabled && (bool) $user?->can('create', SalesOrder::class),
+                    'can_update_sales_order' => $crmEnabled && (bool) $user?->can('Update:SalesOrder'),
+                    'quote_summary' => $this->documentSummary($quotes),
+                    'sales_order_summary' => $this->documentSummary($orders),
                 ];
             }),
             'checkin_latitude' => $this->checkin_latitude !== null ? (float) $this->checkin_latitude : null,
@@ -142,10 +166,10 @@ class VisitResource extends JsonResource
             ),
             'sgip' => $this->when(
                 $this->relationLoaded('sgipDistribution'),
-                function (): ?array {
+                function () use ($modules): ?array {
                     $sgip = $this->sgipDistribution;
 
-                    if (! $sgip) {
+                    if (! $sgip || ! $modules->navigationEnabled('SgipDistribution')) {
                         return null;
                     }
 
@@ -172,6 +196,35 @@ class VisitResource extends JsonResource
                 },
             ),
             'media' => MediaResource::collection($this->whenLoaded('media')),
+        ];
+    }
+
+    /** @param class-string<Quote|SalesOrder> $model */
+    private function visibleDocuments(?User $user, string $model): Collection
+    {
+        if (! $user?->can('viewAny', $model)) {
+            return collect();
+        }
+
+        $links = $this->relationLoaded('visitDocumentLinks')
+            ? $this->visitDocumentLinks : $this->visitDocumentLinks()->get();
+        $ids = $links->where('documentable_type', $model)->pluck('documentable_id')->all();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return $model::query()->applyVisibility(class_basename($model), $user)->whereKey($ids)
+            ->withCount('items')->get()->filter(fn ($document): bool => $user->can('view', $document))->keyBy('id');
+    }
+
+    /** @return array{count: int, amount: float, items: int} */
+    private function documentSummary(Collection $documents): array
+    {
+        return [
+            'count' => $documents->count(),
+            'amount' => (float) $documents->sum('total'),
+            'items' => (int) $documents->sum('items_count'),
         ];
     }
 }

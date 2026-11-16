@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LeaveAdjustments;
 
 use App\Filament\Clusters\HR\LeaveManagementCluster;
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\LeaveAdjustments\Pages\CreateLeaveAdjustment;
 use App\Filament\Resources\LeaveAdjustments\Pages\EditLeaveAdjustment;
 use App\Filament\Resources\LeaveAdjustments\Pages\ListLeaveAdjustments;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveAdjustmentResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()

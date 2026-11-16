@@ -31,8 +31,8 @@ it('launches one team and completes its first reporting day', function (string $
     $company = app(CompanyOnboardingService::class);
     $company->saveOrganization(['name' => 'Fresh Pharma', 'email' => 'admin@fresh.test',
         'phone' => '9876543210', 'timezone' => 'Asia/Kolkata']);
-    $rep = reportingUser('Fresh HQ Representative');
-    $unready = reportingUser('Second HQ Representative');
+    $rep = fieldReportingUser('Fresh HQ Representative');
+    $unready = grantPagePermissions(reportingUser('Second HQ Representative'), 'ViewAny:SalesDcr', 'View:SalesDcr');
     foreach (['Create:Visit', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster'] as $permission) {
         $rep->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }

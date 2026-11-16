@@ -8,49 +8,50 @@ use App\Models\SalesTourPlanDetail;
 use App\Models\Visit;
 use App\Models\VisitFeedbackQuestion;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 trait HasVisitManagement
 {
     /**
      * Finds or creates a Visit and initializes feedback questions.
      */
-    public function ensureVisitExists(
+    protected function ensureVisitExists(
         int $detailId,
         int $patchId,
         int $companyId,
         ?int $visitId = null
     ): Visit {
-        // 1. Return if already exists
-        if ($visitId && $visit = Visit::find($visitId)) {
-            return $visit;
-        }
+        $user = Auth::user();
+        abort_unless($user?->can(['ViewAny:Visit', 'View:Visit']), 403);
 
-        $existingVisit = Visit::query()
-            ->where('employee_id', Auth::id())
+        $detail = SalesTourPlanDetail::query()
+            ->whereHas('tourPlan', fn ($plan) => $plan->where('user_id', $user->id))
+            ->findOrFail($detailId);
+        $patch = $detail->patches()->whereKey($patchId)
+            ->whereHas('companies', fn ($accounts) => $accounts->whereKey($companyId))
+            ->firstOrFail();
+
+        $visits = Visit::query()
+            ->where('employee_id', $user->id)
             ->where('sales_tour_plan_detail_id', $detailId)
             ->where('patch_id', $patchId)
-            ->whereHas('visitables', fn ($q) => $q->where('visitable_id', $companyId))
-            ->first();
+            ->whereHas('visitables', fn ($participants) => $participants
+                ->where('visitable_type', AccountMaster::class)
+                ->where('visitable_id', $companyId));
 
+        if ($visitId !== null) {
+            return $visits->findOrFail($visitId);
+        }
+
+        $existingVisit = $visits->first();
         if ($existingVisit) {
             return $existingVisit;
         }
 
-        // 2. Create Visit and Feedbacks inside a Transaction
-        return DB::transaction(function () use ($detailId, $patchId, $companyId) {
-            $detail = SalesTourPlanDetail::findOrFail($detailId);
+        Gate::authorize('create', Visit::class);
 
-            // Generate Document Number
+        return $detail->getConnection()->transaction(function () use ($detail, $patch, $companyId): Visit {
             $docNum = NumberSeries::getNextNumber(Visit::class);
-
-            $territoryId = $detail->patches()
-                ->whereKey($patchId)
-                ->value('patches.territory_id');
-
-            if (! $territoryId) {
-                throw new \DomainException('Selected patch is not assigned to this tour plan detail.');
-            }
 
             $visit = Visit::create([
                 'document_number' => $docNum,
@@ -58,8 +59,8 @@ trait HasVisitManagement
                 'reporting_manager_id' => Auth::user()->reporting_manager_id,
                 'sales_tour_plan_id' => $detail->sales_tour_plan_id,
                 'sales_tour_plan_detail_id' => $detail->id,
-                'territory_id' => $territoryId,
-                'patch_id' => $patchId,
+                'territory_id' => $patch->territory_id,
+                'patch_id' => $patch->id,
                 'visit_date' => today(),
                 'visit_type' => 'planned',
                 'visit_status' => 'draft',

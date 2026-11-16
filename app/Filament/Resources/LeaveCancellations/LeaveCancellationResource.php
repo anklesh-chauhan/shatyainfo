@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LeaveCancellations;
 
 use App\Filament\Clusters\HR\LeaveManagementCluster;
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\LeaveCancellations\Pages\ManageLeaveCancellations;
 use App\Models\LeaveCancellation;
 use App\Services\OptionalModuleService;
@@ -12,6 +13,8 @@ use Filament\Tables\Table;
 
 class LeaveCancellationResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()

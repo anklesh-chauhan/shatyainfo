@@ -61,6 +61,10 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
                 }
             }
 
+            foreach (config('permission-map.page_permissions.'.$roleName, []) as $permission) {
+                $permissions->push($permissionModel::findOrCreate($permission, 'web'));
+            }
+
             $role?->syncPermissions($permissions->unique('name'));
         }
 

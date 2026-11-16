@@ -239,6 +239,7 @@ it('creates a monthly plan only when the selected method supports it', function 
 it('hides existing monthly plans after switching to direct reporting', function () {
     $fixture = fieldMtpFixture();
     $plan = $this->postJson('/api/v1/monthly-tour-plans', $fixture['body'])->assertSuccessful()->json('data');
+    grantPagePermissions($fixture['rep'], 'View:TodaysTour', 'View:SalesAssistant');
     $this->getJson('/api/v1/todays-tour')->assertSuccessful()->assertJsonCount(1, 'data');
     $user = $fixture['rep'];
     $user->givePermissionTo(Permission::findOrCreate('Manage:FieldPlanningPreference', 'web'));

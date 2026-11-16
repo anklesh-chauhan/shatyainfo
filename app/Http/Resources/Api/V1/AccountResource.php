@@ -21,6 +21,7 @@ class AccountResource extends JsonResource
             'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'name' => $this->name,
+            'can_update' => $request->user()?->can('update', $this->resource) ?? false,
             'geo_latitude' => $this->geo_latitude !== null ? (float) $this->geo_latitude : null,
             'geo_longitude' => $this->geo_longitude !== null ? (float) $this->geo_longitude : null,
             'geo_radius_meters' => (int) $this->geo_radius_meters,

@@ -21,10 +21,10 @@ use Spatie\Permission\Models\Permission;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('Enterprise MR');
-    $this->manager = reportingUser('Enterprise Area Manager');
-    $this->director = reportingUser('Enterprise Director');
-    $this->outsider = reportingUser('Other Branch Manager');
+    $this->rep = fieldReportingUser('Enterprise MR');
+    $this->manager = fieldReportingUser('Enterprise Area Manager');
+    $this->director = fieldReportingUser('Enterprise Director');
+    $this->outsider = fieldReportingUser('Other Branch Manager');
     foreach (['Create:Visit', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster', 'Manage:FieldPlanningPreference'] as $name) {
         $this->rep->givePermissionTo(Permission::findOrCreate($name, 'web'));
     }

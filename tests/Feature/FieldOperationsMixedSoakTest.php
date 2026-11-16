@@ -28,7 +28,7 @@ uses(FieldConcurrencyDatabase::class);
 it('preserves mixed visit chains and reporting totals through a bounded concurrent soak', function () {
     expect(User::query()->getConnection()->getDatabaseName())->toBe('it_erp_testing');
     $duration = getenv('FIELD_SOAK_SMOKE') === '1' ? 2 : 120;
-    $actors = collect(range(1, 4))->map(fn ($index) => reportingUser('Mixed soak MR '.$index));
+    $actors = collect(range(1, 4))->map(fn ($index) => fieldReportingUser('Mixed soak MR '.$index));
     $this->actingAs($actors->first());
     $actors->first()->givePermissionTo(Permission::findOrCreate('Manage:FieldPlanningPreference', 'web'));
     $settings = app(FieldPlanningSettingsService::class);
@@ -132,7 +132,7 @@ it('preserves mixed visit chains and reporting totals through a bounded concurre
 })->group('performance')->skip(fn (): bool => getenv('FIELD_SOAK') !== '1', 'Run the isolated backend runner with -Soak; do not run competing database suites.');
 
 it('retries a direct opening deadlock after Laravel renders it and records only one receipt', function () {
-    $this->rep = reportingUser('Deadlock retry MR');
+    $this->rep = fieldReportingUser('Deadlock retry MR');
     $this->actingAs($this->rep);
     foreach (['Create:Visit', 'Manage:FieldPlanningPreference', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster'] as $name) {
         $this->rep->givePermissionTo(Permission::findOrCreate($name, 'web'));

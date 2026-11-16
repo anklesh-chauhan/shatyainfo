@@ -11,8 +11,8 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('GeoRep');
-    $this->asm = reportingUser('GeoASM');
+    $this->rep = fieldReportingUser('GeoRep');
+    $this->asm = fieldReportingUser('GeoASM');
     $company = reportingDoctor($this->rep, 'Geo Clinic');
     $territory = reportingTerritory('Geo Territory');
     $patch = reportingPatch($territory, 'Geo Patch');

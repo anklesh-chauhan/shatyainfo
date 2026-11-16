@@ -7,8 +7,13 @@ use App\Models\Address;
 use App\Models\CityPinCode;
 use App\Models\Company;
 use App\Models\ContactDetail;
+use App\Models\OrganizationalUnit;
+use App\Models\Patch;
+use App\Models\Territory;
 use App\Models\TypeMaster;
 use App\Models\User;
+use App\Services\PositionService;
+use App\Services\Reports\ReportVisibility;
 use App\Services\TerritoryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -26,11 +31,18 @@ class FieldAccountService
             foreach ($data[$field] ?? [] as $values) {
                 $id = $values['id'] ?? null;
                 unset($values['id']);
-                if ($id) {
-                    $record = $account->$relation()->find($id);
-                    if (! $record) {
-                        throw ValidationException::withMessages([$field => 'The reporting record does not belong to this account.']);
-                    }
+                $record = $id ? $account->$relation()->find($id) : null;
+                if ($id && ! $record) {
+                    throw ValidationException::withMessages([$field => 'The reporting record does not belong to this account.']);
+                }
+
+                $divisionId = $values['division_ou_id'] ?? null;
+                if ($field === 'division_profiles' && $divisionId && (int) $divisionId !== (int) $record?->division_ou_id
+                    && ! OrganizationalUnit::query()->activeDivisions()->whereKey($divisionId)->exists()) {
+                    throw ValidationException::withMessages(['division_profiles' => 'Choose an active division.']);
+                }
+
+                if ($record) {
                     $record->update($values);
                 } else {
                     $account->$relation()->create($values);
@@ -77,7 +89,7 @@ class FieldAccountService
 
         $query = AccountMaster::query()
             ->with(['typeMaster', 'territory', 'contactDetails'])
-            ->applyVisibility('AccountMaster')
+            ->applyVisibility('AccountMaster', $user)
             ->orderBy('name');
 
         if (filled($search)) {
@@ -112,7 +124,7 @@ class FieldAccountService
 
         $account = AccountMaster::query()
             ->with($this->detailRelations())
-            ->applyVisibility('AccountMaster')
+            ->applyVisibility('AccountMaster', $user)
             ->find($accountId);
 
         if (! $account) {
@@ -132,6 +144,7 @@ class FieldAccountService
         abort_unless($user->can('create', AccountMaster::class), 403);
 
         $this->assertTypeMaster((int) $data['type_master_id']);
+        $this->assertAssignableRelations($user, $data);
 
         return DB::transaction(function () use ($user, $data): AccountMaster {
             $account = AccountMaster::query()->create([
@@ -207,6 +220,8 @@ class FieldAccountService
             $this->assertTypeMaster((int) $data['type_master_id']);
         }
 
+        $this->assertAssignableRelations($user, $data, $account);
+
         return DB::transaction(function () use ($account, $data): AccountMaster {
             $account->fill(collect($data)->only([
                 'geo_latitude', 'geo_longitude', 'geo_radius_meters',
@@ -247,6 +262,55 @@ class FieldAccountService
 
             return $account->fresh($this->detailRelations());
         });
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertAssignableRelations(User $user, array $data, ?AccountMaster $account = null): void
+    {
+        foreach (['parent_id', 'institution_account_id', 'supplier_account_id'] as $field) {
+            if (! isset($data[$field]) || (int) $data[$field] === (int) $account?->getAttribute($field)) {
+                continue;
+            }
+
+            $related = AccountMaster::query()->applyVisibility('AccountMaster', $user)->find($data[$field]);
+            if (! $related || ! $user->can('view', $related) || $related->is($account)) {
+                throw ValidationException::withMessages([$field => 'Choose an accessible related account.']);
+            }
+        }
+
+        if (isset($data['ref_dealer_contact']) && (int) $data['ref_dealer_contact'] !== (int) $account?->ref_dealer_contact) {
+            $contact = ContactDetail::query()->applyVisibility('ContactDetail', $user)->find($data['ref_dealer_contact']);
+            if (! $contact || ! $user->can('viewAny', ContactDetail::class) || ! $user->can('view', $contact)) {
+                throw ValidationException::withMessages(['ref_dealer_contact' => 'Choose an accessible contact.']);
+            }
+        }
+
+        if (! array_key_exists('territory_id', $data) && ! array_key_exists('patch_ids', $data)) {
+            return;
+        }
+
+        $territoryId = array_key_exists('territory_id', $data) ? $data['territory_id'] : $account?->territory_id;
+        $allowed = ReportVisibility::hasFullAccess($user) ? null : PositionService::getTerritoryIdsForUser($user);
+        if ($territoryId !== null && (int) $territoryId !== (int) $account?->territory_id
+            && ! Territory::query()->whereKey($territoryId)->when($allowed !== null, fn ($query) => $query->whereKey($allowed))->exists()) {
+            throw ValidationException::withMessages(['territory_id' => 'Choose a territory assigned to your position.']);
+        }
+
+        if (! array_key_exists('patch_ids', $data)) {
+            return;
+        }
+
+        $existingPatchIds = (int) $territoryId === (int) $account?->territory_id
+            ? ($account?->patches()->pluck('patches.id')->map(fn ($id): int => (int) $id)->all() ?? [])
+            : [];
+        $patchIds = array_unique(array_map('intval', $data['patch_ids'] ?? []));
+        $patchIds = array_values(array_diff($patchIds, $existingPatchIds));
+        if ($patchIds !== [] && Patch::query()->whereKey($patchIds)
+            ->when($territoryId !== null, fn ($query) => $query->where('territory_id', $territoryId))
+            ->when($allowed !== null, fn ($query) => $query->whereIn('territory_id', $allowed))
+            ->count() !== count($patchIds)) {
+            throw ValidationException::withMessages(['patch_ids' => 'Choose accessible patches in the selected territory.']);
+        }
     }
 
     /**

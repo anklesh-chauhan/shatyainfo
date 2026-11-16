@@ -16,7 +16,7 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 it('loads and saves the mobile visit workspace', function () {
-    $user = reportingUser('VisitWorkspaceApi');
+    $user = fieldReportingUser('VisitWorkspaceApi');
     $territory = reportingTerritory('Workspace Territory');
     $patch = reportingPatch($territory, 'Workspace Patch');
     $outcome = VisitOutcome::create(['label' => 'Interested', 'code' => 'INTERESTED']);
@@ -32,6 +32,9 @@ it('loads and saves the mobile visit workspace', function () {
     ]));
     Sanctum::actingAs($user);
 
+    $this->getJson('/api/v1/order-catalog')->assertForbidden();
+    $this->postJson("/api/v1/visits/{$visit->id}/documents", ['type' => 'quote'])->assertForbidden();
+    $this->postJson("/api/v1/visits/{$visit->id}/documents", ['type' => 'sales_order'])->assertForbidden();
     $this->getJson('/api/v1/visits/options')->assertSuccessful()
         ->assertJsonPath('data.outcomes.0.label', 'Interested')
         ->assertJsonPath('data.feedback_questions.0.question', 'How was the call?');
@@ -44,11 +47,20 @@ it('loads and saves the mobile visit workspace', function () {
         ->assertJsonPath('data.workspace.outcome_label', 'Interested')
         ->assertJsonPath('data.workspace.feedback.0.answer', 4);
     $this->getJson('/api/v1/visits/'.$visit->id)->assertSuccessful()
-        ->assertJsonPath('data.workspace.remarks', 'Discussed next order');
+        ->assertJsonPath('data.workspace.remarks', 'Discussed next order')
+        ->assertJsonPath('data.workspace.can_create_quote', false)
+        ->assertJsonPath('data.workspace.can_create_sales_order', false)
+        ->assertJsonPath('data.workspace.documents', []);
+
+    $user->revokePermissionTo('Update:Visit');
+    Sanctum::actingAs($user->fresh());
+    $this->getJson('/api/v1/visits/'.$visit->id)->assertSuccessful()->assertJsonPath('data.can_update', false);
+    $this->patchJson('/api/v1/visits/'.$visit->id, ['remarks' => 'Denied edit'])->assertForbidden();
+    expect($visit->fresh()->remarks)->toBe('Discussed next order');
 });
 
 it('checks in a visit with gps', function () {
-    $user = reportingUser('VisitCheckInApi');
+    $user = fieldReportingUser('VisitCheckInApi');
     $territory = reportingTerritory('Visit Terr');
     $patch = reportingPatch($territory, 'Visit Patch');
 
@@ -90,7 +102,7 @@ it('stores a visit photo with client gps and captured_at', function () {
     Storage::fake('public');
     Queue::fake();
 
-    $user = reportingUser('VisitPhotoApi');
+    $user = fieldReportingUser('VisitPhotoApi');
     $territory = reportingTerritory('Photo Terr');
     $patch = reportingPatch($territory, 'Photo Patch');
 
@@ -142,7 +154,7 @@ it('stores a visit photo with client gps and captured_at', function () {
 });
 
 it('checks out a visit and completes when no checkout image is required', function () {
-    $user = reportingUser('VisitCheckOutApi');
+    $user = fieldReportingUser('VisitCheckOutApi');
     $territory = reportingTerritory('Out Terr');
     $patch = reportingPatch($territory, 'Out Patch');
 
@@ -185,8 +197,8 @@ it('checks out a visit and completes when no checkout image is required', functi
 });
 
 it('forbids visiting another users visit', function () {
-    $owner = reportingUser('VisitOwnerApi');
-    $other = reportingUser('VisitOtherApi');
+    $owner = fieldReportingUser('VisitOwnerApi');
+    $other = fieldReportingUser('VisitOtherApi');
     $territory = reportingTerritory('Own Terr');
     $patch = reportingPatch($territory, 'Own Patch');
 
@@ -212,7 +224,7 @@ it('forbids visiting another users visit', function () {
 });
 
 it('checks out with saved required purposes outcome and follow up using preferences', function () {
-    $user = reportingUser('RequiredVisitFields');
+    $user = fieldReportingUser('RequiredVisitFields');
     $territory = reportingTerritory('Required Visit Territory');
     $patch = reportingPatch($territory, 'Required Visit Patch');
     $this->actingAs($user);

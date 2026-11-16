@@ -18,13 +18,14 @@ class FieldOrderService
         $state = FieldOrderState::query()->where('order_id', $payload['order_id'])->lockForUpdate()->first();
         if (! $state) {
             abort_unless($visit->primaryCompany()?->contactDetails()->exists(), 422, 'Add a customer contact before booking an order.');
-            $order = SalesDocumentQuickCreate::createFromVisit($visit, SalesOrder::class);
+            $order = SalesDocumentQuickCreate::createFromVisit($visit, SalesOrder::class, $user);
             $state = FieldOrderState::query()->create(['order_id' => $payload['order_id'], 'user_id' => $user->id,
                 'visit_id' => $visit->id, 'sales_order_id' => $order->id,
                 'fields' => ['description' => $order->description, 'delivery_date' => null], 'clocks' => []]);
         }
         abort_unless((int) $state->user_id === (int) $user->id && (int) $state->visit_id === (int) $visit->id, 404, 'Order not found for this call.');
         $order = SalesOrder::query()->lockForUpdate()->findOrFail($state->sales_order_id);
+        abort_unless($user->can('update', $order), 403);
         $this->assertEditable($order);
         [$fields, $clocks] = $this->currentFields($state, $order);
         foreach ($payload['changes'] as $change) {

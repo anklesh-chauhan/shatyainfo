@@ -398,6 +398,7 @@ class VisitForm
                                 Actions::make([
                                     Action::make('create_quote')
                                         ->label('Create Quote')
+                                        ->authorize(fn (): bool => QuoteResource::canCreate())
                                         ->icon('heroicon-o-document-text')
                                         ->color('success')
                                         ->visible(fn (?Visit $record) => filled($record))
@@ -418,6 +419,7 @@ class VisitForm
 
                                     Action::make('create_sales_order')
                                         ->label('Create Sales Order')
+                                        ->authorize(fn (): bool => SalesOrderResource::canCreate())
                                         ->icon('heroicon-o-shopping-cart')
                                         ->color('warning')
                                         ->action(function (Visit $record) {

@@ -2,6 +2,13 @@
 
 return [
 
+    'page_permissions' => [
+        'sales_admin' => ['Delete:SalesDcrExpense', 'View:Dashboard', 'View:TodaysTour', 'View:SalesAssistant', 'View:PunchIn', 'View:ReportsOverview', 'View:DcrRegister', 'View:LeadPipeline', 'View:DealPipeline', 'View:SalesDocumentRegister', 'View:OverdueFollowUps', 'View:StockMovementRegister'],
+        'sales_user' => ['Delete:SalesDcrExpense', 'View:Dashboard', 'View:TodaysTour', 'View:SalesAssistant', 'View:PunchIn', 'View:ReportsOverview', 'View:DcrRegister', 'View:LeadPipeline', 'View:SalesDocumentRegister', 'View:OverdueFollowUps'],
+        'hr_user' => ['View:Dashboard', 'View:PunchIn', 'View:ReportsOverview', 'View:AttendanceRegister', 'View:PunchVsTour'],
+        'accounts_user' => ['View:ReportsOverview', 'View:ExpenseSummary', 'View:SalesDocumentRegister'],
+    ],
+
     'job_role_profiles' => [
         'sales_head' => 'sales_user',
         'head_of_sales' => 'sales_user',
@@ -45,6 +52,7 @@ return [
             'SalesInvoiceResource' => 'R',
             'CustomerPriceResource' => 'C',
             'SalesDcrResource' => 'F',
+            'SalesDcrExpenseResource' => 'C',
             'SalesTourPlanResource' => 'F',
             'VisitResource' => 'F',
             'FollowUpResource' => 'F',
@@ -68,6 +76,7 @@ return [
             'AccountMasterResource' => 'C',
             'SalesTourPlanResource' => 'C',
             'SalesDcrResource' => 'C',
+            'SalesDcrExpenseResource' => 'C',
             'VisitResource' => 'C',
             'FollowUpResource' => 'C',
             'LeaveApplicationResource' => 'C',

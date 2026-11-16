@@ -35,12 +35,12 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->travelTo(now()->setTime(15, 0));
-    $this->rep = reportingUser('FieldEventRep');
+    $this->rep = fieldReportingUser('FieldEventRep');
     $territory = reportingTerritory('Field event territory');
     $patch = reportingPatch($territory, 'Field event patch');
     $doctor = reportingDoctor($this->rep, 'Dr Event');
     $patch->companies()->attach($doctor->id);
-    Sanctum::actingAs($this->rep);
+    Sanctum::actingAs(grantPagePermissions($this->rep, 'ViewAny:EDetailingMaterial', 'View:EDetailingMaterial'));
     VisitPreference::current()->update([
         'enable_check_in' => true, 'enable_check_out' => true, 'require_gps' => true,
         'require_check_in_image' => false, 'require_check_out_image' => false,
@@ -179,7 +179,7 @@ it('enforces joint employee eligibility and the manual time policy for queued de
     $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
     $checkIn = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72]);
     $send($checkIn)->assertSuccessful();
-    $other = reportingUser('IneligibleJointEmployee');
+    $other = fieldReportingUser('IneligibleJointEmployee');
     $joint = queuedFieldEvent($this->target, 'details', ['is_joint_work' => true, 'joint_user_ids' => [$other->id]], $checkIn['event_id']);
     $send($joint)->assertUnprocessable()->assertJsonPath('message', 'Select eligible joint employees.');
     $this->rep->givePermissionTo(Permission::findOrCreate('AccessAllRecords', 'web'));
@@ -199,7 +199,7 @@ it('enforces joint employee eligibility and the manual time policy for queued de
 });
 
 it('does not allow another employee to submit work against the tour', function () {
-    Sanctum::actingAs(reportingUser('OtherFieldEventRep'));
+    Sanctum::actingAs(fieldReportingUser('OtherFieldEventRep'));
     $event = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72]);
     $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']])->assertNotFound();
     expect(FieldVisitEvent::query()->count())->toBe(0);
@@ -310,6 +310,7 @@ it('releases reserved samples when a submitted distribution is rejected', functi
 });
 
 it('merges order fields across devices by UTC edit time without duplicating drafts', function () {
+    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder');
     $company = AccountMaster::query()->findOrFail($this->target['company_id']);
     $contact = ContactDetail::forceCreate(['first_name' => 'Order Contact', 'created_by' => $this->rep->id, 'updated_by' => $this->rep->id]);
     $company->contactDetails()->attach($contact->id);

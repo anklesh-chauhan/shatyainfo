@@ -195,7 +195,7 @@
         /**
          * Convert number to Indian currency words.
          */
-        function numberToIndianCurrencyWords($number)
+        $numberToIndianCurrencyWords = static function (float $number): string
         {
             $no = floor($number);
             $decimal = round($number - $no, 2) * 100;
@@ -228,7 +228,7 @@
             $result = implode('', $str);
             $points = ($decimal) ? " and " . $words[floor($decimal / 10) * 10] . " " . $words[$decimal % 10] . " Paise" : '';
             return 'Indian Rupees ' . trim($result) . ' Only' . $points;
-        }
+        };
     @endphp
     
     <table style="width:100%; border-collapse:collapse; border:none;">
@@ -346,7 +346,7 @@
                         </tr>
                         <tr>
                             <td colspan="9" style="text-align:left; font-size:10px;">
-                                Tax Amount in Words: {{ numberToIndianCurrencyWords($totalTax) }}
+                                Tax Amount in Words: {{ $numberToIndianCurrencyWords($totalTax) }}
                             </td>
                         </tr>
                     </table>
@@ -437,7 +437,7 @@
 
     <div>
         <p style="margin-top:10px; font-weight:bold;">
-            <b>Chargeable Amount in Words: {{ numberToIndianCurrencyWords($grandTotal) }}</b>
+            <b>Chargeable Amount in Words: {{ $numberToIndianCurrencyWords($grandTotal) }}</b>
         </p>
     </div>
     <div>

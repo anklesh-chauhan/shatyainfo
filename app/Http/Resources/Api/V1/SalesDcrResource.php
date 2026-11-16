@@ -8,6 +8,7 @@ use App\Models\VisitGeoAssessment;
 use App\Models\VisitPreference;
 use App\Services\Field\FieldDeviceService;
 use App\Services\Field\FieldSyncRecoveryService;
+use App\Services\OptionalModuleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -24,7 +25,16 @@ class SalesDcrResource extends JsonResource
     {
         $devices = app(FieldDeviceService::class)->summary($this->resource);
 
+        $user = $request->user();
+        $expensesEnabled = app(OptionalModuleService::class)->navigationEnabled('SalesDcrExpense');
+
         return [
+            'capabilities' => [
+                'submit' => (bool) $user?->can('Update:SalesDcr'),
+                'create_expense' => $expensesEnabled && (bool) $user?->can('Create:SalesDcrExpense'),
+                'update_expense' => $expensesEnabled && (bool) $user?->can('Update:SalesDcrExpense'),
+                'delete_expense' => $expensesEnabled && (bool) $user?->can('Delete:SalesDcrExpense'),
+            ],
             'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'dcr_date' => optional($this->dcr_date)?->toDateString(),
@@ -51,7 +61,7 @@ class SalesDcrResource extends JsonResource
                 'name' => $this->territory->name,
                 'code' => $this->territory->code,
             ] : null),
-            'expenses' => SalesDcrExpenseResource::collection($this->whenLoaded('expenses')),
+            'expenses' => $this->when($expensesEnabled && (bool) $user?->can('ViewAny:SalesDcrExpense'), fn () => SalesDcrExpenseResource::collection($this->whenLoaded('expenses'))),
             'visits' => $this->whenLoaded('visits', fn () => $this->visits->map(fn ($visit): array => [
                 'id' => $visit->id,
                 'document_number' => $visit->document_number,

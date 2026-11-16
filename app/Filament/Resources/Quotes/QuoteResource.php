@@ -157,6 +157,7 @@ class QuoteResource extends BaseResource
                         }),
 
                     Action::make('previewPdf')
+                        ->authorize(fn (Quote $record): bool => static::canView($record))
                         ->icon('heroicon-o-eye')
                         ->label('Preview PDF')
                         ->modalHeading('PDF Preview')
@@ -171,6 +172,7 @@ class QuoteResource extends BaseResource
                         ])),
 
                     Action::make('downloadPdf')
+                        ->authorize(fn (Quote $record): bool => static::canView($record))
                         ->icon('heroicon-o-arrow-down-tray')
                         ->label('Download PDF')
                         ->url(fn ($record) => route('sales-documents.download', [

@@ -12,6 +12,8 @@ class DashboardTodayController extends Controller
 {
     public function __invoke(Request $request, DashboardMetrics $metrics): JsonResponse
     {
+        abort_unless($request->user()->canAccessBusinessPage('View:Dashboard'), 403);
+
         $user = $request->user();
         abort_unless($user instanceof User, 401);
 

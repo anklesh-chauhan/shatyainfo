@@ -29,8 +29,8 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->travelTo(now()->setTime(15, 0));
-    $this->rep = reportingUser('ReplacementRep');
-    $this->manager = reportingUser('ReplacementManager');
+    $this->rep = fieldReportingUser('ReplacementRep');
+    $this->manager = fieldReportingUser('ReplacementManager');
     Permission::findOrCreate('Review:FieldSyncRecovery', 'web');
     $this->manager->givePermissionTo('Review:FieldSyncRecovery');
     Sanctum::actingAs($this->rep);
@@ -140,7 +140,7 @@ it('does not allow replacements to change customer, clock, price or stock owners
         $this->postJson($url, [...$this->proposal, 'replacement' => [...$this->proposal['replacement'], ...$extra]])->assertUnprocessable();
     }
     $this->postJson($url, [...$this->proposal, 'replacement' => [...$this->proposal['replacement'], 'sample_issue_id' => 999999]])->assertUnprocessable();
-    Sanctum::actingAs(reportingUser('UnrelatedReplacement'));
+    Sanctum::actingAs(fieldReportingUser('UnrelatedReplacement'));
     $this->postJson($url, $this->proposal)->assertNotFound();
     $this->getJson('/api/v1/field-sync-recoveries')->assertJsonCount(0, 'data');
 });
@@ -183,6 +183,7 @@ it('expires replacement authority and allows reviewed late posting and closing-w
 });
 
 it('changes reviewed order fields using the amendment clock while retaining the original call time', function () {
+    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder');
     $contact = ContactDetail::forceCreate(['first_name' => 'Replacement contact', 'created_by' => $this->rep->id, 'updated_by' => $this->rep->id]);
     $this->company->contactDetails()->attach($contact->id);
     $packet = [...$this->packet, 'event_id' => (string) Str::uuid(), 'action' => 'order', 'payload' => [
@@ -252,6 +253,7 @@ it('rechecks sample compliance after replacement approval without leaving a part
 });
 
 it('rejects a missing original order identity as validation rather than creating another order', function () {
+    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder');
     $packet = [...$this->packet, 'event_id' => (string) Str::uuid(), 'action' => 'order', 'payload' => []];
     ($this->sendPacket)($packet)->assertUnprocessable();
     $this->postJson('/api/v1/field-sync-recoveries/'.$packet['event_id'].'/request', $this->proposal)->assertUnprocessable();

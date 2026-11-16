@@ -22,8 +22,8 @@ use Spatie\Permission\Models\Permission;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('RecoveryRep');
-    $this->manager = reportingUser('RecoveryManager');
+    $this->rep = fieldReportingUser('RecoveryRep');
+    $this->manager = fieldReportingUser('RecoveryManager');
     Permission::findOrCreate('Review:FieldSyncRecovery', 'web');
     $this->manager->givePermissionTo('Review:FieldSyncRecovery');
     VisitPreference::current()->update(['allow_backdated_dcr' => false, 'enforce_geo_fencing' => false]);
@@ -71,7 +71,7 @@ it('recovers the exact late event once without opening the date for other edits'
 
 it('scopes review evidence, expires approvals, retains renewal history and checks current reviewer authority', function () {
     $record = requestLateRecovery($this, $this->event);
-    Sanctum::actingAs(reportingUser('UnrelatedRecoveryUser'));
+    Sanctum::actingAs(fieldReportingUser('UnrelatedRecoveryUser'));
     $this->getJson('/api/v1/field-sync-recoveries')->assertSuccessful()->assertJsonCount(0, 'data');
     $this->postJson('/api/v1/field-sync-recoveries/'.$record->operation_id.'/request', ['reviewer_id' => $this->manager->id, 'reason' => 'Try another representative record'])->assertNotFound();
     approveLateRecovery($this, $record);

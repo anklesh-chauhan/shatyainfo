@@ -30,7 +30,7 @@ use function Pest\Livewire\livewire;
 uses(RefreshDatabase::class);
 
 it('lists the salesperson assistant roadmap', function () {
-    Sanctum::actingAs(reportingUser('Roadmap Rep'));
+    Sanctum::actingAs(grantPagePermissions(fieldReportingUser('Roadmap Rep'), 'View:SalesAssistant'));
 
     $this->getJson('/api/v1/salesperson-ai/roadmap')
         ->assertSuccessful()
@@ -48,7 +48,7 @@ it('briefs a salesperson from the last completed visit', function () {
         'salesperson_ai.providers.openai' => ['api_key' => 'test-key', 'model' => 'test-model'],
     ]);
     Http::preventStrayRequests();
-    $user = reportingUser('Briefing Rep');
+    $user = fieldReportingUser('Briefing Rep');
     $territory = reportingTerritory('Briefing Terr');
     $patch = reportingPatch($territory, 'Briefing Patch');
     $doctor = reportingDoctor($user, 'Dr Brief');
@@ -99,14 +99,14 @@ it('briefs a salesperson from the last completed visit', function () {
         ->assertJsonCount(1, 'data.ai_highlights')
         ->assertJsonPath('data.last_visits.0.remarks', 'Asked about samples');
 
-    Sanctum::actingAs(reportingUser('Briefing Other'));
+    Sanctum::actingAs(fieldReportingUser('Briefing Other'));
 
     $this->getJson('/api/v1/visits/'.$visit->id.'/briefing')->assertNotFound();
     Http::assertSentCount(1);
 });
 
 it('keeps a voice note as a draft until the salesperson applies it', function () {
-    $user = reportingUser('Voice Rep');
+    $user = fieldReportingUser('Voice Rep');
     $territory = reportingTerritory('Voice Terr');
     $patch = reportingPatch($territory, 'Voice Patch');
     $this->actingAs($user);
@@ -158,7 +158,7 @@ it('keeps a voice note as a draft until the salesperson applies it', function ()
 });
 
 it('ranks overdue follow-ups ahead of unfinished calls', function () {
-    $user = reportingUser('Priority Rep');
+    $user = fieldReportingUser('Priority Rep');
     $territory = reportingTerritory('Priority Terr');
     $patch = reportingPatch($territory, 'Priority Patch');
     $doctor = reportingDoctor($user, 'Dr Planned');
@@ -205,7 +205,7 @@ it('ranks overdue follow-ups ahead of unfinished calls', function () {
         'updated_by' => $user->id,
     ]);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:SalesAssistant'));
 
     $this->getJson('/api/v1/todays-priorities')
         ->assertSuccessful()
@@ -216,7 +216,7 @@ it('ranks overdue follow-ups ahead of unfinished calls', function () {
 });
 
 it('drafts next month from the previous tour plan without creating it', function () {
-    $user = reportingUser('Draft Rep');
+    $user = fieldReportingUser('Draft Rep');
     $territory = reportingTerritory('Draft Terr');
     $patch = reportingPatch($territory, 'Draft Patch');
     $doctor = reportingDoctor($user, 'Dr Missed');
@@ -239,7 +239,7 @@ it('drafts next month from the previous tour plan without creating it', function
     ]);
     $detail->patches()->attach($patch->id);
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:SalesAssistant'));
 
     $this->getJson('/api/v1/tour-plan-draft?month=2026-09')
         ->assertSuccessful()
@@ -251,7 +251,7 @@ it('drafts next month from the previous tour plan without creating it', function
 });
 
 it('suggests a sample quantity that stays inside the account limit', function () {
-    $user = reportingUser('Sample Rep');
+    $user = fieldReportingUser('Sample Rep');
     $territory = reportingTerritory('Sample Terr');
     $patch = reportingPatch($territory, 'Sample Patch');
     $doctor = reportingDoctor($user, 'Dr Sample');
@@ -327,7 +327,7 @@ it('suggests a sample quantity that stays inside the account limit', function ()
 });
 
 it('writes a follow-up script from the recorded interaction', function () {
-    $user = reportingUser('Script Rep');
+    $user = fieldReportingUser('Script Rep');
     $contact = reportingContact('Meera', 'Patel');
     $this->actingAs($user);
     $status = reportingLeadStatus('Open');
@@ -360,12 +360,12 @@ it('writes a follow-up script from the recorded interaction', function () {
         ->assertJsonPath('data.script', 'Hello Meera Patel. Following up on: Asked for a price list. Last outcome: Will call back.')
         ->assertJsonPath('data.suggested_date', today()->addDays(2)->toDateString());
 
-    Sanctum::actingAs(reportingUser('Script Other'));
+    Sanctum::actingAs(fieldReportingUser('Script Other'));
     $this->getJson('/api/v1/follow-ups/'.$followUp->id.'/script')->assertNotFound();
 });
 
 it('orders today stops from the first sequence then the nearest coordinates', function () {
-    $user = reportingUser('Route Rep');
+    $user = fieldReportingUser('Route Rep');
     $territory = reportingTerritory('Route Terr');
     $this->actingAs($user);
 
@@ -406,7 +406,7 @@ it('orders today stops from the first sequence then the nearest coordinates', fu
         $detail->patches()->attach($patch->id);
     }
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:SalesAssistant'));
 
     $this->getJson('/api/v1/day-route')
         ->assertSuccessful()
@@ -417,7 +417,7 @@ it('orders today stops from the first sequence then the nearest coordinates', fu
 });
 
 it('tells the owner to call a new lead and visit a deal that closes soon', function () {
-    $user = reportingUser('Action Rep');
+    $user = fieldReportingUser('Action Rep');
     $this->actingAs($user);
     $leadStatus = reportingLeadStatus('Open');
     $stage = reportingDealStage('Negotiation');
@@ -456,17 +456,17 @@ it('tells the owner to call a new lead and visit a deal that closes soon', funct
         ->assertJsonPath('data.action', 'visit')
         ->assertJsonPath('data.suggested_date', today()->addDays(3)->toDateString());
 
-    Sanctum::actingAs(reportingUser('Action Other'));
+    Sanctum::actingAs(fieldReportingUser('Action Other'));
     $this->getJson('/api/v1/leads/'.$lead->id.'/next-action')->assertNotFound();
 });
 
 it('shows today priorities on the sales assistant page', function () {
-    $user = reportingUser('Assistant Rep');
+    $user = fieldReportingUser('Assistant Rep');
     $territory = reportingTerritory('Assistant Terr');
     $patch = reportingPatch($territory, 'Assistant Patch');
     $doctor = reportingDoctor($user, 'Dr Planned');
     $patch->companies()->attach($doctor->id, ['sequence_no' => 1]);
-    $this->actingAs($user);
+    $this->actingAs(grantPagePermissions($user, 'View:SalesAssistant'));
 
     $plan = SalesTourPlan::forceCreate([
         'user_id' => $user->id,
@@ -521,8 +521,8 @@ it('shows today priorities on the sales assistant page', function () {
 });
 
 it('keeps the day route and tour plan draft on the signed in users plan', function () {
-    $owner = reportingUser('Route Owner');
-    $other = reportingUser('Route Other');
+    $owner = fieldReportingUser('Route Owner');
+    $other = fieldReportingUser('Route Other');
     $territory = reportingTerritory('Route Scope Terr');
     $ownerPatch = reportingPatch($territory, 'Owner Patch');
     $otherPatch = reportingPatch($territory, 'Other Patch');
@@ -550,7 +550,7 @@ it('keeps the day route and tour plan draft on the signed in users plan', functi
         $detail->patches()->attach($patch->id);
     }
 
-    Sanctum::actingAs($owner);
+    Sanctum::actingAs(grantPagePermissions($owner, 'View:SalesAssistant'));
 
     $route = $this->getJson('/api/v1/day-route?date=2026-08-10')
         ->assertSuccessful()

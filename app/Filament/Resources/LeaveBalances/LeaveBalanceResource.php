@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LeaveBalances;
 
 use App\Filament\Clusters\HR\LeaveManagementCluster;
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\LeaveBalances\Pages\CreateLeaveBalance;
 use App\Filament\Resources\LeaveBalances\Pages\EditLeaveBalance;
 use App\Filament\Resources\LeaveBalances\Pages\ListLeaveBalances;
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LeaveBalanceResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()

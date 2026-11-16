@@ -10,7 +10,7 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->rep = reportingUser('SgipApiRep');
+    $this->rep = fieldReportingUser('SgipApiRep');
     Sanctum::actingAs($this->rep);
     $territory = reportingTerritory('Sgip territory');
     $patch = reportingPatch($territory, 'Sgip patch');
@@ -33,6 +33,13 @@ it('saves an offline SGIP draft once with server version information', function 
     $this->putJson($path, $payload, $headers)->assertSuccessful()->assertHeader('Idempotency-Replayed', 'true');
     expect(SgipDistribution::query()->where('visit_id', $this->visit->id)->count())->toBe(1)
         ->and($first->json('data.items.0.quantity'))->toEqual(2);
+
+    grantPagePermissions($this->rep, 'ViewAny:SgipDistribution');
+    $this->getJson('/api/v1/sgip-distributions')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.visit_id', $this->visit->id)
+        ->assertJsonPath('data.0.customer', 'Doctor');
+    Sanctum::actingAs(grantPagePermissions(fieldReportingUser('Other SGIP register'), 'ViewAny:SgipDistribution'));
+    $this->getJson('/api/v1/sgip-distributions')->assertOk()->assertJsonCount(0, 'data');
 });
 
 it('rejects a stale offline SGIP edit without replacing sample items', function () {
@@ -45,6 +52,6 @@ it('rejects a stale offline SGIP edit without replacing sample items', function 
 });
 
 it('rejects another users SGIP access', function () {
-    Sanctum::actingAs(reportingUser('SgipOther'));
+    Sanctum::actingAs(fieldReportingUser('SgipOther'));
     $this->getJson('/api/v1/visits/'.$this->visit->id.'/sgip')->assertNotFound();
 });

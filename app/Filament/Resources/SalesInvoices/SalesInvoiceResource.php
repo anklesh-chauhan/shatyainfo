@@ -148,6 +148,7 @@ class SalesInvoiceResource extends BaseResource
                         ])),
 
                     Action::make('previewPdf')
+                        ->authorize(fn (SalesInvoice $record): bool => static::canView($record))
                         ->icon('heroicon-o-eye')
                         ->label('Preview PDF')
                         ->modalHeading('PDF Preview')
@@ -166,6 +167,7 @@ class SalesInvoiceResource extends BaseResource
                         }),
 
                     Action::make('downloadPdf')
+                        ->authorize(fn (SalesInvoice $record): bool => static::canView($record))
                         ->icon('heroicon-o-arrow-down-tray')
                         ->label('Download PDF')
                         ->url(fn ($record) => route('sales-documents.download', [

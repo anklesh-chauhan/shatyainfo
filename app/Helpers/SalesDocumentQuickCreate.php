@@ -10,8 +10,10 @@ use App\Models\Quote;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\VisitDocumentLink;
+use App\Services\OptionalModuleService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class SalesDocumentQuickCreate
 {
@@ -52,8 +54,12 @@ class SalesDocumentQuickCreate
     /**
      * Create a quick quote or sales order from an existing visit.
      */
-    public static function createFromVisit(Visit $visit, string $documentClass): Model
+    public static function createFromVisit(Visit $visit, string $documentClass, ?User $actor = null): Model
     {
+        $actor ??= Auth::user();
+        abort_unless($actor && app(OptionalModuleService::class)->navigationEnabled(class_basename($documentClass)), 403);
+        Gate::forUser($actor)->authorize('create', $documentClass);
+
         $company = $visit->primaryCompany();
 
         $contact = $company

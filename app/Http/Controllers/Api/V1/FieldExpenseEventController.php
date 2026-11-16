@@ -20,7 +20,7 @@ class FieldExpenseEventController extends Controller
             abort_if($data['date'] > $time->toDateString(), 422, 'An expense date cannot be later than its capture day.');
             $user = $request->user();
             $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
-            $dcr = $dcrs->forDate($user, $data['date']);
+            $dcr = $dcrs->forDate($user, $data['date'], authorizeCreation: true);
             $dcr = $dcr->newQuery()->lockForUpdate()->findOrFail($dcr->id);
             $data['meta'] = [...($data['meta'] ?? []), 'captured_at' => $data['captured_at'], 'source' => 'offline_expense', 'operation_id' => $data['event_id']];
 

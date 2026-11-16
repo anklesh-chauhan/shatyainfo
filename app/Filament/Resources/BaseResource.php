@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\Concerns\AuthorizesOptionalModule;
 use App\Filament\Resources\Concerns\HasApprovalLockUI;
 use App\Filament\Resources\Concerns\HasSendForApprovalAction;
 use App\Services\OptionalModuleService;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 abstract class BaseResource extends Resource
 {
+    use AuthorizesOptionalModule;
+
     public static function shouldRegisterNavigation(): bool
     {
         return parent::shouldRegisterNavigation()

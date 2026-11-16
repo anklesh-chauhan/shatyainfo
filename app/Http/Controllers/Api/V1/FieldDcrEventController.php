@@ -24,7 +24,7 @@ class FieldDcrEventController extends Controller
             $user = $request->user();
             $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_if(FieldDcrEntry::query()->where('event_id', $data['event_id'])->exists(), 409, 'This DCR event identity was already used.');
-            $dcr = $service->forDate($user, $data['date']);
+            $dcr = $service->forDate($user, $data['date'], authorizeCreation: true);
             $dcr = $dcr->newQuery()->lockForUpdate()->findOrFail($dcr->id);
             $service->assertEditable($dcr);
             FieldDcrEntry::query()->create(['event_id' => $data['event_id'], 'user_id' => $user->id,

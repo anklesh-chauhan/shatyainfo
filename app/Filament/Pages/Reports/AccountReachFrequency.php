@@ -67,22 +67,25 @@ class AccountReachFrequency extends Page implements HasTable
             $this->divisionId = filled($data['division_id'] ?? null) ? (int) $data['division_id'] : null;
             $this->resetTable();
         }),
-            Action::make('export')->label('Export CSV')->action(function () {
-                abort_unless(static::canAccess(), 403);
+            Action::make('export')->label('Export CSV')
+                ->authorize(fn (): bool => static::canAccess()
+                    && (auth()->user()?->canAccessBusinessPage('Export:Reports') ?? false))
+                ->action(function () {
+                    abort_unless(static::canAccess() && auth()->user()?->canAccessBusinessPage('Export:Reports'), 403);
 
-                return response()->streamDownload(function (): void {
-                    $stream = fopen('php://output', 'w');
-                    fputcsv($stream, ['Month', 'Account Code', 'Account', 'Owner at Month End', 'Territory at Month End', 'Specialty (Current)', 'Therapy Area (Current)', 'Segment', 'Potential', 'Unit', 'Currency', 'Potential Period', 'Assessed On', 'Target Calls', 'Completed Calls', 'Gap', 'Achievement %', 'Reached'], ',', '"', '');
-                    foreach ($this->getFilteredTableQuery()->orderBy('id')->lazy(200) as $account) {
-                        $metrics = app(AccountReportingService::class)->metrics($account);
-                        $history = $account->assignmentHistory->first();
-                        $profile = $account->divisionProfiles->first();
-                        $row = [$this->month, $account->account_code, $account->name, $history?->owner?->name, $history?->territory?->name, $account->specialty?->name, $account->therapyArea?->name, $profile?->ratingType?->name, $profile?->potential_value, $profile?->potentialUnit?->name, $profile?->currency, $profile?->potential_period, $profile?->assessed_on?->format(app(DateFormatService::class)->dateFormat()), $metrics['target'], $metrics['completed'], $metrics['gap'], $metrics['achievement'], $metrics['reached'] ? 'Yes' : 'No'];
-                        fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $row), ',', '"', '');
-                    }
-                    fclose($stream);
-                }, 'account-reach-frequency-'.$this->month.'.csv');
-            })];
+                    return response()->streamDownload(function (): void {
+                        $stream = fopen('php://output', 'w');
+                        fputcsv($stream, ['Month', 'Account Code', 'Account', 'Owner at Month End', 'Territory at Month End', 'Specialty (Current)', 'Therapy Area (Current)', 'Segment', 'Potential', 'Unit', 'Currency', 'Potential Period', 'Assessed On', 'Target Calls', 'Completed Calls', 'Gap', 'Achievement %', 'Reached'], ',', '"', '');
+                        foreach ($this->getFilteredTableQuery()->orderBy('id')->lazy(200) as $account) {
+                            $metrics = app(AccountReportingService::class)->metrics($account);
+                            $history = $account->assignmentHistory->first();
+                            $profile = $account->divisionProfiles->first();
+                            $row = [$this->month, $account->account_code, $account->name, $history?->owner?->name, $history?->territory?->name, $account->specialty?->name, $account->therapyArea?->name, $profile?->ratingType?->name, $profile?->potential_value, $profile?->potentialUnit?->name, $profile?->currency, $profile?->potential_period, $profile?->assessed_on?->format(app(DateFormatService::class)->dateFormat()), $metrics['target'], $metrics['completed'], $metrics['gap'], $metrics['achievement'], $metrics['reached'] ? 'Yes' : 'No'];
+                            fputcsv($stream, array_map(fn ($value) => is_string($value) && preg_match('/^[=+@\-\t\r\n]/', $value) ? "'".$value : $value, $row), ',', '"', '');
+                        }
+                        fclose($stream);
+                    }, 'account-reach-frequency-'.$this->month.'.csv');
+                })];
     }
 
     public function table(Table $table): Table

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\OptionalModuleService;
 use App\Traits\HasApprovalWorkflow;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
@@ -121,6 +122,25 @@ class User extends Authenticatable implements FilamentUser
     public function deletedDepartments()
     {
         return $this->hasMany(EmpDepartment::class, 'deleted_by_user_id');
+    }
+
+    public function canAccessBusinessPage(string $permission): bool
+    {
+        return $this->hasAnyRole(['super_admin', 'administration_admin'])
+            || $this->can($permission);
+    }
+
+    public function hasPunchAccess(): bool
+    {
+        return $this->canAccessBusinessPage('View:PunchIn')
+            && app(OptionalModuleService::class)->navigationEnabled('DailyAttendance');
+    }
+
+    public function canPunchAttendance(): bool
+    {
+        return $this->hasPunchAccess()
+            && (bool) $this->employee?->is_active
+            && ! $this->employee->is_deleted;
     }
 
     public function canAccessPanel(Panel $panel): bool

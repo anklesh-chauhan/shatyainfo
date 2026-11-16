@@ -3,14 +3,16 @@
 use App\Filament\Resources\TravelSegments\Pages\ListTravelSegments;
 use App\Models\SalesDcr;
 use App\Models\TravelSegment;
+use App\Services\Travel\TravelSegmentValidation;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
-it('shows another users travel segment in the Admin list', function () {
+it('hides travel segments when their parent report is outside the users scope', function () {
     $owner = reportingUser('TravelSegmentOwner');
     $viewer = reportingUser('TravelSegmentViewer');
     $viewer->givePermissionTo(Permission::findOrCreate('ViewAny:TravelSegment', 'web'));
@@ -40,5 +42,22 @@ it('shows another users travel segment in the Admin list', function () {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
     Livewire::test(ListTravelSegments::class)
-        ->assertCanSeeTableRecords([$segment]);
+        ->assertCanNotSeeTableRecords([$segment]);
+
+    $viewer->givePermissionTo(Permission::findOrCreate('AccessAllRecords', 'web'));
+    $this->actingAs($viewer->fresh(), 'web');
+    Livewire::test(ListTravelSegments::class)->assertCanSeeTableRecords([$segment]);
+});
+
+it('rejects an unrelated customer in travel without a patch', function () {
+    $owner = reportingUser('Travel Reporter');
+    $other = reportingUser('Other Travel Customer Owner');
+    $customer = reportingDoctor($other, 'Outside Travel Customer');
+    $report = SalesDcr::forceCreate(['user_id' => $owner->id, 'dcr_date' => today(), 'approval_status' => 'draft']);
+    $this->actingAs($owner, 'web');
+
+    expect(fn () => app(TravelSegmentValidation::class)->validate([
+        'sales_dcr_id' => $report->id,
+        'from_account_id' => $customer->id,
+    ]))->toThrow(ValidationException::class);
 });

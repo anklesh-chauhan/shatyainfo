@@ -41,6 +41,8 @@ use App\Http\Controllers\Api\V1\SecondarySalesCorrectionController;
 use App\Http\Controllers\Api\V1\TodaysTourController;
 use App\Http\Controllers\Api\V1\VisitController;
 use App\Http\Controllers\Api\V1\VisitSgipController;
+use App\Http\Middleware\AuthorizeFieldModules;
+use App\Http\Middleware\AuthorizeFieldReporting;
 use App\Http\Middleware\FieldIdempotency;
 use Illuminate\Support\Facades\Route;
 
@@ -49,7 +51,7 @@ Route::prefix('v1')->group(function (): void {
     Route::post('login/otp/request', [AuthController::class, 'requestOtp'])->middleware('throttle:5,1');
     Route::post('login/otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1');
 
-    Route::middleware(['auth:sanctum', FieldIdempotency::class])->group(function (): void {
+    Route::middleware(['auth:sanctum', AuthorizeFieldModules::class, AuthorizeFieldReporting::class, FieldIdempotency::class])->group(function (): void {
         Route::post('field-visit-events', [FieldVisitEventController::class, 'store']);
         Route::post('field-expense-events', FieldExpenseEventController::class);
         Route::get('field-sync-recoveries', [FieldSyncRecoveryController::class, 'index']);
@@ -124,6 +126,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('monthly-tour-plans/{plan}/approve', [MonthlyTourPlanController::class, 'approve'])->whereNumber('plan');
         Route::post('monthly-tour-plans/{plan}/reject', [MonthlyTourPlanController::class, 'reject'])->whereNumber('plan');
 
+        Route::get('dcr-expenses', [DcrExpenseController::class, 'register']);
+        Route::get('sgip-distributions', [VisitSgipController::class, 'register']);
         Route::get('dcrs/today', [DcrController::class, 'today']);
         Route::get('dcrs/{dcr}', [DcrController::class, 'show']);
         Route::post('dcrs/{dcr}/submit', [DcrController::class, 'submit']);
@@ -155,6 +159,7 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('accounts/{account}/addresses/{address}', [AccountAddressController::class, 'destroy']);
 
         Route::post('visits/direct', [VisitController::class, 'openDirect']);
+        Route::get('visits', [VisitController::class, 'index']);
         Route::get('visits/options', [VisitController::class, 'options']);
         Route::get('visits/{visit}', [VisitController::class, 'show']);
         Route::patch('visits/{visit}', [VisitController::class, 'update']);

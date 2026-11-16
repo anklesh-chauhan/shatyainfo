@@ -10,7 +10,7 @@ use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
 
 it('opens today and the configured number of earlier days', function () {
-    $user = reportingUser('BackdateWindow');
+    $user = fieldReportingUser('BackdateWindow');
     Sanctum::actingAs($user);
 
     VisitPreference::current()->update([
@@ -40,7 +40,7 @@ it('opens today and the configured number of earlier days', function () {
 });
 
 it('keeps reporting on today when backdated DCR is turned off', function () {
-    $user = reportingUser('TodayOnlyDcr');
+    $user = fieldReportingUser('TodayOnlyDcr');
     Sanctum::actingAs($user);
 
     VisitPreference::current()->update([
@@ -61,7 +61,7 @@ it('keeps reporting on today when backdated DCR is turned off', function () {
 });
 
 it('returns an existing DCR outside the window without letting it be filed', function () {
-    $user = reportingUser('LockedDcr');
+    $user = fieldReportingUser('LockedDcr');
     $date = today()->subDays(12)->toDateString();
     $dcr = SalesDcr::query()->create([
         'user_id' => $user->id,
@@ -103,7 +103,7 @@ it('submits a visit DCR from an open back date', function () {
 
     $territory = reportingTerritory('Backdate Territory');
     $patch = reportingPatch($territory, 'Backdate Patch');
-    $user = reportingUser('BackdateSubmit');
+    $user = fieldReportingUser('BackdateSubmit');
     $this->actingAs($user);
 
     $visit = Visit::query()->create([
@@ -128,7 +128,7 @@ it('submits a visit DCR from an open back date', function () {
 });
 
 it('rejects a DCR date that is not a calendar day', function () {
-    Sanctum::actingAs(reportingUser('BadDcrDate'));
+    Sanctum::actingAs(fieldReportingUser('BadDcrDate'));
 
     $this->getJson('/api/v1/dcrs/today?date=01-10-2026')
         ->assertUnprocessable()

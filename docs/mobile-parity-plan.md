@@ -1,6 +1,6 @@
 # Shatya Info: full ERP mobile parity plan
 
-Prepared: 15 November 2026. Status: planning only; application implementation has not started under this plan.
+Prepared: 15 November 2026. Updated: 16 November 2026. Status: foundations and selected workflows implemented; remaining delivery is planned in section 10. This update changes planning documents only.
 
 ## 1. Outcome and boundaries
 
@@ -22,7 +22,7 @@ Inspected sources:
 
 Version discrepancy: composer.lock records Laravel v13.42.0 and Filament v5.11.3; AGENTS.md names Laravel 12. Task P00 verifies installed/runtime versions and records the discrepancy before selecting version-specific documentation. Do not silently upgrade/downgrade dependencies or rewrite repository rules.
 
-This inspection is not a complete page/API/permission audit. No resource count, delivery date, passing test claim or percentage completion is inferred from file presence.
+The original inspection was not a complete page/API/permission audit. The inventory and working state now contain subsequent delivery evidence. The 16 November review ran all 300 Flutter tests successfully; analysis of lib/test reported two informational curly-brace notices in test/salesperson_ai_test.dart and no errors or warnings. No backend suite or live role-by-role device acceptance was run in that review. Section 10 uses this baseline without treating test count as module completion.
 
 ## 3. Architecture decisions
 
@@ -72,7 +72,7 @@ The initial discovery needs more context than later tasks. Measure actual usage 
 
 ## 5. Ordered tasks and completion gates
 
-These are sequential dependencies, not week estimates. P01 and each module wave must be broken into small task cards; never send an entire wave as one coding prompt.
+These are the original task definitions, retained for traceability, not a fresh backlog. The working state records P00-P06 complete; do not restart them. Reconcile their evidence and remaining gaps through section 10. These are sequential dependencies, not week estimates. Each module wave must be broken into small task cards; never send an entire wave as one coding prompt.
 
 | ID | Scope | Completion evidence |
 | --- | --- | --- |
@@ -165,3 +165,109 @@ Backend releases precede mobile builds that require their endpoints. Keep a defi
 Estimate schedule only after P01 counts gaps and the pilot measures throughput. Track completed accepted resources/actions, API gaps closed, permission failures and actual model usage. Do not use number of generated files or tokens spent as completion metrics.
 
 Supporting architecture reference: Flutter recommends clear UI/data responsibilities and repository/service separation; preserve the project's existing equivalent patterns rather than adopting new packages just to match an example: https://docs.flutter.dev/app-architecture/recommendations
+
+## 10. Remaining delivery plan — 16 November 2026
+
+### Target and current baseline
+
+Deliver the existing Admin business modules in Flutter with the same group, item and nested menu order, filtered by the roles and permissions managed by Super Admin. Settings & Administration stays excluded, including for elevated mobile users. Company module settings, planning mode, record visibility and workflow state further restrict access; enabling a module does not grant a user permission.
+
+Existing assets to extend:
+
+- Shared backend menu registry and authenticated `/mobile-navigation`, native Modules navigation, route guards, user/company cache isolation and refresh behaviour.
+- Sixteen registered menu entries mapped to fourteen screen keys. This is navigation coverage, not fourteen complete modules. Secondary Sales, Inventory, HR and Reports have no registered mobile entries yet.
+- Field capture, tour planning, DCR/expenses, offline queues/recovery, account forms, leads/deals, follow-ups/activity/notes/items, RCPA, visit presentations and sales-performance views.
+- The inventory's detailed action comparisons and the working state's completed cards. Historical task IDs remain valid even where their wave naming differs from the group sequence below.
+
+Scope reconciliation: the working state records a prior user-approved web-only exception for Lead and Deal approval. Preserve that specific exception unless the user explicitly changes it; the latest request does not automatically reopen every previously accepted action exception. It does not exempt general My Approvals, Follow-up approvals or other business approvals. Record it visibly in acceptance totals. Settings & Administration is the excluded menu group. Operational pending-work/recovery screens already present in Flutter remain available under their existing permissions even where their web counterparts are grouped with administration.
+
+### Delivery sequence and completion gates
+
+Complete one resource workflow at a time within each wave. The order below is the default execution order. Bring forward a shared lookup or service only when needed by the current workflow; this never changes the final menu order.
+
+| Order / ID | Work to deliver | Dependency and exit gate |
+| --- | --- | --- |
+| 0 / R00 (complete) | Reconcile current source, inventory, contract and handoff; record versions and existing changes. Keep completed work. Correct stale contract documentation for Leads/Deals and list the remaining action gaps. Audit nested HR/report pages, user-menu links, duplicate/unset sorts and conditional navigation. | Planning baseline ready when each in-scope destination/action has a status and owner task; documented exceptions are explicit. Do not repeat P00-P06 implementation. |
+| 1 / R01 | Complete role-controlled access across web, API and Flutter. Align page gates, module checks, global capabilities and per-record actions; resolve authenticated-only workspace/report access and hard-coded Punch menu eligibility. | Assigned permissions control list, detail and actions; direct requests, selectors, files and exports enforce the same scope. No-role, read-only, revoked-role, disabled-module and cross-company cases pass. |
+| 2 / R02 | Make registered navigation usable. Give Punch, Visits, DCR Expenses, E-detailing Library and SGIP appropriate standalone destinations. Add a contract for cluster/child order and safe client/server compatibility. | Each exposed item opens its own meaningful workflow without requiring an unavailable record ID. Unknown destinations stay inaccessible. New register actions are completed in the relevant module wave and remain tracked as gaps until then. |
+| 3 / M01 | Complete My Workspace: Dashboard periods/charts/preferences and personal/team views; Punch parity; Today’s Visits and Assistant residual gaps; My Approvals and Approval Register. | Shared approval API uses the existing current-step/assignee service. Authorized reviewers can inspect and decide supported work; unauthorized, stale and repeated decisions fail safely. Excluded settings links are not exposed. |
+| 4 / M02 | Complete Field Operations: Tour Plans, Flexible Planning, Visits, DCR, Travel Segments, DCR Expenses and Customer Coverage. Extend existing screens and APIs for permitted team/register workflows. | Owner/manager scopes agree across web/API; plan revisions, report windows, derived travel, approval locks, receipts and queued capture remain correct. Every applicable register/filter/action has evidence. |
+| 5 / M03 | Complete Customers & Territories: Accounts, Contacts, Companies, Territories, Patches, HQ & Customer Assignments and Territory Sales Assignments. | Standalone CRUD and assignment actions match effective Admin behaviour. Related selectors and historical assignment dates are validated; contact-owned addresses work; changes do not broaden unrelated-user visibility. |
+| 6 / M04 | Complete Sales & CRM: remaining Lead/Deal actions, global Follow-ups and Lead Activities, Quotes, Sales Orders, Sales Invoices, Prices & Discounts and Territory Sales Targets. | Supported conversion/document lifecycle, pricing/tax/UOM totals, details, pagination, permissions, approvals and exports work. Targets can be managed where authorized, beyond the existing achievement view. Preserve the recorded Lead/Deal approval exception. |
+| 7 / M05 | Complete Secondary Sales: Sales Statements, Corrections and OCR Sources using existing APIs where sufficient. | Native template/source upload, paginated list/detail, mappings, discrepancies, assigned review and audited reversal/replacement work. Repeated uploads/reviews do not duplicate the approved ledger; OCR failures remain recoverable. |
+| 8 / M06 | Complete Marketing & Samples: Campaigns, Promotional Schemes, standalone E-detailing Library, RCPA register, Sample Requests, Sample Issues and SGIP register. | Authorized library management/presentation history and sample request-to-issue-to-distribution workflows work; stock/quota, campaign/scheme dates and approval restrictions remain server-controlled. Existing offline presentation/sample/RCPA capture still passes. |
+| 9 / M07 | Complete Inventory & Purchasing: Items, Stock on Hand, Purchase Orders, GRN, Delivery Challans, Transfers, Adjustments, Stock Ledger and Locations. | Native documents use existing inventory services. Retry/concurrency produces one posting; failed posting rolls back; posted-state restrictions and location/record permissions hold. Related purchasing/fulfilment actions match Admin. |
+| 10 / M08 | Complete HR & Attendance: Employees, Positions, Org Units, attendance registers, the full visible Leave Management cluster and HR Change Requests. | Personal/team boundaries, employee/login identities, approvals, leave balances and attendance calculations agree with ERP. Existing personal punch/leave flows are retained and placed in the correct navigation. |
+| 11 / M09 | Complete Reports: Overview, Account Reach & Frequency, DCR, Visit Coverage, Expenses, Doctor Sample Ledger, SGIP Compliance, Stock Movements, Lead/Deal Pipelines, Sales Documents, Overdue Follow-ups, Attendance, Punch vs Tour and Leave Ledger. | All supported filters, drill-downs and exports use scoped shared report queries. Web/mobile totals match for the same actor, data and filters; pagination does not change totals. |
+| 12 / Q01-Q03 | Cross-module acceptance, native device/release checks, then coordinated backend/mobile rollout preparation. | Every in-scope inventory action is accepted or has a recorded approved exception; no unresolved access, data-loss or incorrect-posting defect. Deployment/publication follows a separately authorized release task. |
+
+### R01 — permission work package
+
+Read the registry/service, resource policies and page gates, API Form Requests/services, Flutter destination guards and the existing capability implementations in Leads/Deals before changing behaviour.
+
+1. Build a per-page/action permission mapping using existing effective permissions. Where a page currently permits every authenticated user, define an explicit assignable capability through the existing authorization system. Seed/register any needed permission before enforcing it; migrate intended role assignments deliberately and verify existing users are not accidentally locked out. Do not invent role names or assign every new permission broadly.
+2. Apply these decisions consistently to Admin and API. A menu-only change is insufficient. Review known DCR/travel/expense scope mismatches and optional-module direct-access gaps recorded in the inventory before exposing broader mobile registers.
+3. Return global create/export capabilities and record-specific edit/delete/submit/review capabilities where needed. Follow existing Lead/Deal patterns; do not infer mutation rights from list access. Fix Account create/edit visibility first.
+4. Route shortcuts and child entry points through equivalent checks. Refresh on existing login/resume/403 paths; ensure a removed permission closes protected routes after refresh. Preserve queued evidence and reauthorize replay after reconnection.
+5. Verify Super Admin and administration privileges through the existing gates. `AccessAllRecords` bypasses record visibility only; it must not become blanket mutation permission or cross-company access.
+
+Completion cases: Super Admin changes a role in ERP; the app refreshes to the correct menu/actions; an unauthorized direct API request still fails; a read-only user can inspect allowed records without editing; a user with no module permissions receives no business-module access; employee linkage alone does not grant privileged HR actions. Authentication, logout, denied-access and pending-work recovery remain usable as appropriate.
+
+### R02 — menu and destination work package
+
+The existing schema maps Punch and Today’s Visits to one screen, and DCR and DCR Expenses to another. Visits, E-detailing and SGIP currently require a record ID that Modules does not supply. Remove these navigation gaps through dedicated screens or register entry points that reuse the existing detail/form widgets.
+
+- Keep canonical group and item labels/order on the backend. Include nested parent relationships for HR and Reports. Resolve equal/unset sorts using a shared deterministic rule matching the effective Admin menu.
+- Keep separate stable keys for standalone registers and record workspaces. Register routes only once their read APIs, authorization and loading/empty/error states work. An empty list must be a real API result, not a placeholder claiming delivery.
+- Evolve the contract without silently changing the meaning of schema-1 keys for older installed clients. Specify supported-build negotiation or a versioned contract, deploy compatible backend support first, and test old/new combinations.
+- Add tests that compare the complete eligible Admin inventory to implemented mobile destinations plus explicitly tracked gaps. The existing test of the sixteen registered entries alone cannot prove full parity. The release gate permits no unexplained missing destination.
+
+### Smaller gaps to carry into their resource cards
+
+These are existing unfinished work, not reasons to restart delivered screens:
+
+- **Leads:** page-aware Notes with retry/refresh and the existing composer/permission guard; supported delete/restore/bulk actions after policy review; contact-owned address selection; retain completed Activity, Follow-up, Notes creation and Items work.
+- **Follow-ups:** read-only details for non-editable records; standalone cross-lead register; supported delete and approval/bulk actions.
+- **Lead Activities:** standalone register and supported writes; retain the delivered lead-scoped pagination.
+- **Accounts and other masters:** action capability visibility, complete supported relation/record actions, scoped selectors and real pagination.
+- **Field management:** team/HQ/representative filters, DCR and expense registers, manual/derived travel boundaries, MTP and flexible-plan manager parity.
+- **Targets and assignments:** create/edit/lifecycle capabilities and effective-dated assignment forms; do not count the existing read-only performance screen as management parity.
+- **HR inventory:** re-check visibility of leave instances, balances, cancellations, adjustments, encashments, lapse records and ledger against the current clusters. R00 lists the visible children and the three sidebar-hidden routes separately. M08 owns supported operational actions for hidden resources; preserve that distinction when adding native navigation.
+- **Imports, exports and attachments:** implement the business action when it belongs to an included module. A link that merely launches an excluded Settings page does not automatically bring the whole Settings module into scope; track that boundary explicitly.
+
+### API and mobile delivery per resource
+
+Each resource card names the existing web source, policy, service, endpoints, Flutter files and tests. Use this completion sequence:
+
+1. Record supported fields, lifecycle actions, relations, filters, pagination, scope, API reuse/gaps and offline boundary.
+2. Add missing read endpoints or extend them compatibly using scoped Eloquent queries/resources and the existing `/api/v1` convention. Verify unauthorized and unrelated-record reads.
+3. Implement native list/detail, filters, search, pagination and recovery states; connect the menu destination.
+4. Add supported mutations one at a time using Form Requests, policies and shared domain services. Return authoritative validation, calculations and capabilities; implement the matching native form/action.
+5. Verify successful and denied paths, state locks, related IDs, retries and web/mobile consistency. Update the inventory row with exact evidence and remaining gaps.
+
+Preserve established offline field capture. New management approvals, inventory postings, financial actions and master changes are online initially. Cache new read views only with an explicit user/company scope and freshness policy. Do not add offline mutation support implicitly. Preserve unsynced work through role changes, app upgrades, failed uploads and rollout rollback.
+
+### Acceptance, operating dependencies and release
+
+Use the existing full-application testing checklist and inventory; do not create a second unchecked checklist for every feature. Apply GEN/AUTH cases to each delivered resource. Run focused backend/Flutter tests per card, then the complete Flutter suite and relevant backend integration packs at the shared-access and final milestones. Run required PHP/Dart formatting only for implementation work; this planning update does not need application tests or formatting.
+
+Integrated acceptance must cover:
+
+- Tour plan → visit → DCR → expenses/travel/SGIP → assigned approval; offline restart/replay preserves original evidence and prevents duplicate effects.
+- Lead → Deal → Quote → Order → Invoice, including customer pricing and supported fulfilment transitions.
+- Purchase Order → GRN → stock → transfer/adjustment/sample issue → ledger reconciliation.
+- Secondary statement/OCR → reconciliation → assigned review → correction → target achievement without double-counting.
+- Punch → daily attendance → leave/HR changes → balances and reports using the correct user/employee identifiers.
+- Super Admin role changes, read-only/no-permission users, owner/manager/unrelated users, module disablement, session/tenant switches and retained offline queues.
+
+Carry forward existing acceptance dependencies: business-approved coverage rules and master data; actual clinic GPS checks; stockist/OCR examples and extraction accuracy; reviewers and reconciled target examples; two-device pending work; prolonged idle/battery management; reachable-backend network handover; production-like HTTP load and longer mixed stock/order/expense runs. These require their own evidence and are not satisfied by the 300 passing local tests.
+
+For native release readiness, verify token/local-data storage protection, release API configuration, signed packages, upgrade with queued work and recovery/rollback. Android is the documented target. Confirm the intended iOS release scope before scheduling/signing off iOS native testing; do not infer iOS readiness from shared Dart tests.
+
+Progress records distinguish **Implemented**, **Automated verified**, **Device verified** and **Accepted** according to the existing inventory statuses. Track accepted resource/actions and remaining gaps; avoid a percentage based only on menu entries. Calendar estimates follow the first completed remaining resource and confirmed delivery capacity, rather than reusing the older field-only 18–22 week estimate for this larger scope.
+
+### First implementation handoff
+
+R00 is complete. See the [navigation audit](mobile-parity-inventory.md#r00-navigation-audit) and [permission map](mobile-parity-inventory.md#r00-permission-map) for the baseline. The [R01 audit](mobile-parity-inventory.md#r01-selector-and-action-audit) records the permission and selector checks for existing workflows. The [handoff](mobile-parity-state.md) records regression results and separate live acceptance tracks. R02 owns standalone destinations.
+
+This request authorizes preparing the remaining-work plan. No application code, permissions, database records, deployments or published builds are changed by this planning update.

@@ -24,7 +24,7 @@ it('lists visible daily attendance rows', function () {
     $shift = reportingShift('General');
     $status = reportingAttendanceStatus('Present');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:AttendanceRegister'));
 
     DailyAttendance::forceCreate([
         'employee_id' => $rep->employee_id,
@@ -65,7 +65,7 @@ it('flags punch without visit and visit without punch', function () {
     $shift = reportingShift('Field');
     $status = reportingAttendanceStatus('On Duty');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:PunchVsTour'));
 
     DailyAttendance::forceCreate([
         'employee_id' => $rep->employee_id,
@@ -141,7 +141,7 @@ it('lists visible leave ledger movements', function () {
     $other = reportingUser('LeaveHidden');
     $type = reportingLeaveType('Casual');
 
-    $this->actingAs($rep);
+    $this->actingAs(grantPagePermissions($rep, 'View:LeaveLedger'));
 
     LeaveAdjustment::forceCreate([
         'employee_id' => $rep->employee_id,
@@ -177,7 +177,7 @@ it('lists visible leave ledger movements', function () {
 it('exposes phase 4 reports on the overview catalog', function () {
     $user = reportingUser('HrCatalog');
 
-    $this->actingAs($user);
+    $this->actingAs(grantPagePermissions($user, 'View:ReportsOverview'));
 
     livewire(ReportsOverview::class)
         ->assertSuccessful()

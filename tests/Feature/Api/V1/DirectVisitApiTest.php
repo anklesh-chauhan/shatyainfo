@@ -17,7 +17,7 @@ use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 beforeEach(function () {
-    $this->rep = reportingUser('DirectRep');
+    $this->rep = fieldReportingUser('DirectRep');
     foreach (['Create:Visit', 'Manage:FieldPlanningPreference', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster'] as $permission) {
         Permission::findOrCreate($permission, 'web');
         $this->rep->givePermissionTo($permission);

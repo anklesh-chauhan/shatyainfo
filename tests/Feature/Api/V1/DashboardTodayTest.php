@@ -55,6 +55,7 @@ it('returns the signed-in user dashboard counts and hides another user dcr', fun
         'updated_by' => $rep->id,
     ]);
 
+    grantPagePermissions($rep, 'View:Dashboard');
     Sanctum::actingAs($rep);
 
     $counts = app(DashboardMetrics::class)->forUser($rep);

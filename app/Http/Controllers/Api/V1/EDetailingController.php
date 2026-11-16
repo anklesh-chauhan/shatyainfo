@@ -28,7 +28,7 @@ class EDetailingController extends Controller
                 'file_size' => $material->file_size, 'content_version' => $material->content_version,
             ]),
             'presentations' => $record?->eDetailingPresentations()->latest('presented_at')->get() ?? [],
-            'can_record' => $record !== null && $record->start_time !== null && $record->end_time === null && $record->visit_status === 'started',
+            'can_record' => $record !== null && $request->user()->can('Update:Visit') && $record->start_time !== null && $record->end_time === null && $record->visit_status === 'started',
         ]);
     }
 
@@ -44,6 +44,7 @@ class EDetailingController extends Controller
     public function preview(EDetailingMaterial $material): BinaryFileResponse
     {
         Gate::authorize('view', $material);
+        abort_unless($material->is_active || Gate::allows('update', $material), 404);
 
         return $this->fileResponse($material);
     }

@@ -1,22 +1,15 @@
 <?php
 
 use App\Models\AccountMaster;
+use App\Models\JobRole;
+use App\Models\Position;
 use App\Models\TypeMaster;
 use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
-
-beforeEach(function () {
-    $role = Role::findOrCreate('sales_user', 'web');
-    foreach (['ViewAny', 'View', 'Create', 'Update', 'ViewOwn'] as $action) {
-        $role->givePermissionTo(Permission::findOrCreate($action.':AccountMaster', 'web'));
-    }
-});
 
 it('lists visible account masters for sales users', function () {
     $user = fieldSalesUser('AccountList');
@@ -28,6 +21,7 @@ it('lists visible account masters for sales users', function () {
 
     $this->getJson('/api/v1/accounts')
         ->assertSuccessful()
+        ->assertJsonPath('can_create', true)
         ->assertJsonFragment(['id' => $doctor->id, 'name' => 'Dr Listable']);
 });
 
@@ -65,6 +59,10 @@ it('allows sales users to create account masters from the app', function () {
     $user = fieldSalesUser('AccountCreate');
     $territory = reportingTerritory('Account Terr');
     $patch = reportingPatch($territory, 'Account Patch');
+    $role = JobRole::query()->create(['name' => 'Account Rep', 'code' => 'ACCTREP', 'level' => 1]);
+    $position = Position::query()->create(['name' => 'Account Rep', 'code' => 'ACCTREP', 'job_role_id' => $role->id]);
+    $position->territories()->attach($territory->id);
+    $user->employee->positions()->attach($position->id, ['is_primary' => true]);
     $type = TypeMaster::query()->firstOrCreate(
         ['name' => 'Doctor', 'typeable_type' => AccountMaster::class],
         ['parent_id' => null],
@@ -98,6 +96,19 @@ it('allows sales users to create account masters from the app', function () {
         ->assertJsonPath('data.contacts.0.mobile_number', '9876543210');
 
     $created = AccountMaster::query()->where('name', 'Dr New Field')->sole();
+    $outside = reportingTerritory('Outside Account Territory');
+    $outsidePatch = reportingPatch($outside, 'Outside Account Patch');
+    $this->patchJson("/api/v1/accounts/{$created->id}", ['territory_id' => $outside->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('territory_id');
+    $this->patchJson("/api/v1/accounts/{$created->id}", ['patch_ids' => [$outsidePatch->id]])
+        ->assertUnprocessable()->assertJsonValidationErrors('patch_ids');
+    $other = reportingUser('Other Account Owner');
+    Sanctum::actingAs($other);
+    $unrelated = reportingDoctor($other, 'Dr Outside Scope');
+    Sanctum::actingAs($user);
+    $this->patchJson("/api/v1/accounts/{$created->id}", ['parent_id' => $unrelated->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('parent_id');
+
     expect((float) $created->geo_latitude)->toBe(19.076)
         ->and((float) $created->geo_longitude)->toBe(72.877)
         ->and($created->geo_radius_meters)->toBe(250)
@@ -140,6 +151,7 @@ it('allows sales users to update accounts they can see', function () {
         'accept_secondary_statements' => true,
     ])
         ->assertSuccessful()
+        ->assertJsonPath('data.can_update', true)
         ->assertJsonPath('data.name', 'Dr Renamed')
         ->assertJsonPath('data.phone_number', '9000011111');
 
@@ -157,7 +169,10 @@ it('denies a direct account update without Update:AccountMaster', function () {
     $this->actingAs($user);
     $doctor = reportingDoctor($user, 'Dr Untouched');
 
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster'));
+
+    $this->getJson('/api/v1/accounts')->assertSuccessful()->assertJsonPath('can_create', false);
+    $this->getJson("/api/v1/accounts/{$doctor->id}")->assertSuccessful()->assertJsonPath('data.can_update', false);
 
     $this->patchJson("/api/v1/accounts/{$doctor->id}", [
         'name' => 'Dr Forced',

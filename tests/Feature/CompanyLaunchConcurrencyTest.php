@@ -31,7 +31,7 @@ it('serializes overlapping company launches without duplicate history or partial
         $hq = reportingLocation('Concurrent HQ');
         $reps = [];
         for ($index = 0; $index < 4; $index++) {
-            $rep = reportingUser('Concurrent Launch MR '.$index);
+            $rep = fieldReportingUser('Concurrent Launch MR '.$index);
             foreach (['Create:Visit', 'ViewAny:AccountMaster', 'View:AccountMaster', 'ViewOwn:AccountMaster'] as $permission) {
                 $rep->givePermissionTo(Permission::findOrCreate($permission, 'web'));
             }

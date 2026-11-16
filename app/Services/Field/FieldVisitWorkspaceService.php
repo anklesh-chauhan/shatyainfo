@@ -113,7 +113,7 @@ class FieldVisitWorkspaceService
                 $visit->jointUsers()->detach();
             }
             foreach ($data['feedback'] ?? [] as $answer) {
-                abort_unless(VisitFeedbackQuestion::query()->whereKey($answer['question_id'])->exists(), 422, 'Select a valid feedback question.');
+                abort_unless(VisitFeedbackQuestion::active()->whereKey($answer['question_id'])->exists(), 422, 'Select a valid feedback question.');
                 $visit->feedbacks()->updateOrCreate(
                     ['visit_feedback_question_id' => $answer['question_id']],
                     ['answer' => $answer['answer']],
@@ -143,7 +143,7 @@ class FieldVisitWorkspaceService
         abort_unless($company->contactDetails()->exists(), 422, 'Add a customer contact before creating a sales document.');
         $class = $type === 'quote' ? Quote::class : SalesOrder::class;
         $document = $user->getConnection()->transaction(
-            fn () => SalesDocumentQuickCreate::createFromVisit($visit, $class),
+            fn () => SalesDocumentQuickCreate::createFromVisit($visit, $class, $user),
         );
 
         return [

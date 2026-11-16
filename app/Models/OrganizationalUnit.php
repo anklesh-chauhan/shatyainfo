@@ -2,18 +2,16 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
+use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
-use App\Traits\HasApprovalWorkflow;
 
 class OrganizationalUnit extends BaseModel
 {
     use HasApprovalWorkflow;
 
-    protected $fillable = ['name', 'code','type_master_id', 'description', 'parent_id', 'is_active'];
+    protected $fillable = ['name', 'code', 'type_master_id', 'description', 'parent_id', 'is_active'];
 
     // Parent OU (for hierarchy)
     public function parent(): BelongsTo
@@ -30,6 +28,12 @@ class OrganizationalUnit extends BaseModel
     public function typeMaster()
     {
         return $this->belongsTo(TypeMaster::class, 'type_master_id');
+    }
+
+    public function scopeActiveDivisions(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->whereHas('typeMaster',
+            fn (Builder $types): Builder => $types->where('name', 'Division')->where('typeable_type', self::class));
     }
 
     public function parentType(): ?TypeMaster
@@ -85,11 +89,11 @@ class OrganizationalUnit extends BaseModel
             ->get();
 
         foreach ($units as $unit) {
-            $options[$unit->id] = $prefix . $unit->name;
+            $options[$unit->id] = $prefix.$unit->name;
 
             $options += self::hierarchicalOptions(
                 $unit->id,
-                $prefix . '— '
+                $prefix.'— '
             );
         }
 

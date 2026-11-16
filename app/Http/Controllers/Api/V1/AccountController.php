@@ -27,7 +27,7 @@ class AccountController extends Controller
             'masters' => AccountReportingMaster::where('is_active', true)->orderBy('name')->get(['id', 'kind', 'code', 'name', 'is_monetary']),
             'ratings' => RatingType::where('is_lifecycle', false)->orderBy('name')->get(['id', 'name']),
             'statuses' => AccountStatus::orderBy('name')->get(['id', 'code', 'name']),
-            'divisions' => OrganizationalUnit::where('is_active', true)->whereHas('typeMaster', fn ($q) => $q->where('name', 'Division')->where('typeable_type', OrganizationalUnit::class))->get(['id', 'code', 'name']),
+            'divisions' => OrganizationalUnit::query()->activeDivisions()->get(['id', 'code', 'name']),
             'activation_requirements' => TypeMaster::where('typeable_type', AccountMaster::class)->get(['id', 'activation_requirements']),
         ]]);
     }
@@ -53,7 +53,7 @@ class AccountController extends Controller
                 is_numeric($patchId) ? (int) $patchId : null,
                 $perPage > 0 ? $perPage : 50,
             ),
-        );
+        )->additional(['can_create' => $request->user()->can('create', AccountMaster::class)]);
     }
 
     public function show(Request $request, int $account): AccountResource

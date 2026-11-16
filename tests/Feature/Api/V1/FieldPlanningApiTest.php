@@ -72,7 +72,7 @@ it('aligns monthly plan API and assistant capabilities with the active method', 
     foreach (['Manage:FieldPlanningPreference', 'Create:SalesTourPlan'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
-    Sanctum::actingAs($user);
+    Sanctum::actingAs(grantPagePermissions($user, 'View:SalesAssistant'));
     $settings = app(FieldPlanningSettingsService::class);
     $revision = $settings->saveProposal($user, [
         'mode' => $mode->value,

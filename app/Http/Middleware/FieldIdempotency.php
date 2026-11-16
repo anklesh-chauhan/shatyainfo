@@ -32,6 +32,11 @@ class FieldIdempotency
         if ($request->isMethodSafe() || $key === null || $request->is('api/v1/logout')) {
             return $next($request);
         }
+        $user = $request->user();
+        if ($request->is('api/v1/attendance/punch-in', 'api/v1/attendance/punch-out')) {
+            abort_unless($user->hasPunchAccess(), 403);
+        }
+
         abort_unless(Str::isUuid($key), 422, 'Idempotency-Key must be a UUID.');
         abort_if(FieldSyncRecovery::query()->where('replacement_event_id', $key)
             ->orWhereJsonContains('review_history', ['replacement_event_id' => $key])->exists(), 409,
@@ -46,8 +51,6 @@ class FieldIdempotency
             Arr::sortRecursive($request->except(array_keys($request->allFiles()))),
             Arr::sortRecursive($files),
         ], JSON_THROW_ON_ERROR));
-        $user = $request->user();
-
         try {
             return $user->getConnection()->transaction(function () use ($user, $key, $hash, $request, $next): Response {
                 $user->newQuery()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
