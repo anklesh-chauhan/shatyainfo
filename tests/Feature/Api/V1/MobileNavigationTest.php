@@ -2,8 +2,11 @@
 
 use App\Enums\FieldPlanningMode;
 use App\Filament\Pages\Reports\DcrRegister;
+use App\Filament\Resources\AccountMasters\AccountMasterResource;
+use App\Filament\Resources\Approvals\ApprovalResource;
 use App\Filament\Resources\LeaveBalances\LeaveBalanceResource;
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
+use App\Filament\Resources\Visits\VisitResource;
 use App\Models\Organization;
 use App\Models\Tenant;
 use App\Models\User;
@@ -73,6 +76,40 @@ it('negotiates standalone destinations without changing the original screen keys
             ->and($items[$item]['screen_key'])->toBe($legacy[$item]['screen_key'])
             ->and($items[$item]['standalone_screen_key'])->toBe($screen);
     }
+});
+
+it('shares ordered quick links without replacing saved Admin-only entries', function () {
+    $user = grantPagePermissions(fieldReportingUser('Quick Links Rep'), 'ViewAny:AccountMaster');
+    $other = fieldReportingUser('Unrelated Quick Links');
+    $visits = VisitResource::class;
+    $accounts = AccountMasterResource::class;
+    $adminOnly = ApprovalResource::class;
+    $user->forceFill(['topbar_links' => [$visits, $adminOnly, $accounts]])->save();
+
+    $this->getJson('/api/v1/mobile-quick-links')->assertUnauthorized();
+    Sanctum::actingAs($user);
+    $this->getJson('/api/v1/mobile-navigation')->assertJsonMissingPath('quick_links');
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertJsonPath('quick_links', true);
+    $this->getJson('/api/v1/mobile-quick-links')->assertOk()
+        ->assertJsonPath('data.selected', ['g02-03', 'g03-01'])
+        ->assertJsonPath('data.limit', 7);
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => ['https://example.test']])
+        ->assertUnprocessable()->assertJsonValidationErrors('links');
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => ['g03-01', 'g03-01']])->assertUnprocessable();
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => ['g03-01', 'g02-03']])
+        ->assertOk()->assertJsonPath('data.selected', ['g03-01', 'g02-03']);
+    expect($user->fresh()->topbar_links)->toBe([$accounts, $adminOnly, $visits]);
+
+    $user->revokePermissionTo('ViewAny:AccountMaster');
+    Sanctum::actingAs($user->fresh());
+    $this->getJson('/api/v1/mobile-quick-links')->assertJsonPath('data.selected', ['g02-03']);
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => ['g03-01']])->assertUnprocessable();
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => []])->assertOk()->assertJsonPath('data.selected', []);
+    expect($user->fresh()->topbar_links)->toBe([$accounts, $adminOnly]);
+
+    $this->patchJson('/api/v1/mobile-quick-links', ['links' => null])->assertOk();
+    expect($user->fresh()->topbar_links)->toBeNull()
+        ->and($other->fresh()->topbar_links)->toBeNull();
 });
 
 it('uses Admin cluster parents for HR and reports', function () {

@@ -37,18 +37,7 @@ class MyApprovals extends Page implements HasTable
     {
         return $table
             ->query(fn () => ApprovalStep::query()
-                ->where('assigned_user_id', Auth::id())
-                ->where('status', 'pending')
-                ->whereRaw(
-                    'approval_steps.step_order = (
-                            select min(current_steps.step_order)
-                            from approval_steps as current_steps
-                            where current_steps.approval_id = approval_steps.approval_id
-                            and current_steps.status = ?
-                            and current_steps.deleted_at is null
-                        )',
-                    ['pending']
-                )
+                ->currentFor((int) Auth::id())
                 ->with([
                     'approval.approvable',
                     'approval.requestedBy',
@@ -74,7 +63,7 @@ class MyApprovals extends Page implements HasTable
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(fn (ApprovalStep $record) => app(ApprovalService::class)
-                        ->approve($record->approval, Auth::id())
+                        ->approve($record->approval, Auth::id(), expectedStepId: $record->id)
                     ),
 
                 Action::make('reject')
@@ -88,7 +77,8 @@ class MyApprovals extends Page implements HasTable
                         ->reject(
                             $record->approval,
                             Auth::id(),
-                            $data['comments']
+                            $data['comments'],
+                            expectedStepId: $record->id
                         )
                     ),
             ])

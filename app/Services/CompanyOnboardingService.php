@@ -108,9 +108,28 @@ class CompanyOnboardingService
 
     public const EMPLOYEE_COLUMNS = ['employee_id', 'first_name', 'last_name', 'email', 'mobile_number'];
 
+    public static function canAccess(?User $user): bool
+    {
+        return Tenant::checkCurrent() && ($user?->hasAnyRole(['super_admin', 'administration_admin']) ?? false);
+    }
+
+    public function shouldShowReminder(?User $user): bool
+    {
+        return self::canAccess($user)
+            && $user->company_setup_reminder_dismissed_at === null
+            && ! (Organization::query()->oldest('id')->first()?->metadata['company_setup']['completed'] ?? false);
+    }
+
+    public function dismissReminder(User $user): void
+    {
+        abort_unless(self::canAccess($user), 403);
+
+        $user->forceFill(['company_setup_reminder_dismissed_at' => now()])->save();
+    }
+
     public function authorize(): void
     {
-        abort_unless(Tenant::checkCurrent() && auth()->user()?->hasAnyRole(['super_admin', 'administration_admin']), 403);
+        abort_unless(self::canAccess(auth()->user()), 403);
     }
 
     public function organization(): ?Organization

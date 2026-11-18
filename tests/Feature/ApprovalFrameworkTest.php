@@ -10,6 +10,7 @@ use App\Models\ApprovalFlowStep;
 use App\Models\ApprovalSetting;
 use App\Models\Employee;
 use App\Models\JobRole;
+use App\Models\Lead;
 use App\Models\LeaveApplication;
 use App\Models\Position;
 use App\Models\SalesTourPlan;
@@ -20,6 +21,7 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
 
@@ -482,4 +484,115 @@ test('the requester is excluded from direct approver selection', function () {
     approvalSingleStep($fixture);
     expect(fn () => app(ApprovalService::class)->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id))
         ->toThrow(LogicException::class, 'No approver found');
+});
+
+it('limits mobile approval decisions to the assigned current step and preserves the CRM exception', function () {
+    Event::fake([ApprovalStatusChanged::class]);
+    $fixture = approvalFixture();
+    $reviewer = grantPagePermissions($fixture['manager'], 'View:MyApprovals', 'View:Dashboard');
+    $unassigned = grantPagePermissions($fixture['director'], 'View:MyApprovals');
+    $this->actingAs($fixture['requester']);
+    $flow = ApprovalFlow::query()->create(['module' => 'SalesTourPlan', 'territory_id' => $fixture['territory']->id, 'priority' => 1, 'version' => 1]);
+    foreach ([1, 2] as $order) {
+        ApprovalFlowStep::query()->create([
+            'approval_flow_id' => $flow->id, 'step_order' => $order,
+            'job_role_id' => $fixture[$order === 1 ? 'managerRole' : 'directorRole']->id, 'territory_scope' => 'self',
+        ]);
+    }
+    $approval = app(ApprovalService::class)->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id, 100);
+    [$first, $second] = $approval->steps->all();
+    $second->update(['assigned_user_id' => $reviewer->id]);
+    $crm = $approval->replicate()->forceFill([
+        'approvable_type' => Lead::class, 'record_type' => Lead::class,
+    ]);
+    $crm->save();
+    $crmStep = $crm->steps()->create([
+        'step_order' => 1, 'job_role_id' => $fixture['managerRole']->id,
+        'assigned_user_id' => $reviewer->id, 'status' => 'pending',
+    ]);
+
+    Sanctum::actingAs($fixture['requester']);
+    $this->getJson('/api/v1/my-approvals')->assertForbidden();
+    Sanctum::actingAs($unassigned);
+    $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonCount(0, 'data');
+    $this->postJson("/api/v1/my-approvals/{$first->id}/decision", ['decision' => 'approve'])->assertNotFound();
+
+    Sanctum::actingAs($reviewer);
+    $this->getJson('/api/v1/mobile-navigation')->assertJsonMissing(['screen_key' => 'my-approvals']);
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertJsonFragment(['key' => 'g01-04', 'screen_key' => 'my-approvals']);
+    $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $first->id);
+    $this->getJson("/api/v1/my-approvals/{$first->id}")->assertOk()->assertJsonPath('data.module', 'SalesTourPlan');
+    $this->postJson("/api/v1/my-approvals/{$crmStep->id}/decision", ['decision' => 'approve'])->assertNotFound();
+    $this->postJson("/api/v1/my-approvals/{$second->id}/decision", ['decision' => 'approve'])->assertConflict();
+    $this->postJson("/api/v1/my-approvals/{$first->id}/decision", ['decision' => 'approve'])->assertOk();
+    $this->postJson("/api/v1/my-approvals/{$first->id}/decision", ['decision' => 'approve'])->assertConflict();
+    expect($second->fresh()->status->value)->toBe('pending');
+    $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonPath('data.0.id', $second->id);
+    $this->postJson("/api/v1/my-approvals/{$second->id}/decision", ['decision' => 'reject'])->assertUnprocessable();
+    $this->postJson("/api/v1/my-approvals/{$second->id}/decision", ['decision' => 'reject', 'comments' => 'Revise the plan.'])->assertOk();
+    expect($approval->fresh()->approval_status)->toBe('rejected')
+        ->and($second->fresh()->comments)->toBe('Revise the plan.');
+    $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson('/api/v1/dashboard/workspace?view=personal')->assertOk()->assertJsonPath('data.can_view_team', false);
+});
+
+it('scopes register history and applies only authorized lifecycle operations', function () {
+    Event::fake([ApprovalStatusChanged::class]);
+    $fixture = approvalFixture();
+    $owner = grantPagePermissions($fixture['requester'], 'ViewAny:Approval', 'View:Approval');
+    $reviewer = grantPagePermissions($fixture['manager'], 'ViewAny:Approval', 'View:Approval', 'Delete:Approval', 'Restore:Approval', 'ForceDelete:Approval', 'RestoreAny:Approval');
+    $unrelated = grantPagePermissions($fixture['director'], 'ViewAny:Approval', 'View:Approval', 'Delete:Approval');
+    $this->actingAs($owner);
+    $flow = ApprovalFlow::query()->create(['module' => 'SalesTourPlan', 'territory_id' => $fixture['territory']->id, 'priority' => 1, 'version' => 1]);
+    ApprovalFlowStep::query()->create([
+        'approval_flow_id' => $flow->id, 'step_order' => 1,
+        'job_role_id' => $fixture['managerRole']->id, 'territory_scope' => 'self',
+    ]);
+    $service = app(ApprovalService::class);
+    $approval = $service->start($fixture['record'], 'SalesTourPlan', $fixture['territory']->id, 100);
+    $service->approve($approval, $reviewer->id, 'Validated plan.');
+    $secondRecord = SalesTourPlan::query()->create(['user_id' => $owner->id, 'month' => '2026-11-01']);
+    $second = $service->start($secondRecord, 'SalesTourPlan', $fixture['territory']->id, 100);
+    $crmApproval = $approval->replicate()->forceFill([
+        'approvable_type' => Lead::class, 'record_type' => Lead::class,
+    ]);
+    $crmApproval->save();
+
+    $path = '/api/v1/approval-register';
+    Sanctum::actingAs($owner);
+    $this->getJson('/api/v1/mobile-navigation')->assertJsonMissing(['screen_key' => 'approval-register']);
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertJsonFragment(['key' => 'g01-05', 'screen_key' => 'approval-register']);
+    $this->getJson($path.'?status=approved')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $approval->id);
+    $this->getJson($path.'/'.$approval->id)->assertOk()
+        ->assertJsonPath('data.steps.0.reviewer', $reviewer->name)
+        ->assertJsonPath('data.activity.0.comments', 'Validated plan.')
+        ->assertJsonMissingPath('data.submitted_record_summary')
+        ->assertJsonMissingPath('data.activity.0.metadata');
+    $this->getJson($path.'/'.$crmApproval->id)->assertNotFound();
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$approval->id]])->assertForbidden();
+
+    Sanctum::actingAs($unrelated);
+    $this->getJson($path)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($path.'/'.$approval->id)->assertNotFound();
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$approval->id]])->assertNotFound();
+
+    Sanctum::actingAs($reviewer);
+    $this->getJson($path)->assertOk()->assertJsonPath('bulk_actions', ['restore']);
+    $this->postJson($path.'/lifecycle', ['action' => 'forceDelete', 'ids' => [$approval->id]])->assertConflict();
+    $this->getJson($path.'/'.$approval->id)->assertOk()->assertJsonPath('data.actions', []);
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$approval->id]])->assertForbidden();
+    grantPagePermissions($reviewer, 'OverrideApproval:Approval');
+    Sanctum::actingAs($reviewer->fresh());
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$approval->id]])->assertOk();
+    $this->getJson($path.'?trash=only')->assertOk()->assertJsonPath('data.0.id', $approval->id);
+    $this->postJson($path.'/lifecycle', ['action' => 'restore', 'ids' => [$approval->id, $second->id]])->assertConflict();
+    $this->getJson($path.'/'.$approval->id)->assertOk()->assertJsonPath('data.trashed', true);
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$second->id]])->assertOk();
+    $this->postJson($path.'/lifecycle', ['action' => 'restore', 'ids' => [$approval->id, $second->id]])
+        ->assertOk()->assertJsonPath('data.updated', 2);
+    $this->postJson($path.'/lifecycle', ['action' => 'delete', 'ids' => [$approval->id]])->assertOk();
+    $this->postJson($path.'/lifecycle', ['action' => 'forceDelete', 'ids' => [$approval->id]])->assertOk();
+    $this->getJson($path.'/'.$approval->id)->assertNotFound();
+    expect(ApprovalActivity::query()->where('approval_id', $approval->id)->exists())->toBeFalse();
 });

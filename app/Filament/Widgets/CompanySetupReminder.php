@@ -17,10 +17,8 @@ class CompanySetupReminder extends Widget
 
     public static function canView(): bool
     {
-        return Onboarding::canAccess()
-            && ! session()->get(static::reminderSessionKey(), false)
-            && auth()->user()->company_setup_reminder_dismissed_at === null
-            && ! (app(CompanyOnboardingService::class)->organization()?->metadata['company_setup']['completed'] ?? false);
+        return ! session()->get(static::reminderSessionKey(), false)
+            && app(CompanyOnboardingService::class)->shouldShowReminder(auth()->user());
     }
 
     public function remindLater(): void
@@ -39,8 +37,6 @@ class CompanySetupReminder extends Widget
     {
         abort_unless(Onboarding::canAccess(), 403);
 
-        auth()->user()->forceFill([
-            'company_setup_reminder_dismissed_at' => now(),
-        ])->save();
+        app(CompanyOnboardingService::class)->dismissReminder(auth()->user());
     }
 }

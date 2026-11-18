@@ -44,7 +44,7 @@ class MyQuickLinks extends Page implements HasForms
                 ->schema([
                     Select::make('module')->label('Module')->options(fn (): array => array_map(fn (array $link): string => $link['label'], app(TopbarLinks::class)->catalog()))
                         ->required()->searchable()->disableOptionsWhenSelectedInSiblingRepeaterItems(),
-                ])->maxItems(8)->defaultItems(0)->reorderableWithButtons()->addActionLabel('Add quick link'),
+                ])->maxItems(TopbarLinks::MAX_LINKS)->defaultItems(0)->reorderableWithButtons()->addActionLabel('Add quick link'),
         ])->statePath('data');
     }
 
@@ -52,7 +52,7 @@ class MyQuickLinks extends Page implements HasForms
     {
         $state = $this->form->getState();
         Validator::make($state, [
-            'links' => ['present', 'array', 'max:8'],
+            'links' => ['present', 'array', 'max:'.TopbarLinks::MAX_LINKS],
             'links.*.module' => ['required', 'string', 'distinct', Rule::in(array_keys(app(TopbarLinks::class)->catalog()))],
         ])->validate();
         Filament::auth()->user()->forceFill(['topbar_links' => array_values(array_column($state['links'], 'module'))])->save();

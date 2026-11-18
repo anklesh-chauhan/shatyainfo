@@ -2,7 +2,6 @@
 
 namespace App\Services\Reports;
 
-use App\Enums\ApprovalStepStatus;
 use App\Models\ApprovalStep;
 use App\Models\DailyAttendance;
 use App\Models\SalesDcr;
@@ -32,19 +31,23 @@ class DashboardMetrics
         );
     }
 
-    public function visitsToday(User $user): int
+    /** @param list<int>|null $userIds */
+    public function visitsToday(User $user, ?array $userIds = null): int
     {
         return Visit::query()
-            ->applyVisibility('Visit')
+            ->applyVisibility('Visit', $user)
+            ->when($userIds !== null, fn (Builder $query): Builder => $query->whereIn('employee_id', $userIds))
             ->whereDate('visit_date', today())
             ->where('visit_status', '!=', 'cancelled')
             ->count();
     }
 
-    public function pendingDcrs(User $user): int
+    /** @param list<int>|null $userIds */
+    public function pendingDcrs(User $user, ?array $userIds = null): int
     {
         return SalesDcr::query()
-            ->applyVisibility('SalesDcr')
+            ->applyVisibility('SalesDcr', $user)
+            ->when($userIds !== null, fn (Builder $query): Builder => $query->whereIn('user_id', $userIds))
             ->whereIn('approval_status', ['draft', 'pending'])
             ->count();
     }
@@ -56,33 +59,24 @@ class DashboardMetrics
 
     public function pendingApprovalStepsQuery(User $user): Builder
     {
-        return ApprovalStep::query()
-            ->where('assigned_user_id', $user->id)
-            ->where('status', ApprovalStepStatus::Pending)
-            ->whereRaw(
-                'approval_steps.step_order = (
-                    select min(current_steps.step_order)
-                    from approval_steps as current_steps
-                    where current_steps.approval_id = approval_steps.approval_id
-                    and current_steps.status = ?
-                    and current_steps.deleted_at is null
-                )',
-                [ApprovalStepStatus::Pending->value]
-            );
+        return ApprovalStep::query()->currentFor($user->id);
     }
 
-    public function punchedInToday(User $user): int
+    /** @param list<int>|null $userIds */
+    public function punchedInToday(User $user, ?array $userIds = null): int
     {
         $query = DailyAttendance::query()
             ->whereDate('attendance_date', today())
             ->whereNotNull('first_punch_in');
 
-        if (! $this->userHasFullAccess($user)) {
-            $visibleUserIds = PositionService::getVisibleUserIdsFor($user);
+        if ($userIds === null && ! $this->userHasFullAccess($user)) {
+            $userIds = PositionService::getVisibleUserIdsFor($user)->all();
+        }
 
+        if ($userIds !== null) {
             $query->whereHas(
                 'employee',
-                fn (Builder $employeeQuery): Builder => $employeeQuery->whereIn('login_id', $visibleUserIds)
+                fn (Builder $employeeQuery): Builder => $employeeQuery->whereIn('login_id', $userIds)
             );
         }
 

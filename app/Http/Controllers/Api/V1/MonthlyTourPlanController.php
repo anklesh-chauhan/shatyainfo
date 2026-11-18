@@ -16,8 +16,12 @@ class MonthlyTourPlanController extends Controller
 {
     public function index(ListMonthlyTourPlansRequest $request, FieldMtpService $service): AnonymousResourceCollection
     {
-        return MonthlyTourPlanResource::collection($service->query($request->user())
-            ->where('month', 'like', $request->validated('month').'%')->orderByDesc('id')->paginate(20));
+        $user = $request->user();
+        $plans = $request->validated('scope') === 'team'
+            ? $service->teamQuery($user)
+            : $service->query($user);
+
+        return MonthlyTourPlanResource::collection($plans->where('month', 'like', $request->validated('month').'%')->orderByDesc('id')->paginate(20));
     }
 
     public function inbox(ListMonthlyTourPlansRequest $request, FieldMtpService $service): AnonymousResourceCollection
@@ -33,7 +37,12 @@ class MonthlyTourPlanController extends Controller
 
     public function show(Request $request, int $plan, FieldMtpService $service): MonthlyTourPlanResource
     {
-        return new MonthlyTourPlanResource($service->find($request->user(), $plan));
+        $scope = $request->query('scope', 'personal');
+        abort_unless(in_array($scope, ['personal', 'team'], true), 422, 'Choose personal or team plans.');
+
+        return new MonthlyTourPlanResource($scope === 'team'
+            ? $service->teamQuery($request->user())->findOrFail($plan)
+            : $service->find($request->user(), $plan));
     }
 
     public function store(SaveMonthlyTourPlanRequest $request, FieldMtpService $service): MonthlyTourPlanResource

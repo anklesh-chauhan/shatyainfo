@@ -15,6 +15,8 @@ use Filament\Resources\Resource;
 
 class TopbarLinks
 {
+    public const MAX_LINKS = 8;
+
     public function catalog(): array
     {
         $panel = Filament::getCurrentPanel();
@@ -57,7 +59,7 @@ class TopbarLinks
         $catalog ??= $this->catalog();
         $keys = $user->topbar_links ?? $this->defaults();
 
-        return array_values(array_slice(array_intersect(array_unique($keys), array_keys($catalog)), 0, 8));
+        return array_values(array_slice(array_intersect(array_unique($keys), array_keys($catalog)), 0, self::MAX_LINKS));
     }
 
     public function links(): array

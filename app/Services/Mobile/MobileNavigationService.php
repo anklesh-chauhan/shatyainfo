@@ -102,6 +102,7 @@ class MobileNavigationService
             'home' => $standalone && ! collect($items['workspace'] ?? [])->contains('key', 'g01-03')
                 ? 'modules' : $this->registry->homeFor($screenKeys),
             'groups' => $groups,
+            ...($standalone ? ['quick_links' => true] : []),
         ];
     }
 

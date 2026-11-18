@@ -6,12 +6,15 @@ use App\Filament\Clusters\HR\AttendanceCluster;
 use App\Filament\Clusters\HR\EmployeeManagementCluster;
 use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Clusters\Reports\ReportsCluster;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\FieldCoverage;
 use App\Filament\Pages\FlexiblePlanning;
+use App\Filament\Pages\MyApprovals;
 use App\Filament\Pages\PunchIn;
 use App\Filament\Pages\SalesAssistant;
 use App\Filament\Pages\TodaysTour;
 use App\Filament\Resources\AccountMasters\AccountMasterResource;
+use App\Filament\Resources\Approvals\ApprovalResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\EDetailingMaterials\EDetailingMaterialResource;
 use App\Filament\Resources\Leads\LeadResource;
@@ -103,12 +106,19 @@ class MobileNavigationRegistry
             $rank = array_flip([...$panel->getPages(), ...$panel->getResources()]);
         }
 
+        $bindings = $this->bindings();
+        if ($adminOrder) {
+            $bindings[] = ['key' => 'g01-01', 'group' => 'workspace', 'screen_key' => 'dashboard', 'source' => Dashboard::class];
+            $bindings[] = ['key' => 'g01-04', 'group' => 'workspace', 'screen_key' => 'my-approvals', 'source' => MyApprovals::class];
+            $bindings[] = ['key' => 'g01-05', 'group' => 'workspace', 'screen_key' => 'approval-register', 'source' => ApprovalResource::class];
+        }
+
         $entries = array_map(function (array $binding) use ($adminOrder): array {
             $metadata = $this->navigationMetadata($binding['source']);
 
             return [
                 'key' => $binding['key'],
-                'label' => $metadata['label'],
+                'label' => $metadata['label'] ?? (string) $binding['source']::getNavigationLabel(),
                 'sort' => $adminOrder ? $binding['source']::getNavigationSort() ?? -1 : $metadata['sort'],
                 'parent' => $adminOrder ? $this->parentFor($binding['source']) : null,
                 'group' => $binding['group'],
@@ -116,7 +126,7 @@ class MobileNavigationRegistry
                 'source' => $binding['source'],
                 'permission_key' => $this->permissionKey($binding['source']),
             ];
-        }, $this->bindings());
+        }, $bindings);
 
         usort($entries, function (array $left, array $right) use ($groupSort, $rank, $adminOrder): int {
             $byGroup = ($groupSort[$left['group']] ?? PHP_INT_MAX) <=> ($groupSort[$right['group']] ?? PHP_INT_MAX);

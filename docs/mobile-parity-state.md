@@ -1,6 +1,6 @@
 # Mobile parity working state
 
-Updated 16 November 2026. ERP at `C:/Herd/it-erp`, Flutter at `C:/Herd/grahak_field`. Use the [delivery plan](mobile-parity-plan.md#10-remaining-delivery-plan--16-november-2026), [inventory](mobile-parity-inventory.md) and [API contract](mobile-parity-contract.md) for detailed scope and evidence.
+Updated 17 November 2026. ERP at `C:/Herd/it-erp`, Flutter at `C:/Herd/grahak_field`. Use the [delivery plan](mobile-parity-plan.md#10-remaining-delivery-plan--16-november-2026), [inventory](mobile-parity-inventory.md) and [API contract](mobile-parity-contract.md) for detailed scope and evidence.
 
 ## Baseline and scope
 
@@ -48,6 +48,30 @@ Admin cluster metadata covers the three HR parents and All Reports. Child destin
 The final Flutter suite passed **309 tests**. Dart analysis reported no issues. The R02 backend scope passed **56 tests** (349 assertions), covering the registry, negotiation, eligible Admin inventory, Visit, expense, SGIP, E-detailing and Attendance. Pint and diff checks passed.
 
 The standalone registers use the existing personal field record scope. Team registers and additional actions remain in their resource waves. Live role, company and device acceptance remain pending. Rollout should make the compatible API available before releasing the new mobile build.
+
+## M01 My Workspace
+
+G01-01 adds Dashboard to the negotiated mobile menu for users with Dashboard access. It uses the seven Admin charts and the same four reporting periods, report visibility and per-user chart preferences. Users can choose a period, save any chart selection or restore all charts. The dashboard is online. Today’s Visits remains the field landing screen.
+
+The focused backend run passed 25 tests (209 assertions) for Dashboard access, chart scope, per-user preferences and negotiated navigation. The full Flutter suite passed 310 tests, including period selection and chart preference save/reset. Dart analysis, Pint and diff checks passed. Build 12 predates this Dashboard work.
+
+Dashboard now has a Personal summary and a Team switch for eligible users. Personal counts are always restricted to the signed-in user. Team counts require management access and existing record visibility. Reviewers with assigned current steps may see their own pending approval count. Chart preferences and reporting periods work independently of the summary switch. The full Flutter suite passed 310 tests and the focused Dashboard backend suite passed 8 tests (111 assertions).
+
+My quick links is available from Modules on compatible servers. Mobile and Admin share preferences. Ordered mobile saves preserve entries outside the mobile catalog, and resetting restores shared defaults. All 311 Flutter tests passed, along with 19 mobile backend tests and seven Admin navigation tests.
+
+The Dashboard setup reminder uses the Admin eligibility rule and shared per-user dismissal. Remind me later lasts for the current sign-in, and Continue setup opens the current company checklist in the browser. All 313 Flutter tests and 12 targeted backend tests passed.
+
+My Approvals now opens from My Workspace and the Dashboard approval count when authorized. The inbox and detail use the current assigned step. Approve and Reject use the existing workflow service and check the exact step under the workflow lock. Lead and Deal approval stays on the web. All 314 Flutter tests and 43 targeted backend tests (265 assertions) passed. Dart analysis, Pint and diff checks passed.
+
+Approval Register now lists scoped history, status and trash filters, review steps, and activity. It exposes the existing lifecycle actions by permission and record state, with all records checked before a bulk change is applied. Approved records retain the existing approval override requirement. All 315 Flutter tests and 45 targeted backend tests (279 assertions) passed. Dart analysis, Pint and diff checks passed. Requests still originate in their owning module. Approval decisions still use My Approvals. Lead and Deal approvals remain web-only.
+
+The next delivery wave is M02 Field Operations. Team Coverage filters and drill-down remain in that wave. Live acceptance remains tracked separately.
+
+## M02 Field Operations
+
+Tour Plans now has a Team plans view when the caller can read plans belonging to other representatives. Team list and detail use the Admin Tour Plans visibility scope and separate list and view permissions. Personal plans, current-step review and existing plan changes keep their own entry points. Team plan detail is read-only. All 32 targeted backend tests passed (269 assertions), including Admin territory scope, revoked access and the separate review inbox. All 316 Flutter tests passed. Dart analysis, Pint and diff checks passed.
+
+Creating a plan on another employee’s behalf, team plan edits, and supported register lifecycle actions remain open in G02-01. The rest of the Field Operations inventory remains in M02.
 
 ## CRM carryover
 

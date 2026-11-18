@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\ApprovalStepStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
@@ -33,6 +35,25 @@ class ApprovalStep extends BaseModel
             'reminded_at' => 'datetime',
             'escalated_at' => 'datetime',
         ];
+    }
+
+    public function scopeCurrentFor(Builder $query, int $userId): Builder
+    {
+        return $query->where('assigned_user_id', $userId)
+            ->where('status', ApprovalStepStatus::Pending->value)
+            ->whereHas('approval', fn (Builder $approval): Builder => $approval
+                ->where('approval_status', ApprovalStatus::Pending->value)->whereNull('finalized_at'))
+            ->where('approval_steps.id', static::query()->from('approval_steps as current_steps')
+                ->select('current_steps.id')
+                ->whereColumn('current_steps.approval_id', 'approval_steps.approval_id')
+                ->where('current_steps.status', ApprovalStepStatus::Pending->value)
+                ->orderBy('current_steps.step_order')->orderBy('current_steps.id')->limit(1)
+                ->withoutGlobalScopes()->whereNull('current_steps.deleted_at'));
+    }
+
+    public function scopeAvailableOnMobile(Builder $query): Builder
+    {
+        return $query->whereHas('approval', fn (Builder $approval): Builder => $approval->availableOnMobile());
     }
 
     public function approval(): BelongsTo

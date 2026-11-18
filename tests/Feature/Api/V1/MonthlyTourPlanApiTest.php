@@ -118,6 +118,47 @@ it('hides other users plans and enforces create permission', function () {
     $this->postJson('/api/v1/monthly-tour-plans', $f['body'])->assertForbidden();
 });
 
+it('reads team plans only through Admin visibility and keeps reviewer actions in the inbox', function () {
+    $fixture = fieldMtpFixture();
+    $base = '/api/v1/monthly-tour-plans';
+    $plan = $this->postJson($base, $fixture['body'])->assertSuccessful()->json('data');
+    $this->postJson($base.'/'.$plan['id'].'/submit', ['revision' => $plan['revision']])->assertSuccessful();
+
+    Sanctum::actingAs($fixture['director']);
+    $outside = SalesTourPlan::forceCreate([
+        'user_id' => $fixture['director']->id, 'month' => '2026-10',
+        'approval_status' => 'draft', 'created_by' => $fixture['director']->id,
+    ]);
+    $outside->details()->create([
+        'date' => '2026-10-01',
+        'territory_id' => reportingTerritory('Outside Team Scope')->id,
+    ]);
+
+    $reviewer = $fixture['manager'];
+    Sanctum::actingAs($reviewer);
+    $this->getJson($base.'/options')->assertJsonPath('data.can_view_team', false);
+    $this->getJson($base.'?month=2026-10&scope=team')->assertForbidden();
+
+    grantPagePermissions($reviewer, 'ViewAny:SalesTourPlan', 'View:SalesTourPlan', 'ViewOwnTerritory:SalesTourPlan');
+    Sanctum::actingAs($reviewer->fresh());
+    $this->getJson($base.'/options')->assertJsonPath('data.can_view_team', true);
+    $this->getJson($base.'?month=2026-10&scope=team')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $plan['id'])
+        ->assertJsonPath('data.0.can_edit', false)->assertJsonPath('data.0.can_decide', false);
+    $this->getJson($base.'?month=2026-09&scope=team')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($base.'?month=2026-10')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($base.'/'.$outside->id.'?scope=team')->assertNotFound();
+    $this->getJson($base.'/'.$plan['id'].'?scope=team')->assertOk()
+        ->assertJsonPath('data.can_decide', false)->assertJsonPath('data.details.0.remarks', 'Morning route');
+    $this->getJson($base.'/'.$plan['id'])->assertOk()->assertJsonPath('data.can_decide', true);
+
+    $reviewer->revokePermissionTo('ViewOwnTerritory:SalesTourPlan');
+    Sanctum::actingAs($reviewer->fresh());
+    $this->getJson($base.'/options')->assertJsonPath('data.can_view_team', false);
+    $this->getJson($base.'/'.$plan['id'].'?scope=team')->assertNotFound();
+    $this->getJson($base.'/inbox?month=2026-10')->assertOk()->assertJsonPath('data.0.id', $plan['id']);
+});
+
 it('validates dates territories and purpose relationships without partial writes', function () {
     $f = fieldMtpFixture();
     $invalid = $f['body'];

@@ -75,20 +75,7 @@ class ApprovalResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        $user = auth()->user();
-
-        if (! $user) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        if ($user->hasAnyRole(['super_admin', 'administration_admin']) || $user->can('AccessAllRecords')) {
-            return $query;
-        }
-
-        return $query->where(fn (Builder $approvals): Builder => $approvals
-            ->where('requested_by', $user->id)
-            ->orWhereHas('steps', fn (Builder $steps): Builder => $steps->where('assigned_user_id', $user->id)));
+        return parent::getEloquentQuery()->visibleTo(auth()->user());
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder

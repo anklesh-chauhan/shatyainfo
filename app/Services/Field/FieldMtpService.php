@@ -53,6 +53,24 @@ class FieldMtpService
         });
     }
 
+    public function teamQuery(User $user): Builder
+    {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
+        abort_unless($this->canReadTeamPlans($user), 403);
+
+        return $this->visibleTeammatePlans($user)->with($this->relations());
+    }
+
+    private function canReadTeamPlans(User $user): bool
+    {
+        return $user->can('viewAny', SalesTourPlan::class) && $user->can('View:SalesTourPlan');
+    }
+
+    private function visibleTeammatePlans(User $user): Builder
+    {
+        return SalesTourPlan::query()->applyVisibility('SalesTourPlan', $user)->where('user_id', '!=', $user->id);
+    }
+
     public function find(User $user, int $id, bool $lock = false): SalesTourPlan
     {
         abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
@@ -116,6 +134,7 @@ class FieldMtpService
         return [
             'approval_required' => ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class),
             'can_create' => Gate::forUser($user)->allows('create', SalesTourPlan::class),
+            'can_view_team' => $this->canReadTeamPlans($user) && $this->visibleTeammatePlans($user)->exists(),
             'tour_plan_months' => VisitPreference::current()->allowedTourPlanMonths(),
             'territories' => $territories->toArray(),
             'patches' => Patch::query()->whereIn('territory_id', $territories->pluck('id'))->orderBy('name')->get(['id', 'name', 'territory_id'])->toArray(),

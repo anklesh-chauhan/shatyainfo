@@ -153,9 +153,9 @@ class ApprovalService
         });
     }
 
-    public function approve(Approval $approval, int $userId, ?string $comments = null): bool
+    public function approve(Approval $approval, int $userId, ?string $comments = null, ?int $expectedStepId = null): bool
     {
-        return DB::transaction(function () use ($approval, $userId, $comments): bool {
+        return DB::transaction(function () use ($approval, $userId, $comments, $expectedStepId): bool {
             $approval = Approval::query()
                 ->whereKey($approval->id)
                 ->lockForUpdate()
@@ -167,7 +167,7 @@ class ApprovalService
 
             $step = $this->currentStepForUpdate($approval);
 
-            if (! $step || $step->assigned_user_id !== $userId) {
+            if (! $step || $step->assigned_user_id !== $userId || ($expectedStepId !== null && (int) $step->id !== $expectedStepId)) {
                 return false;
             }
 
@@ -184,9 +184,9 @@ class ApprovalService
         });
     }
 
-    public function reject(Approval $approval, int $userId, ?string $comments = null): bool
+    public function reject(Approval $approval, int $userId, ?string $comments = null, ?int $expectedStepId = null): bool
     {
-        return DB::transaction(function () use ($approval, $userId, $comments): bool {
+        return DB::transaction(function () use ($approval, $userId, $comments, $expectedStepId): bool {
             $approval = Approval::query()
                 ->whereKey($approval->id)
                 ->lockForUpdate()
@@ -198,7 +198,7 @@ class ApprovalService
 
             $step = $this->currentStepForUpdate($approval);
 
-            if (! $step || $step->assigned_user_id !== $userId) {
+            if (! $step || $step->assigned_user_id !== $userId || ($expectedStepId !== null && (int) $step->id !== $expectedStepId)) {
                 return false;
             }
 
@@ -241,7 +241,7 @@ class ApprovalService
         return ApprovalStep::query()
             ->where('approval_id', $approval->id)
             ->where('status', ApprovalStepStatus::Pending->value)
-            ->orderBy('step_order')
+            ->orderBy('step_order')->orderBy('id')
             ->lockForUpdate()
             ->first();
     }

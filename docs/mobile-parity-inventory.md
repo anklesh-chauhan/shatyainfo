@@ -123,6 +123,8 @@ Admin Tour Plans stays hidden unless `supports_mtp` is on. `canViewAny` and `can
 
 Flutter lists My plans and To approve for the selected month, then opens the plan. The plan screen shows the employee, status, manager remarks, days, and approval steps. The owner can edit, save, and submit a draft. The current assignee can approve or reject. Saving and those actions send the revision.
 
+**M02 Team plans.** Authorized users can list and inspect other representatives’ monthly plans using the Admin visibility scope. Mobile keeps Team plans read-only and leaves current-step review in the approval inbox. Delegated creation and edit, and remaining register actions, still need their own implementation and verification.
+
 ### G02-02 comparison
 
 15 November 2026. Source comparison only. Flexible planning was not changed. The inventory row stays **Gap**.

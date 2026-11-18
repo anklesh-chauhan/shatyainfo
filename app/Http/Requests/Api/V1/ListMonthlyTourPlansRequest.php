@@ -13,11 +13,15 @@ class ListMonthlyTourPlansRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['month' => ['required', 'date_format:Y-m'], 'page' => ['sometimes', 'integer', 'min:1']];
+        return [
+            'month' => ['required', 'date_format:Y-m'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'scope' => ['sometimes', 'in:personal,team'],
+        ];
     }
 
     public function messages(): array
     {
-        return ['month.date_format' => 'Select a valid month (YYYY-MM).'];
+        return ['month.date_format' => 'Select a valid month (YYYY-MM).', 'scope.in' => 'Choose personal or team plans.'];
     }
 }

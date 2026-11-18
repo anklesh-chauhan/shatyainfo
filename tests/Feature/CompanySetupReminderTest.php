@@ -4,6 +4,7 @@ use App\Filament\Clusters\GlobalConfiguration\OrganizationAndCompanyCluster;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Onboarding;
 use App\Filament\Widgets\CompanySetupReminder;
+use App\Http\Middleware\IdentifyTenant;
 use App\Http\Middleware\PromptCompanySetup;
 use App\Models\Organization;
 use App\Models\Tenant;
@@ -13,6 +14,7 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -81,7 +83,7 @@ it('remembers dismissal for only the current user while keeping setup accessible
 it('rejects dismissal by users without setup access', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
-    Livewire::test(CompanySetupReminder::class)->call('dismiss')->assertForbidden();
+    expect(fn () => (new CompanySetupReminder)->dismiss())->toThrow(HttpException::class);
     expect($user->fresh()->company_setup_reminder_dismissed_at)->toBeNull();
 });
 
@@ -125,4 +127,37 @@ it('saves an incomplete first-company draft and allows deferring to the dashboar
     $this->actingAs(User::factory()->create());
     expect(fn () => app(CompanyOnboardingService::class)->draft())
         ->toThrow(HttpException::class);
+});
+
+it('shares mobile reminder eligibility and dismissal with Admin in the current company', function () {
+    $this->withoutMiddleware(IdentifyTenant::class);
+    Tenant::current()->forceFill(['domain' => 'setup-company.example.test']);
+    $admin = auth()->user();
+    $admin->forceFill(['dashboard_widgets' => []])->save();
+    Sanctum::actingAs($admin);
+
+    $this->getJson('https://localhost/api/v1/dashboard/overview')->assertOk()
+        ->assertJsonPath('data.setup_reminder.setup_url',
+            'https://setup-company.example.test'.Onboarding::getUrl(isAbsolute: false, panel: 'admin'));
+    $this->deleteJson('/api/v1/dashboard/setup-reminder')->assertOk()
+        ->assertJsonPath('data.setup_reminder', null);
+    $this->getJson('/api/v1/dashboard/overview')->assertOk()->assertJsonPath('data.setup_reminder', null);
+    expect($admin->fresh()->company_setup_reminder_dismissed_at)->not->toBeNull();
+
+    $other = User::factory()->create();
+    $other->assignRole(Role::findOrCreate('super_admin', 'tenant'));
+    $other->forceFill(['dashboard_widgets' => []])->save();
+    Sanctum::actingAs($other);
+    $this->getJson('/api/v1/dashboard/overview')->assertOk()->assertJsonStructure(['data' => ['setup_reminder' => ['setup_url']]]);
+    Organization::create(['name' => 'Completed company', 'metadata' => ['company_setup' => ['completed' => true]]]);
+    $this->getJson('/api/v1/dashboard/overview')->assertOk()->assertJsonPath('data.setup_reminder', null);
+
+    $member = grantPagePermissions(User::factory()->create(), 'View:Dashboard');
+    Sanctum::actingAs($member);
+    $this->deleteJson('/api/v1/dashboard/setup-reminder')->assertForbidden();
+    expect($member->fresh()->company_setup_reminder_dismissed_at)->toBeNull();
+
+    Tenant::forgetCurrent();
+    Sanctum::actingAs($other);
+    $this->deleteJson('/api/v1/dashboard/setup-reminder')->assertForbidden();
 });

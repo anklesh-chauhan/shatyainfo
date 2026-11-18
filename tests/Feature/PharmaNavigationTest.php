@@ -33,6 +33,15 @@ beforeEach(function (): void {
         $table->string('password');
         $table->timestamps();
     });
+    Schema::create('organizations', function (Blueprint $table): void {
+        $table->id();
+        $table->json('metadata')->nullable();
+        $table->softDeletes();
+    });
+    Schema::create('field_planning_activations', function (Blueprint $table): void {
+        $table->id();
+        $table->date('effective_on');
+    });
     (require database_path('migrations/tenant/2026_10_18_210548_add_topbar_links_to_users_table.php'))->up();
     (require database_path('migrations/tenant/2025_03_10_160426_create_permission_tables.php'))->up();
     $this->user = User::withoutEvents(fn () => User::create(['name' => 'Rep', 'email' => 'rep@example.test', 'password' => 'password']));

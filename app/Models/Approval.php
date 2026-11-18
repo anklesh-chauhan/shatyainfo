@@ -100,6 +100,26 @@ class Approval extends BaseModel
         return $this->finalized_at !== null;
     }
 
+    public function scopeVisibleTo(Builder $query, ?User $user): Builder
+    {
+        if ($user === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->hasAnyRole(['super_admin', 'administration_admin']) || $user->can('AccessAllRecords')) {
+            return $query;
+        }
+
+        return $query->where(fn (Builder $approvals): Builder => $approvals
+            ->where('requested_by', $user->id)
+            ->orWhereHas('steps', fn (Builder $steps): Builder => $steps->where('assigned_user_id', $user->id)));
+    }
+
+    public function scopeAvailableOnMobile(Builder $query): Builder
+    {
+        return $query->whereNotIn('approvable_type', [Lead::class, Deal::class]);
+    }
+
     public function scopeDraftForUser(Builder $query): Builder
     {
         $userId = Auth::id();

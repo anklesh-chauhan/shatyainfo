@@ -143,6 +143,37 @@ A missing route, missing `schema_version`, non-array `groups`, or any malformed 
 - An unknown `screen_key` is not opened.
 - Login and `/me` responses remain valid for the current Flutter build.
 
+## Dashboard
+
+The negotiated menu can include G01-01 with screen key `dashboard`. The API requires `View:Dashboard` through the same business-page access rule as Admin.
+
+- `GET /api/v1/dashboard/overview?period=last_7` returns the selected period, allowed period labels, chart catalog, saved chart keys and scoped series for the selected charts. Allowed periods are `today`, `last_7`, `this_month` and `last_30`. Each series pairs chart labels with numeric values.
+- `PATCH /api/v1/dashboard/preferences` accepts a list of chart keys in `widgets`. An empty list hides all charts. A null value clears the override and restores the catalog defaults. Changes affect the signed-in user’s Admin and native Dashboard.
+
+`GET /api/v1/dashboard/workspace?view=personal` returns the selected view, `can_view_team` and authorized counts. A request for `view=team` requires the field management gate or Dashboard and My Approvals access with at least one current assigned step. Team operational counts also require resource permissions and use the caller’s visible hierarchy, subject to existing record-scope bypass. A reviewer without field management receives only their approval count. Missing count fields represent unavailable metrics. The workspace summary is independent of the visual report period.
+
+The overview also returns `setup_reminder` for an eligible company administrator while setup is incomplete and the user has not dismissed it. `setup_url` opens that company’s Admin checklist. `DELETE /api/v1/dashboard/setup-reminder` stores the same per-user dismissal used by Admin. Remind me later only hides the card for the current app sign-in.
+
+## My quick links
+
+Negotiated navigation advertises `quick_links: true`. Authenticated `GET /api/v1/mobile-quick-links` returns options, selected menu item keys and the available limit. `PATCH` saves distinct ordered keys within the current mobile catalog and preserves other stored entries. Admin and mobile share up to eight links. A null selection restores shared defaults.
+
+## My Approvals
+
+The negotiated menu can expose G01-04 as `my-approvals`. `GET /api/v1/my-approvals` returns 25 current assigned steps per page. `GET /api/v1/my-approvals/{step}` returns the assigned step’s review summary. Lead and Deal approvals remain web-only.
+
+`POST /api/v1/my-approvals/{step}/decision` accepts `decision: approve|reject` and requires nonblank `comments` on rejection. The server checks Dashboard-independent My Approvals access, assignment and the exact current step under the approval workflow lock. An unrelated step returns 404. An assigned step that is stale, already decided or out of order returns 409. The app reloads the inbox after a decision.
+
+## Approval Register
+
+Negotiated navigation exposes G01-05 as `approval-register` for users with Approval list permission. `GET /api/v1/approval-register` returns 25 records per page for the requester or a reviewer on the workflow, subject to existing record visibility bypass. The optional `status` filter accepts approval statuses. `trash=active|with|only` defaults to active. `GET /api/v1/approval-register/{approval}` additionally requires record view permission and returns the selected review steps, activity, and allowed lifecycle actions.
+
+`POST /api/v1/approval-register/lifecycle` accepts `action: delete|restore|forceDelete` and one to 25 distinct approval IDs. Multiple records also require the corresponding bulk permission. Each record must be visible, have the individual action permission, and be in the required trash state. Approved records also require `OverrideApproval:Approval`. The entire batch is checked under lock before mutation. Permanent deletion removes the approval and its child history. Requests originate in their owning module, and decisions remain in My Approvals. Lead and Deal approvals remain web-only.
+
+## Monthly Tour Plans team view
+
+`GET /api/v1/monthly-tour-plans/options` returns `can_view_team` when the actor may view another representative’s plan. Add `scope=team` to the monthly list or plan detail to use the Admin record visibility scope. Both requests require `ViewAny:SalesTourPlan` and `View:SalesTourPlan` with monthly planning enabled. The team list excludes the caller’s own plans. Team responses advertise no edit or decision actions. Existing personal, assigned inbox and workflow routes keep their current contract.
+
 ## Account action capabilities
 
 The paginated `GET /api/v1/accounts` response includes top-level `can_create`. Account responses include record-specific `data.can_update` on detail. Flutter treats missing flags as false. The existing policies and record visibility still authorize direct writes. Global Search opens the same detail view. Account writes validate changed related records and explicit assignments. Retained assignment values can accompany an edit to other fields.

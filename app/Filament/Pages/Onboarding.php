@@ -625,7 +625,7 @@ class Onboarding extends Page
 
     public static function canAccess(): bool
     {
-        return Tenant::checkCurrent() && (auth()->user()?->hasAnyRole(['super_admin', 'administration_admin']) ?? false);
+        return CompanyOnboardingService::canAccess(auth()->user());
     }
 
     public function mount(?string $importSection = null): void
