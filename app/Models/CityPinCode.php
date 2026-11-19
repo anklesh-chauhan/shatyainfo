@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
@@ -61,11 +62,13 @@ class CityPinCode extends BaseModel
         return implode(', ', array_filter($parts));
     }
 
-    public function scopeSearchLocation($query, string $search)
+    public function scopeSearchLocation(Builder $query, string $search): Builder
     {
-        return $query->where('area_town', 'like', "%{$search}%")
-            ->orWhere('pin_code', 'like', "%{$search}%")
-            ->orWhereHas('city', fn ($q) => $q->where('name', 'like', "%{$search}%")
-            );
+        $pattern = "%{$search}%";
+
+        return $query->where(fn (Builder $locations): Builder => $locations
+            ->whereLike('area_town', $pattern)
+            ->orWhereRaw('CAST(pin_code AS text) LIKE ?', [$pattern])
+            ->orWhereHas('city', fn (Builder $cities): Builder => $cities->whereLike('name', $pattern)));
     }
 }

@@ -67,7 +67,7 @@ class CreateSalesTourPlan extends CreateRecord
 
             $existing = SalesTourPlan::query()
                 ->where('user_id', $owner->id)
-                ->where('month', 'like', $month.'%')
+                ->whereLike('month', $month.'%')
                 ->first();
 
             if ($existing) {

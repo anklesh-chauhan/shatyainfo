@@ -10,6 +10,8 @@ use Spatie\Multitenancy\Actions\MakeQueueTenantAwareAction;
 use Spatie\Multitenancy\Actions\MakeTenantCurrentAction;
 use Spatie\Multitenancy\Actions\MigrateTenantAction;
 use Spatie\Multitenancy\Models\Tenant;
+use Spatie\Multitenancy\Tasks\SwitchTenantDatabaseTask;
+use Spatie\Multitenancy\TenantFinder\DomainTenantFinder;
 
 return [
     /*
@@ -19,7 +21,7 @@ return [
      * This class should extend `Spatie\Multitenancy\TenantFinder\TenantFinder`
      *
      */
-    'tenant_finder' => \Spatie\Multitenancy\TenantFinder\DomainTenantFinder::class,
+    'tenant_finder' => DomainTenantFinder::class,
 
     /*
      * These fields are used by tenant:artisan command to match one or more tenant.
@@ -35,7 +37,7 @@ return [
      */
     'switch_tenant_tasks' => [
         // \Spatie\Multitenancy\Tasks\PrefixCacheTask::class,
-        \Spatie\Multitenancy\Tasks\SwitchTenantDatabaseTask::class,
+        SwitchTenantDatabaseTask::class,
         // \Spatie\Multitenancy\Tasks\SwitchRouteCacheTask::class,
     ],
 
@@ -64,7 +66,7 @@ return [
     /*
      * The connection name to reach the landlord database.
      */
-    'landlord_database_connection_name' => 'mysql',
+    'landlord_database_connection_name' => 'pgsql',
 
     /*
      * This key will be used to associate the current tenant in the context

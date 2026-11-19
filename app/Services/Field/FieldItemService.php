@@ -33,9 +33,9 @@ class FieldItemService
         if (filled($search)) {
             $query->where(function ($builder) use ($search): void {
                 $builder
-                    ->where('item_name', 'like', '%'.$search.'%')
-                    ->orWhere('item_code', 'like', '%'.$search.'%')
-                    ->orWhere('sku', 'like', '%'.$search.'%');
+                    ->whereLike('item_name', '%'.$search.'%')
+                    ->orWhereLike('item_code', '%'.$search.'%')
+                    ->orWhereLike('sku', '%'.$search.'%');
             });
         }
 

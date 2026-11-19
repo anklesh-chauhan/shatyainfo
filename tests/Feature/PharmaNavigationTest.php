@@ -24,8 +24,8 @@ use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function (): void {
-    config(['database.default' => 'mysql', 'database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true], 'cache.default' => 'array', 'session.driver' => 'array']);
-    DB::purge('mysql');
+    config(['database.default' => 'pgsql', 'database.connections.pgsql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true], 'cache.default' => 'array', 'session.driver' => 'array']);
+    DB::purge('pgsql');
     Schema::create('users', function (Blueprint $table): void {
         $table->id();
         $table->string('name');
@@ -50,7 +50,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    DB::purge('mysql');
+    DB::purge('pgsql');
 });
 
 it('resolves regrouped admin menu destinations and renders their icons', function (): void {

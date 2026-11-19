@@ -41,9 +41,9 @@ class SalesTourPlansTable
                     ->searchable(
                         query: function (Builder $query, string $search): Builder {
                             return $query->whereHas('user.employee', function ($q) use ($search) {
-                                $q->where('first_name', 'like', "%{$search}%")
-                                    ->orWhere('last_name', 'like', "%{$search}%")
-                                    ->orWhere('email', 'like', "%{$search}%");
+                                $q->whereLike('first_name', "%{$search}%")
+                                    ->orWhereLike('last_name', "%{$search}%")
+                                    ->orWhereLike('email', "%{$search}%");
                             });
                         }
                     ),

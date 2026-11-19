@@ -78,7 +78,7 @@ class FieldTeamOnboarding extends Page implements HasForms
                             return LocationMaster::query()->create([...$data, 'is_active' => true])->id;
                         }),
                     Select::make('account_ids')->label('Customers to assign or transfer')->multiple()->searchable()
-                        ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->where('name', 'like', '%'.$search.'%')->limit(100)->pluck('name', 'id')->all())
+                        ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereLike('name', '%'.$search.'%')->limit(100)->pluck('name', 'id')->all())
                         ->getOptionLabelsUsing(fn (array $values): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereIn('id', $values)->pluck('name', 'id')->all())
                         ->helperText('Only selected customers are changed. Unselected customers retain their existing owners.'),
                     TextInput::make('calls_per_month')->label('Initial monthly call target')->integer()->numeric()->minValue(0)->maxValue(1000)->required()

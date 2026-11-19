@@ -39,8 +39,8 @@ class FieldDealService
         if (filled($search)) {
             $term = '%'.$search.'%';
             $query->where(function ($builder) use ($term): void {
-                $builder->where('deal_name', 'like', $term)
-                    ->orWhere('reference_code', 'like', $term);
+                $builder->whereLike('deal_name', $term)
+                    ->orWhereLike('reference_code', $term);
             });
         }
 

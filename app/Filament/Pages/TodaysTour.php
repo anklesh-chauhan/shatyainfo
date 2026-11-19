@@ -74,7 +74,7 @@ class TodaysTour extends Page implements HasActions, HasForms
                 'patches.companies' => function ($query) {
                     // If searching, filter the companies right in the SQL query
                     if (filled($this->search)) {
-                        $query->where('name', 'like', '%'.$this->search.'%');
+                        $query->whereLike('name', '%'.$this->search.'%');
                     }
                     $query->with(['typeMaster', 'contactDetails']);
                 },

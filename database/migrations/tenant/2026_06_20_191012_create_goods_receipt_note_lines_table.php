@@ -29,7 +29,7 @@ return new class extends Migration
         }
 
         Schema::table('goods_receipt_note_lines', function (Blueprint $table): void {
-            if (! $this->indexExists('goods_receipt_note_lines', 'grn_lines_grn_item_idx')) {
+            if (! Schema::hasIndex('goods_receipt_note_lines', 'grn_lines_grn_item_idx')) {
                 $table->index(['goods_receipt_note_id', 'item_master_id'], 'grn_lines_grn_item_idx');
             }
         });
@@ -38,18 +38,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('goods_receipt_note_lines');
-    }
-
-    private function indexExists(string $table, string $index): bool
-    {
-        $connection = Schema::getConnection();
-        $database = $connection->getDatabaseName();
-
-        $result = $connection->select(
-            'SELECT COUNT(*) AS aggregate FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ?',
-            [$database, $table, $index]
-        );
-
-        return (int) ($result[0]->aggregate ?? 0) > 0;
     }
 };

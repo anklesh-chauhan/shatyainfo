@@ -60,12 +60,12 @@ class FieldLeadService
         if (filled($search)) {
             $term = '%'.$search.'%';
             $query->where(function ($builder) use ($term): void {
-                $builder->where('reference_code', 'like', $term)
-                    ->orWhere('description', 'like', $term)
-                    ->orWhereHas('accountMaster', fn ($accounts) => $accounts->where('name', 'like', $term))
+                $builder->whereLike('reference_code', $term)
+                    ->orWhereLike('description', $term)
+                    ->orWhereHas('accountMaster', fn ($accounts) => $accounts->whereLike('name', $term))
                     ->orWhereHas('contactDetail', function ($contacts) use ($term): void {
-                        $contacts->where('first_name', 'like', $term)
-                            ->orWhere('last_name', 'like', $term);
+                        $contacts->whereLike('first_name', $term)
+                            ->orWhereLike('last_name', $term);
                     });
             });
         }

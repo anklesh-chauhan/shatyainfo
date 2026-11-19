@@ -24,9 +24,9 @@ class FieldContactService
         if (filled($search)) {
             $term = '%'.$search.'%';
             $query->where(function ($builder) use ($term): void {
-                $builder->where('first_name', 'like', $term)
-                    ->orWhere('last_name', 'like', $term)
-                    ->orWhere('mobile_number', 'like', $term);
+                $builder->whereLike('first_name', $term)
+                    ->orWhereLike('last_name', $term)
+                    ->orWhereLike('mobile_number', $term);
             });
         }
 

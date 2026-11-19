@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\City;
 use App\Models\CityPinCode;
 use App\Models\LocationMaster;
 use App\Models\Organization;
@@ -10,6 +9,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Tenant;
 use App\Models\Territory;
 use App\Models\TypeMaster;
+use App\Services\DataImport\CityImport;
 use App\Services\DataImport\ImportRowException;
 use App\Services\DataImport\SpreadsheetFile;
 use Illuminate\Support\Facades\DB;
@@ -116,6 +116,7 @@ class TerritoryOnboardingService
         $pending = collect($rows)->keyBy('code');
         $errors = [];
         $areaPlans = [];
+        $cities = new CityImport;
         foreach ($rows as $index => &$row) {
             $row['area_plans'] = [];
             $row['division_plans'] = array_values(array_intersect_key($divisionPlans, array_flip(array_map(fn ($code) => strtoupper(trim($code)), explode(';', $row['division_codes'])))));
@@ -161,30 +162,33 @@ class TerritoryOnboardingService
                         continue;
                     } else {
                         $parts = array_map('trim', explode('|', $item));
-                        if (count($parts) !== 3 || in_array('', $parts, true) || ! ctype_digit($parts[2] ?? '')) {
-                            $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': use City|Area|PIN for each location, separated by semicolons.';
+                        $errorKey = 'rows.'.$index.'.'.$field;
+                        $rowLabel = 'Row '.($index + 2).': ';
+                        if (! in_array(count($parts), [3, 5], true) || in_array('', $parts, true) || ! ctype_digit($parts[2])) {
+                            $errors[$errorKey] = $rowLabel.'use City|Area|PIN or City|Area|PIN|State|Country for each location, separated by semicolons.';
 
                             continue;
                         }
-                        $cities = City::query()->where('name', $parts[0])->limit(2)->get();
-                        if ($cities->count() !== 1) {
-                            $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': '.$parts[0].' must match exactly one existing city.';
-
-                            continue;
-                        }
-                        $city = $cities->first();
                         $pin = ltrim($parts[2], '0') ?: '0';
-                        if (strlen($pin) > 10 || (int) $pin > 2147483647 || mb_strlen($parts[1]) > 255) {
-                            $errors['rows.'.$index.'.'.$field] = 'Row '.($index + 2).': supply a valid PIN and an area name of up to 255 characters.';
+                        if (strlen($pin) > 10 || (int) $pin > 2147483647 || mb_strlen($parts[0]) > 255 || mb_strlen($parts[1]) > 255) {
+                            $errors[$errorKey] = $rowLabel.'supply a valid PIN and city and area names of up to 255 characters.';
 
                             continue;
                         }
-                        $key = $city->id.'|'.$pin;
+                        try {
+                            $city = $cities->resolve($parts[0], (int) $pin, $parts[3] ?? '', $parts[4] ?? '');
+                        } catch (ImportRowException $exception) {
+                            $errors[$errorKey] = $rowLabel.$exception->getMessage();
+
+                            continue;
+                        }
+                        $key = $city->name.'|'.$pin;
                         if (! isset($areaPlans[$key])) {
-                            $area = CityPinCode::query()->where('city_id', $city->id)->where('pin_code', $pin)->orderBy('id')->first();
+                            $area = $city->exists ? $city->areaTowns()->where('pin_code', $pin)->orderBy('id')->first() : null;
                             $areaPlans[$key] = [
                                 'id' => $area?->id ?? -(count($areaPlans) + 1),
-                                'city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id,
+                                'city_id' => $city->id, 'city_name' => $city->name,
+                                'state_id' => $city->state_id, 'country_id' => $city->country_id,
                                 'pin_code' => (int) $pin, 'area_town' => $area?->area_town ?? $parts[1],
                             ];
                         }
@@ -242,13 +246,22 @@ class TerritoryOnboardingService
             $rows = $this->preview($rows);
             $divisionIds = [];
             $areaIds = [];
+            $cities = new CityImport;
             foreach ($rows as $row) {
                 foreach ($row['area_plans'] as $plan) {
                     if ($plan['id'] > 0 || isset($areaIds[$plan['id']])) {
                         continue;
                     }
                     $temporaryId = $plan['id'];
-                    unset($plan['id']);
+                    if ($plan['city_id'] === null) {
+                        try {
+                            $city = $cities->persist($plan['city_name'], $plan['state_id'], $plan['country_id']);
+                        } catch (ImportRowException $exception) {
+                            throw ValidationException::withMessages(['territoryFile' => $exception->getMessage()]);
+                        }
+                        $plan['city_id'] = $city->id;
+                    }
+                    unset($plan['id'], $plan['city_name']);
                     $areaIds[$temporaryId] = CityPinCode::create($plan)->id;
                 }
                 foreach ($row['division_plans'] as $plan) {

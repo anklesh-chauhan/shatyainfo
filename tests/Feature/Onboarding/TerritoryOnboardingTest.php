@@ -338,7 +338,7 @@ it('rejects missing and invalid mandatory references without partial imports', f
         $type = TypeMaster::create(['name' => 'Department', 'typeable_type' => OrganizationalUnit::class]);
         OrganizationalUnit::where('code', 'DIV-WEST')->update(['type_master_id' => $type->id]);
     } elseif ($case === 'unknown_location') {
-        $rows[1]['cities_and_areas'] = 'Missing City|Missing|400058';
+        $rows[1]['cities_and_areas'] = 'Missing City|Missing|499999';
     } elseif ($case === 'invalid_pin') {
         $rows[1]['cities_and_areas'] = 'Mumbai|Andheri|400058abc';
     } elseif ($case === 'invalid_area_name') {
@@ -350,12 +350,59 @@ it('rejects missing and invalid mandatory references without partial imports', f
     $this->assertDatabaseCount('territories', 0);
 })->with(['missing_division', 'missing_location', 'unknown_division', 'non_division', 'unknown_location', 'invalid_pin', 'invalid_area_name', 'duplicate_name']);
 
-it('revalidates mandatory cities at confirmation', function () {
+it('revalidates city availability at confirmation', function () {
     $preview = $this->service->preview(territoryRows());
     City::where('name', 'Mumbai')->delete();
     expect(fn () => $this->service->import($preview))->toThrow(ValidationException::class);
     $this->assertDatabaseCount('territories', 0);
 });
+
+it('reuses seeded city names with trailing spaces regardless of case', function () {
+    $city = City::where('name', 'Mumbai')->sole();
+    $city->update(['name' => 'Mumbai ']);
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = 'mumbai|Andheri|400058';
+
+    expect($this->service->import($rows))->toBe(2);
+    $this->assertDatabaseCount('cities', 1);
+    $this->assertDatabaseCount('city_pin_codes', 2);
+    expect(Territory::where('code', 'MUMBAI')->sole()->cityPinCodes()->sole()->city_id)->toBe($city->id);
+});
+
+it('rejects ambiguous normalized city names', function () {
+    $mumbai = City::where('name', 'Mumbai')->sole();
+    City::create(['name' => 'MUMBAI ', 'state_id' => $mumbai->state_id, 'country_id' => $mumbai->country_id]);
+
+    expect(fn () => $this->service->import(territoryRows()))->toThrow(ValidationException::class, 'matches multiple city records');
+    $this->assertDatabaseCount('territories', 0);
+});
+
+it('creates a missing city and its area on confirmation and reuses them on retry', function (string $location, int $pin) {
+    $rows = territoryRows();
+    $rows[0]['cities_and_areas'] = $location;
+    $rows[1]['cities_and_areas'] = 'pune|Different area name|'.$pin;
+    $preview = $this->service->preview($rows);
+    $this->assertDatabaseMissing('cities', ['name' => 'Pune']);
+    $this->assertDatabaseCount('city_pin_codes', 2);
+
+    expect($this->service->import($preview))->toBe(2);
+    $city = City::where('name', 'Pune')->sole();
+    $area = CityPinCode::where('city_id', $city->id)->sole();
+    expect($city->state->name)->toBe('Maharashtra')
+        ->and($city->country->name)->toBe('India')
+        ->and($area->pin_code)->toBe($pin)
+        ->and($area->state_id)->toBe($city->state_id)
+        ->and($area->country_id)->toBe($city->country_id);
+    foreach (Territory::all() as $territory) {
+        expect($territory->cityPinCodes->modelKeys())->toBe([$area->id]);
+    }
+    expect($this->service->import($rows))->toBe(0);
+    $this->assertDatabaseCount('cities', 2);
+    $this->assertDatabaseCount('city_pin_codes', 3);
+})->with([
+    'explicit state and country' => ['Pune|Shivajinagar|411005|Maharashtra|India', 411005],
+    'known PIN' => ['Pune|Shivajinagar|400058', 400058],
+]);
 
 it('reuses the oldest city and PIN match regardless of area names and duplicate PINs', function () {
     $area = CityPinCode::where('area_town', 'Andheri')->sole();
@@ -398,11 +445,12 @@ it('creates a separate area when the same PIN exists only in another city', func
     expect(CityPinCode::where('pin_code', 400058)->count())->toBe(2);
 });
 
-it('does not create planned areas when any territory fails validation', function () {
+it('does not create planned cities or areas when any territory fails validation', function () {
     $rows = territoryRows();
-    $rows[0]['cities_and_areas'] = 'Mumbai|New area|400099';
+    $rows[0]['cities_and_areas'] = 'Pune|Shivajinagar|411005|Maharashtra|India';
     $rows[1]['parent_code'] = 'MISSING';
     expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+    $this->assertDatabaseMissing('cities', ['name' => 'Pune']);
     $this->assertDatabaseCount('city_pin_codes', 2);
     $this->assertDatabaseCount('territories', 0);
 });

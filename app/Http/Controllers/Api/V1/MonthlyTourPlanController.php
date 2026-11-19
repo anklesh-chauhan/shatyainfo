@@ -21,13 +21,13 @@ class MonthlyTourPlanController extends Controller
             ? $service->teamQuery($user)
             : $service->query($user);
 
-        return MonthlyTourPlanResource::collection($plans->where('month', 'like', $request->validated('month').'%')->orderByDesc('id')->paginate(20));
+        return MonthlyTourPlanResource::collection($plans->whereLike('month', $request->validated('month').'%')->orderByDesc('id')->paginate(20));
     }
 
     public function inbox(ListMonthlyTourPlansRequest $request, FieldMtpService $service): AnonymousResourceCollection
     {
         return MonthlyTourPlanResource::collection($service->query($request->user(), true)
-            ->where('month', 'like', $request->validated('month').'%')->orderBy('id')->paginate(20));
+            ->whereLike('month', $request->validated('month').'%')->orderBy('id')->paginate(20));
     }
 
     public function options(Request $request, FieldMtpService $service): JsonResponse

@@ -90,13 +90,17 @@ class SalesInvoice extends SalesDocument
         }
     }
 
-    public function getPaymentStatusAttribute($value)
+    public function getPaymentStatusAttribute(?string $value): string
     {
-        return $value === 'paid' ? 'Paid' : ($value === 'unpaid' ? 'Unpaid' : 'Partially Paid');
+        return match (strtolower((string) $value)) {
+            'paid' => 'Paid',
+            'unpaid' => 'Unpaid',
+            default => 'Partially Paid',
+        };
     }
 
-    public function setPaymentStatusAttribute($value)
+    public function setPaymentStatusAttribute(?string $value): void
     {
-        $this->attributes['payment_status'] = strtolower($value);
+        $this->attributes['payment_status'] = $value === null ? null : ucwords(strtolower($value));
     }
 }

@@ -5,7 +5,7 @@
     <details class="setup-optional">
         <summary>How to prepare your territory file</summary>
         <p>Fill the Territories sheet. Use a unique code for each territory and parent_code for its parent. Leave parent_code blank for a root territory.</p>
-        <p>Enter cities_and_areas as City|Area|PIN. Separate multiple locations with semicolons. City names must already exist.</p>
+        <p>Enter cities_and_areas as City|Area|PIN. Separate multiple locations with semicolons. If a city is missing and the PIN does not identify one state and country, use City|Area|PIN|State|Country. New cities and areas are saved when you confirm the import.</p>
         <p>To link HQs, import HQ locations first, then enter their location codes in hq_codes, separated by semicolons. Blank cells keep existing links. HQ links are optional for Direct DCR.</p>
         <p>@if ($this->usesDivisions())Enter division_codes and matching division_names. Missing divisions are created on import.@else Leave division_codes and division_names blank; your company does not use divisions.@endif</p>
         <p>Read the template’s Instructions sheet for examples. Preview the file, fix any errors, then select Confirm import.</p>

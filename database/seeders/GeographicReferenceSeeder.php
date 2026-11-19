@@ -13,8 +13,6 @@ class GeographicReferenceSeeder extends Seeder
      */
     public function run(): void
     {
-        app(GeographicReference::class)->copyToDatabase(
-            (string) DB::connection()->getDatabaseName(),
-        );
+        app(GeographicReference::class)->copyTo(DB::connection());
     }
 }

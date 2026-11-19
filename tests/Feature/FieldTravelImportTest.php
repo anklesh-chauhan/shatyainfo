@@ -97,16 +97,18 @@ it('previews without writes and imports patches and fares together without dupli
     Http::assertNothingSent();
 });
 
-it('matches patches and fares by city and PIN regardless of area names', function () {
+it('matches patches and fares by PIN and city name ignoring case and surrounding spaces', function () {
+    $this->from->city->update(['name' => 'Ahmedabad ']);
     CityPinCode::create(['city_id' => $this->from->city_id, 'area_town' => 'Another name', 'pin_code' => $this->from->pin_code]);
     $rows = fieldTravelRows();
-    $rows['Patches'][0]['data'] = array_replace($rows['Patches'][0]['data'], ['city' => 'Ahmedabad', 'area' => 'Different spelling', 'pin_code' => '380009']);
+    $rows['Patches'][0]['data'] = array_replace($rows['Patches'][0]['data'], ['city' => 'ahmedabad', 'area' => 'Different spelling', 'pin_code' => '380009']);
     $rows['Standard Fares'][0]['data']['from_area'] = 'Different again';
     $preview = $this->service->preview($rows);
     expect($preview['errors'])->toBe([])->and($preview['locations'])->toBe([]);
     $this->service->import($rows, $preview['fingerprint']);
     expect(Patch::sole()->city_pin_code_id)->toBe($this->from->id);
     expect(StandardFareChart::sole()->from_area_town_id)->toBe(min($this->from->id, $this->to->id));
+    $this->assertDatabaseCount('cities', 1);
 });
 
 it('plans missing areas without writes and creates shared patch and fare locations on confirmation', function () {

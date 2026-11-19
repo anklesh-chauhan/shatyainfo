@@ -60,7 +60,7 @@ it('measures concurrent enterprise report requests and serializes duplicate call
         }
     });
     fwrite(STDOUT, "\nFIELD_CONCURRENCY_ENV ".json_encode(['php' => PHP_VERSION,
-        'mysql' => User::query()->getConnection()->selectOne('select version() as version')->version,
+        'pgsql' => User::query()->getConnection()->selectOne('select version() as version')->version,
         'mrs' => 1000, 'customers' => 100000, 'visits' => 100000, 'intentions' => 50000,
         'mode' => 'independent PHP HTTP-kernel workers; no web-server/network transport'])."\n");
     $tokens = [];

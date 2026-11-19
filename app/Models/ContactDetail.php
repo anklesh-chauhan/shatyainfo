@@ -36,10 +36,10 @@ class ContactDetail extends BaseModel
     public function scopeSearch($query, $searchTerm)
     {
         return $query->where(function ($query) use ($searchTerm) {
-            $query->where('first_name', 'like', "%{$searchTerm}%")
-                ->orWhere('last_name', 'like', "%{$searchTerm}%")
+            $query->whereLike('first_name', "%{$searchTerm}%")
+                ->orWhereLike('last_name', "%{$searchTerm}%")
                 ->orWhereHas('company', fn ($query) =>
-                    $query->where('name', 'like', "%{$searchTerm}%")
+                    $query->whereLike('name', "%{$searchTerm}%")
                 );
         });
     }

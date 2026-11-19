@@ -158,6 +158,6 @@ class Approval extends BaseModel
 
     public static function scopeSortByStatusPriority(Builder $query, string $direction): Builder
     {
-        return $query->orderByRaw("FIELD(approval_status, 'draft', 'approved', 'rejected') $direction");
+        return $query->orderByRaw("CASE approval_status WHEN 'draft' THEN 1 WHEN 'approved' THEN 2 WHEN 'rejected' THEN 3 ELSE 0 END $direction");
     }
 }

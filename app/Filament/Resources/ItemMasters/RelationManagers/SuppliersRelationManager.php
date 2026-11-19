@@ -66,10 +66,10 @@ class SuppliersRelationManager extends RelationManager
                                 ->getSearchResultsUsing(function (string $search) {
                                     return AccountMaster::query()
                                         ->where(function ($query) use ($search) {
-                                            $query->where('name', 'like', "%{$search}%")
-                                                ->orWhere('account_code', 'like', "%{$search}%")
-                                                ->orWhere('email', 'like', "%{$search}%")
-                                                ->orWhere('phone_number', 'like', "%{$search}%");
+                                            $query->whereLike('name', "%{$search}%")
+                                                ->orWhereLike('account_code', "%{$search}%")
+                                                ->orWhereLike('email', "%{$search}%")
+                                                ->orWhereLike('phone_number', "%{$search}%");
                                         })
                                         ->get()
                                         ->mapWithKeys(fn ($account_master) => [

@@ -64,7 +64,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function getConnectionName()
     {
-        return Tenant::current() ? 'tenant' : 'mysql';
+        return Tenant::current() ? 'tenant' : 'pgsql';
     }
 
     protected $guarded = [];

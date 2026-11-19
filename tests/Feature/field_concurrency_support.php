@@ -12,7 +12,7 @@ trait FieldConcurrencyDatabase
 
     public function runDatabaseMigrations(): void
     {
-        if (config('database.connections.mysql.database') !== 'it_erp_testing') {
+        if (config('database.connections.pgsql.database') !== 'it_erp_testing') {
             throw new RuntimeException('Refuse concurrency migrations outside the test database.');
         }
         $this->refreshTestDatabase();
@@ -30,10 +30,10 @@ function runFieldWorkers(array $jobs): array
 {
     $root = sys_get_temp_dir().'/field-concurrency-'.Str::uuid();
     mkdir($root);
-    $connection = config('database.connections.mysql');
-    $environment = ['APP_ENV' => 'testing', 'FIELD_CONCURRENCY' => '1', 'DB_CONNECTION' => 'mysql', 'DB_DATABASE' => 'it_erp_testing',
+    $connection = config('database.connections.pgsql');
+    $environment = ['APP_ENV' => 'testing', 'FIELD_CONCURRENCY' => '1', 'DB_CONNECTION' => 'pgsql', 'DB_DATABASE' => 'it_erp_testing',
         'DB_HOST' => $connection['host'], 'DB_PORT' => (string) $connection['port'], 'DB_USERNAME' => $connection['username'], 'DB_PASSWORD' => $connection['password'],
-        'DB_URL' => false, 'CACHE_STORE' => 'array', 'SESSION_DRIVER' => 'array', 'QUEUE_CONNECTION' => 'sync',
+        'DB_URL' => '', 'CACHE_STORE' => 'array', 'SESSION_DRIVER' => 'array', 'QUEUE_CONNECTION' => 'sync',
         'TELESCOPE_ENABLED' => 'false', 'PULSE_ENABLED' => 'false', 'MAIL_MAILER' => 'array', 'APP_CONFIG_CACHE' => $root.'/no-config.php'];
     $processes = [];
     try {

@@ -17,13 +17,13 @@ return new class extends Migration
 
         DB::statement('
             UPDATE account_master_patch amp
-            JOIN (
+            SET sequence_no = ranked.seq
+            FROM (
                 SELECT id, ROW_NUMBER() OVER (PARTITION BY patch_id ORDER BY id) AS seq
                 FROM account_master_patch
                 WHERE deleted_at IS NULL
-            ) ranked ON ranked.id = amp.id
-            SET amp.sequence_no = ranked.seq
-            WHERE amp.sequence_no IS NULL
+            ) ranked
+            WHERE ranked.id = amp.id AND amp.sequence_no IS NULL
         ');
     }
 

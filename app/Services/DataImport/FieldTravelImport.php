@@ -412,7 +412,9 @@ class FieldTravelImport
 
     private function lookup(string $class, string $column, string $value): Model
     {
-        $query = $class::where($column, $value);
+        $query = $class === City::class && $column === 'name'
+            ? City::query()->whereNormalizedName($value)
+            : $class::where($column, $value);
         if (in_array($class, [Territory::class, Patch::class, AccountMaster::class, Employee::class], true)) {
             $query->applyVisibility(class_basename($class));
         }

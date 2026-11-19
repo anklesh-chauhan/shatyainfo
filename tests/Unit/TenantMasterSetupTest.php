@@ -23,10 +23,10 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'database.default' => 'mysql', 'multitenancy.switch_tenant_tasks' => [], 'cache.default' => 'array', 'session.driver' => 'array']);
-    DB::purge('mysql');
-    DB::setDefaultConnection('mysql');
-    Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
+    config(['database.connections.pgsql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'database.default' => 'pgsql', 'multitenancy.switch_tenant_tasks' => [], 'cache.default' => 'array', 'session.driver' => 'array']);
+    DB::purge('pgsql');
+    DB::setDefaultConnection('pgsql');
+    Schema::connection('pgsql')->create('tenants', function (Blueprint $table): void {
         $table->id();
         $table->string('name');
         $table->string('domain');
@@ -40,6 +40,8 @@ beforeEach(function () {
         $table->string('master_setup_status')->default('ready');
         $table->string('master_setup_step')->nullable();
         $table->text('master_setup_error')->nullable();
+        $table->timestamp('billing_started_at')->nullable();
+        $table->timestamp('billing_trial_ends_at')->nullable();
         $table->timestamps();
     });
     $this->tenant = Tenant::withoutEvents(function (): Tenant {
@@ -53,8 +55,7 @@ beforeEach(function () {
 
 afterEach(function () {
     Tenant::forgetCurrent();
-    DB::setDefaultConnection('mysql');
-    DB::purge('tenant_setup');
+    DB::setDefaultConnection('pgsql');
     DB::purge('tenant');
     if (isset($this->setupDatabase)) {
         unlink($this->setupDatabase);
@@ -189,8 +190,7 @@ test('failed master seeding rolls back records and restores connection context',
     $provisioner->failSeed = true;
     expect(fn () => $provisioner->configureAccount($this->tenant))->toThrow(RuntimeException::class, 'Seed interrupted');
     expect(DB::connection('tenant')->table('sample_masters')->count())->toBe(0)
-        ->and(DB::getDefaultConnection())->toBe('mysql')->and(Tenant::checkCurrent())->toBeFalse()
-        ->and(config('multitenancy.geographic_reference_connection_name'))->toBeNull();
+        ->and(DB::getDefaultConnection())->toBe('pgsql')->and(Tenant::checkCurrent())->toBeFalse();
     $provisioner->failSeed = false;
     $provisioner->configureAccount($this->tenant);
     expect(DB::connection('tenant')->table('sample_masters')->count())->toBe(1);
@@ -325,7 +325,7 @@ test('schema progress counts completed migrations and skips them on retry', func
         $updates[] = [$completed, $total];
     });
     expect($updates)->toBe([[0, 5], [1, 5], [2, 5], [3, 5], [4, 5], [5, 5]])
-        ->and(DB::getDefaultConnection())->toBe('mysql');
+        ->and(DB::getDefaultConnection())->toBe('pgsql');
     $updates = [];
     $schema->run(TenantSchemaMigrator::LOGIN_MIGRATIONS, function (int $completed, int $total) use (&$updates): void {
         $updates[] = [$completed, $total];
@@ -352,7 +352,7 @@ test('background schema failure stops before copying permissions or seeding mast
     };
     expect(fn () => $provisioner->configureAccount($this->tenant))->toThrow(RuntimeException::class, 'DDL failed');
     expect(DB::connection('tenant')->table('sample_masters')->count())->toBe(0)
-        ->and(DB::getDefaultConnection())->toBe('mysql')->and(Tenant::checkCurrent())->toBeFalse();
+        ->and(DB::getDefaultConnection())->toBe('pgsql')->and(Tenant::checkCurrent())->toBeFalse();
 });
 
 test('only completed setup reports one hundred percent', function () {

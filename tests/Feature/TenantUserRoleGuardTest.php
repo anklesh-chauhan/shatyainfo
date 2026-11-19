@@ -25,8 +25,8 @@ afterEach(function () {
 
 function activateRoleTestTenant(): void
 {
-    app('db')->connection('tenant')->setPdo(app('db')->connection('mysql')->getPdo())
-        ->setReadPdo(app('db')->connection('mysql')->getPdo());
+    app('db')->connection('tenant')->setPdo(app('db')->connection('pgsql')->getPdo())
+        ->setReadPdo(app('db')->connection('pgsql')->getPdo());
     $tenant = new Tenant;
     $tenant->forceFill(['id' => 99999, 'name' => 'Role guard test', 'master_setup_status' => 'ready']);
     $tenant->makeCurrent();

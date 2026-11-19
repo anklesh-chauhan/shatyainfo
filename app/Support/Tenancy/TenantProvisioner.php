@@ -124,7 +124,6 @@ class TenantProvisioner
     public function configureAccount(Tenant $tenant): void
     {
         $originalConnection = DB::getDefaultConnection();
-        $originalReferenceConnection = config('multitenancy.geographic_reference_connection_name');
         try {
             $tenant->makeCurrent();
             $this->migrateSchema(['database/migrations/tenant'], function (int $completed, int $total) use ($tenant): void {
@@ -136,14 +135,8 @@ class TenantProvisioner
             $this->assertMasterTablesExist();
             $tenant->forceFill(['master_setup_step' => 'Configuring access permissions', 'master_setup_progress' => 72])->saveQuietly();
             $this->copyAccessControl();
-            $configuration = config('database.connections.'.$this->landlordConnection());
-            config([
-                'database.connections.tenant_setup' => array_merge($configuration, ['database' => $tenant->database, 'url' => null]),
-                'multitenancy.geographic_reference_connection_name' => 'tenant_setup',
-            ]);
-            DB::purge('tenant_setup');
-            DB::setDefaultConnection('tenant_setup');
-            DB::connection('tenant_setup')->transaction(function () use ($tenant): void {
+            DB::setDefaultConnection('tenant');
+            DB::connection('tenant')->transaction(function () use ($tenant): void {
                 $organization = Organization::query()->orderBy('id')->lockForUpdate()->firstOrFail();
                 if ($organization->metadata['master_data_ready'] ?? false) {
                     return;
@@ -161,9 +154,6 @@ class TenantProvisioner
                 $tenant->forgetCurrent();
             }
             DB::setDefaultConnection($originalConnection);
-            config(['multitenancy.geographic_reference_connection_name' => $originalReferenceConnection]);
-            DB::purge('tenant_setup');
-            config(['database.connections.tenant_setup' => null]);
         }
     }
 
@@ -344,6 +334,6 @@ class TenantProvisioner
 
     private function landlordConnection(): string
     {
-        return (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+        return (string) config('multitenancy.landlord_database_connection_name', 'pgsql');
     }
 }

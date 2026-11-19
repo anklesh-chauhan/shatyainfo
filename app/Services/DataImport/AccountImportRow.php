@@ -7,8 +7,6 @@ use App\Models\AccountOwnership;
 use App\Models\AccountReportingMaster;
 use App\Models\AccountStatus;
 use App\Models\Address;
-use App\Models\City;
-use App\Models\CityPinCode;
 use App\Models\ContactDetail;
 use App\Models\IndustryType;
 use App\Models\OrganizationalUnit;
@@ -37,7 +35,7 @@ class AccountImportRow
         return $matches->first()->id;
     }
 
-    public function resolve(array $row, array $references): array
+    public function resolve(array $row, array $references, CityImport $cities): array
     {
         $rules = array_fill_keys(AccountOnboardingService::COLUMNS, ['nullable', 'string', 'max:255']);
         $rules['external_reference'] = ['required', 'string', 'max:128', 'regex:/^[A-Z0-9][A-Z0-9_.:\/-]*$/'];
@@ -67,9 +65,11 @@ class AccountImportRow
         $rules['target_from'] = ['nullable', 'required_with:calls_per_month', 'date_format:Y-m-d'];
         $rules['target_to'] = ['nullable', 'date_format:Y-m-d', 'after_or_equal:target_from'];
         foreach (['street', 'address_type', 'city', 'area', 'pin_code'] as $field) {
-            $rules[$field] = ['nullable', 'required_with:street,address_type,city,area,pin_code', 'string', 'max:255'];
+            $rules[$field] = ['nullable', 'required_with:street,address_type,city,area,pin_code,state,country', 'string', 'max:255'];
         }
-        $rules['pin_code'] = ['nullable', 'required_with:street,address_type,city,area', 'regex:/^[0-9]+$/', 'numeric', 'between:0,2147483647'];
+        $rules['pin_code'] = ['nullable', 'required_with:street,address_type,city,area,state,country', 'regex:/^[0-9]+$/', 'numeric', 'between:0,2147483647'];
+        $rules['state'][] = 'required_with:country';
+        $rules['country'][] = 'required_with:state';
         Validator::make($row, $rules)->validate();
         $matches = AccountMaster::withTrashed()->where('external_reference', $row['external_reference'])->limit(2)->get();
         if ($matches->count() > 1) {
@@ -141,10 +141,10 @@ class AccountImportRow
         $address = [];
         $areaPlan = [];
         if ($row['street'] !== '') {
-            $city = City::findOrFail($this->match(City::where('name', $row['city']), 'City '.$row['city']));
-            $area = CityPinCode::where('city_id', $city->id)->where('pin_code', $row['pin_code'])->orderBy('id')->first();
+            $city = $cities->resolve($row['city'], (int) $row['pin_code'], $row['state'], $row['country']);
+            $area = $city->exists ? $city->areaTowns()->where('pin_code', $row['pin_code'])->orderBy('id')->first() : null;
             if (! $area) {
-                $areaPlan = ['city_id' => $city->id, 'state_id' => $city->state_id, 'country_id' => $city->country_id, 'pin_code' => (int) $row['pin_code'], 'area_town' => $row['area']];
+                $areaPlan = ['city_id' => $city->id, 'city_name' => $city->name, 'state_id' => $city->state_id, 'country_id' => $city->country_id, 'pin_code' => (int) $row['pin_code'], 'area_town' => $row['area']];
             }
             if ($account && $account->addresses()->where('is_primary', true)->count() > 1) {
                 throw new ImportRowException('Multiple primary addresses exist. Correct these in Accounts first.');
@@ -214,6 +214,9 @@ class AccountImportRow
         }
         if ($patchPlans !== []) {
             $warnings[] = 'Will create patches on confirmation (code used as name): '.implode(', ', array_column($patchPlans, 'code')).'.';
+        }
+        if ($areaPlan !== [] && $areaPlan['city_id'] === null) {
+            $warnings[] = 'Will create city '.$areaPlan['city_name'].' on confirmation.';
         }
 
         return ['id' => $account?->id, 'attributes' => $attributes, 'status' => $status, 'patches' => $patches, 'patch_plans' => $patchPlans, 'address' => $address, 'area_plan' => $areaPlan, 'profile' => $profile, 'target' => $target,

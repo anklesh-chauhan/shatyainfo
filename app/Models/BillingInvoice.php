@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BillingInvoice extends Model
 {
-    protected $connection = 'mysql';
+    protected $connection = 'pgsql';
 
     protected $fillable = ['tenant_id', 'period_start', 'licensed_users', 'amount_paise', 'status', 'razorpay_order_id', 'razorpay_payment_id', 'paid_at'];
 

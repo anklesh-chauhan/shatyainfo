@@ -13,7 +13,7 @@ require_once __DIR__.'/company_isolation_support.php';
 uses(FieldConcurrencyDatabase::class);
 
 it('isolates real company databases during overlapping worker writes and repeated switching', function () {
-    $main = app('db')->connection('mysql');
+    $main = app('db')->connection('pgsql');
     expect($main->getDatabaseName())->toBe('it_erp_testing');
     $suffix = bin2hex(random_bytes(6));
     $companies = [
@@ -22,29 +22,22 @@ it('isolates real company databases during overlapping worker writes and repeate
     ];
     $created = [];
     try {
-        $tables = $main->select("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
         foreach ($companies as $company) {
             $database = $company['database'];
             if (! preg_match('/^it_erp_testing_iso_[a-f0-9]{12}_[ab]$/', $database)) {
                 throw new RuntimeException('Invalid temporary schema name.');
             }
-            $main->statement('CREATE DATABASE `'.$database.'`');
+            $main->statement('CREATE DATABASE "'.$database.'"');
             $created[] = $database;
             config(['database.connections.isolation_clone' => [
-                ...config('database.connections.mysql'), 'database' => $database,
+                ...config('database.connections.pgsql'), 'database' => $database,
             ]]);
             app('db')->purge('isolation_clone');
-            $clone = app('db')->connection('isolation_clone');
-            $clone->statement('SET FOREIGN_KEY_CHECKS=0');
-            foreach ($tables as $table) {
-                $name = array_values((array) $table)[0];
-                if (! preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
-                    throw new RuntimeException('Invalid table name.');
-                }
-                $definition = (array) $main->selectOne('SHOW CREATE TABLE `'.$name.'`');
-                $clone->statement($definition['Create Table']);
-            }
-            $clone->statement('SET FOREIGN_KEY_CHECKS=1');
+            $this->artisan('migrate', [
+                '--database' => 'isolation_clone',
+                '--path' => 'database/migrations/tenant',
+                '--force' => true,
+            ])->assertSuccessful();
             app('db')->purge('isolation_clone');
             selectIsolationCompany($company);
             Organization::query()->create(['id' => 1, 'name' => $company['name'], 'metadata' => [
@@ -92,7 +85,7 @@ it('isolates real company databases during overlapping worker writes and repeate
             if (! preg_match('/^it_erp_testing_iso_[a-f0-9]{12}_[ab]$/', $database)) {
                 throw new RuntimeException('Refuse unexpected schema cleanup.');
             }
-            $main->statement('DROP DATABASE `'.$database.'`');
+            $main->statement('DROP DATABASE "'.$database.'"');
         }
     }
 })->group('performance')->skip(fn (): bool => getenv('FIELD_CONCURRENCY') !== '1', 'Run with -Concurrency against isolated test schemas.');

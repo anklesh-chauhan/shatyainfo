@@ -134,7 +134,7 @@ class BillingController extends Controller
 
     private function markPaid(BillingInvoice $invoice, string $paymentId): void
     {
-        DB::connection('mysql')->transaction(function () use ($invoice, $paymentId): void {
+        DB::connection('pgsql')->transaction(function () use ($invoice, $paymentId): void {
             $locked = BillingInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
             if ($locked->status !== 'paid') {

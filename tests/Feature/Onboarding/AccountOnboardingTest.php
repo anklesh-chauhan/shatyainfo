@@ -6,6 +6,7 @@ use App\Models\AccountMaster;
 use App\Models\Address;
 use App\Models\City;
 use App\Models\CityPinCode;
+use App\Models\ContactDetail;
 use App\Models\Country;
 use App\Models\IndustryType;
 use App\Models\Organization;
@@ -278,7 +279,7 @@ it('downloads a workflow-specific account workbook that can be imported without 
                 expect(in_array($column, $fields, true))->toBe($mode !== 'direct_dcr');
             }
         }
-        expect($headers)->toContain('external_reference', 'name', 'account_type', 'owner_email');
+        expect($headers)->toContain('external_reference', 'name', 'account_type', 'owner_email', 'state', 'country');
         if ($mode === 'direct_dcr') {
             expect(array_column($sheets['Instructions'], 0))->toContain('Direct DCR')->not->toContain('Territories and patches');
         }
@@ -326,11 +327,14 @@ it('supports preview and confirmation in company setup and invalidates changed u
     try {
         auth()->user()->assignRole(Role::findOrCreate('super_admin', 'tenant'));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $csv = 'external_reference,name,account_type,owner_email'."\n".'ERP:0001,Import Doctor One,Import Doctor,'.auth()->user()->email."\n";
+        accountImportAddress();
+        $csv = "external_reference,name,account_type,owner_email,address_type,street,city,area,pin_code,state,country\n"
+            .'ERP:0001,Import Doctor One,Import Doctor,'.auth()->user()->email.",Office Address,Clinic Road,New City,New Area,411005,Import State,Import Country\n";
         $page = Livewire::test(Onboarding::class, ['importSection' => 'accounts'])->assertSee('Import account masters')
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', $csv))
-            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review before importing');
+            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Review before importing')->assertSee('Will create city New City');
         $this->assertDatabaseCount('account_masters', 0);
+        $this->assertDatabaseMissing('cities', ['name' => 'New City']);
         $page->call('importAccounts')->assertHasNoErrors()->assertSet('accountPreview', [])->assertSee('Account import queued');
         $page->call('importAccounts')->assertHasNoErrors();
         Queue::assertPushed(ProcessAccountImport::class, 1);
@@ -342,6 +346,7 @@ it('supports preview and confirmation in company setup and invalidates changed u
         $page->call('refreshAccountImport')->assertSee('1 accounts created');
         Livewire::test(Onboarding::class, ['importSection' => 'accounts'])->assertSee('1 accounts created');
         $this->assertDatabaseCount('account_masters', 1);
+        expect(AccountMaster::sole()->addresses()->sole()->city->name)->toBe('New City');
         $page->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', str_replace('Import Doctor,', 'Missing Type,', $csv)))
             ->call('previewAccounts')->assertSee('Nothing has been imported')->call('downloadAccountErrors')->assertFileDownloaded('account-import-errors.csv');
         $page->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', $csv))->assertSet('accountPreview', []);
@@ -445,6 +450,8 @@ function accountImportAddress(): array
 it('matches account addresses by city and PIN ignoring area spelling and duplicate PINs', function () {
     $fields = accountImportAddress();
     $city = City::where('name', 'Import City')->sole();
+    $city->update(['name' => 'Import City ']);
+    $fields['city'] = 'import city';
     $area = CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Existing area', 'pin_code' => 411005]);
     CityPinCode::create(['city_id' => $city->id, 'area_town' => 'Another area', 'pin_code' => 411005]);
     $preview = $this->service->preview(accountImportRows($fields));
@@ -454,7 +461,39 @@ it('matches account addresses by city and PIN ignoring area spelling and duplica
     expect(AccountMaster::sole()->addresses()->sole()->area_town_id)->toBe($area->id);
     expect($area->fresh()->area_town)->toBe('Existing area');
     $this->assertDatabaseCount('city_pin_codes', 2);
+    $this->assertDatabaseCount('cities', 1);
 });
+
+it('creates a missing account city and area on confirmation and reuses them across rows and retries', function (array $geography) {
+    $fields = accountImportAddress();
+    $existing = City::where('name', 'Import City')->sole();
+    if ($geography === []) {
+        CityPinCode::create(['city_id' => $existing->id, 'pin_code' => 411005, 'area_town' => 'Other city area']);
+    }
+    $rows = accountImportRows(array_replace($fields, ['city' => 'New City'], $geography));
+    $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002', 'city' => 'new city', 'state' => '', 'country' => ''])];
+    $preview = $this->service->preview($rows);
+    expect($preview['errors'])->toBe([])->and($preview['plans'][0]['warning'])->toContain('Will create city New City');
+    $this->assertDatabaseMissing('cities', ['name' => 'New City']);
+    $this->assertDatabaseCount('account_masters', 0);
+
+    expect($this->service->import($preview['rows']))->toBe(['created' => 2, 'updated' => 0]);
+    expect($this->service->import($rows))->toBe(['created' => 0, 'updated' => 2]);
+    $city = City::where('name', 'New City')->sole();
+    $area = CityPinCode::where('city_id', $city->id)->sole();
+    expect($city->state_id)->toBe($existing->state_id)->and($city->country_id)->toBe($existing->country_id);
+    foreach (AccountMaster::all() as $account) {
+        $address = $account->addresses()->sole();
+        expect($address->city_id)->toBe($city->id)
+            ->and($address->area_town_id)->toBe($area->id)
+            ->and($address->state_id)->toBe($city->state_id)
+            ->and($address->country_id)->toBe($city->country_id);
+    }
+    $this->assertDatabaseCount('cities', 2);
+})->with([
+    'explicit state and country' => [['state' => 'Import State', 'country' => 'Import Country']],
+    'known PIN' => [[]],
+]);
 
 it('creates one missing account area only on confirmation and reuses it across rows and retries', function () {
     $fields = accountImportAddress();
@@ -484,15 +523,15 @@ it('does not reuse the same PIN from another city for an account address', funct
     $this->assertDatabaseCount('city_pin_codes', 2);
 });
 
-it('rejects missing cities and invalid PINs without creating account areas', function (array $override) {
+it('rejects insufficient city details and invalid PINs without creating account areas', function (array $override) {
     $fields = array_replace(accountImportAddress(), $override);
     expect($this->service->preview(accountImportRows($fields))['errors'])->not->toBeEmpty();
     expect(fn () => $this->service->import(accountImportRows($fields)))->toThrow(ValidationException::class);
     $this->assertDatabaseCount('city_pin_codes', 0);
-})->with([[['city' => 'Missing City']], [['pin_code' => '411005abc']], [['pin_code' => '99999999999']]]);
+})->with([[['city' => 'Missing City']], [['state' => 'Import State']], [['pin_code' => '411005abc']], [['pin_code' => '99999999999']]]);
 
-it('rolls back a newly created account area if a later account write fails', function () {
-    $rows = accountImportRows(accountImportAddress());
+it('rolls back a newly created account city and area if a later account write fails', function () {
+    $rows = accountImportRows(array_replace(accountImportAddress(), ['city' => 'New City', 'state' => 'Import State', 'country' => 'Import Country']));
     $rows[] = ['line' => 3, 'data' => array_replace($rows[0]['data'], ['external_reference' => 'ERP:0002'])];
     $dispatcher = AccountMaster::getEventDispatcher();
     AccountMaster::setEventDispatcher(clone $dispatcher);
@@ -503,6 +542,7 @@ it('rolls back a newly created account area if a later account write fails', fun
     });
     try {
         expect(fn () => $this->service->import($rows))->toThrow(ValidationException::class);
+        $this->assertDatabaseMissing('cities', ['name' => 'New City']);
         $this->assertDatabaseCount('city_pin_codes', 0);
         $this->assertDatabaseCount('account_masters', 0);
     } finally {
@@ -541,7 +581,7 @@ it('keeps a full workbook preview on the server and downloads every error withou
         app()->instance(AccountOnboardingService::class, $service);
         $page = Livewire::test(Onboarding::class, ['importSection' => 'accounts'])
             ->set('accountFile', UploadedFile::fake()->createWithContent('accounts.csv', 'test'))
-            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Confirm import')->assertSee('Working… Previewing file')
+            ->call('previewAccounts')->assertHasNoErrors()->assertSee('Confirm import')->assertSee('Previewing file…')
             ->assertSet('accountPreview.row_count', 500)->assertSet('accountPreview.error_count', 250);
         expect($page->get('accountPreview')['plans'])->toHaveCount(25);
         expect($page->get('accountPreview')['errors'])->toHaveCount(25);
@@ -577,19 +617,35 @@ it('reports job progress and restores authentication after importing accounts', 
     $states = [];
     $importer = Mockery::mock(AccountOnboardingService::class)->makePartial();
     $importer->shouldReceive('import')->once()->andReturnUsing(function ($rows, $progress) use (&$states, $key) {
-        $states[] = Cache::store('file')->get($key);
-        $progress('Importing accounts', 1, 1);
-        $states[] = Cache::store('file')->get($key);
-
-        return $this->service->import($rows);
+        return $this->service->import($rows, function ($stage, $processed, $total) use ($progress, &$states, $key): void {
+            $progress($stage, $processed, $total);
+            $states[] = Cache::store('file')->get($key);
+        });
     });
     $job->handle($importer);
     expect($states[0]['status'])->toBe('running')->and($states[1]['processed'])->toBe(1);
+    $finalizing = collect($states)->where('message', 'Finalizing account relationships')->pluck('processed')->all();
+    expect($finalizing)->toBe([0, 1])->and(end($states)['message'])->toBe('Saving the completed import');
     expect(Cache::store('file')->get($key)['status'])->toBe('complete');
     expect(auth()->user())->toBe($previous);
     Storage::disk('local')->assertMissing($job->payloadPath());
     $job->handle($importer);
     $this->assertDatabaseCount('account_masters', 1);
+});
+
+it('preserves active contact links and removes deleted contact links on an account import update', function () {
+    $rows = accountImportRows();
+    $this->service->import($rows);
+    $account = AccountMaster::sole();
+    [$active, $deleted] = ContactDetail::factory()->count(2)->create();
+    $account->contactDetails()->attach([$active->id, $deleted->id]);
+    $deleted->delete();
+
+    $rows[0]['data']['name'] = 'Updated customer';
+    $this->service->import($rows);
+
+    $this->assertDatabaseHas('account_master_contact_details', ['account_master_id' => $account->id, 'contact_detail_id' => $active->id]);
+    $this->assertDatabaseMissing('account_master_contact_details', ['account_master_id' => $account->id, 'contact_detail_id' => $deleted->id]);
 });
 
 it('reports failed account jobs and preserves completed status on a late failure callback', function () {

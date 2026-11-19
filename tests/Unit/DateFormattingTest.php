@@ -19,8 +19,8 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
-    DB::purge('mysql');
+    config(['database.connections.pgsql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']]);
+    DB::purge('pgsql');
     Schema::create('integration_settings', function (Blueprint $table): void {
         $table->id();
         $table->string('provider')->unique();
@@ -36,7 +36,7 @@ beforeEach(function () {
 
 afterEach(function () {
     app()->forgetInstance(config('multitenancy.current_tenant_container_key'));
-    DB::purge('mysql');
+    DB::purge('pgsql');
 });
 
 test('company settings persist and do not leak when switching tenants', function () {

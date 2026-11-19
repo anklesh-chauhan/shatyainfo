@@ -30,10 +30,10 @@ use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function (): void {
-    config(['database.default' => 'mysql', 'database.connections.mysql' => [
+    config(['database.default' => 'pgsql', 'database.connections.pgsql' => [
         'driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true,
     ], 'cache.default' => 'array', 'session.driver' => 'array']);
-    DB::purge('mysql');
+    DB::purge('pgsql');
     $this->withoutMiddleware(IdentifyTenant::class);
     $this->instance(VisitEnforcementService::class, Mockery::mock(VisitEnforcementService::class));
     Storage::fake('local');
@@ -112,7 +112,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    DB::purge('mysql');
+    DB::purge('pgsql');
 });
 
 it('lists published material without leaking private paths and streams the authenticated file', function (): void {

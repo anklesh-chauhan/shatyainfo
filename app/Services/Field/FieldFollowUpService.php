@@ -62,8 +62,8 @@ class FieldFollowUpService
         if (filled($search)) {
             $term = '%'.$search.'%';
             $query->where(function ($builder) use ($term): void {
-                $builder->where('interaction', 'like', $term)
-                    ->orWhere('outcome', 'like', $term);
+                $builder->whereLike('interaction', $term)
+                    ->orWhereLike('outcome', $term);
             });
         }
 

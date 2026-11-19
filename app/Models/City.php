@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -15,6 +16,11 @@ class City extends BaseModel
     protected $casts = [
         'is_hill_station' => 'boolean',
     ];
+
+    public function scopeWhereNormalizedName(Builder $query, string $name): Builder
+    {
+        return $query->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($name))]);
+    }
 
     public function cityClass(): BelongsTo
     {

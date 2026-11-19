@@ -72,7 +72,7 @@ return [
     /*
      * The connection name to reach the landlord database.
      */
-    'landlord_database_connection_name' => 'mysql',
+    'landlord_database_connection_name' => 'pgsql',
 
     /*
      * This key will be used to associate the current tenant in the context
@@ -141,14 +141,6 @@ return [
     ))),
 
     'base_domain' => env('APP_DOMAIN', 'shatyainfo.com'),
-
-    'geographic_reference_database' => env('GEOGRAPHIC_REFERENCE_DATABASE', 'it_erp_reference'),
-
-    /*
-     * MySQL account host for the dedicated user created with each tenant database.
-     * The user is granted privileges only on that tenant's schema.
-     */
-    'tenant_database_user_host' => env('TENANT_DB_USER_HOST', '%'),
 
     'cloudflare' => [
         'zone_id' => env('CLOUDFLARE_ZONE_ID'),

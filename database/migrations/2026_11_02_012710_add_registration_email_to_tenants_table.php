@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection(config('multitenancy.landlord_database_connection_name', 'mysql'))->table('tenants', function (Blueprint $table): void {
+        Schema::connection(config('multitenancy.landlord_database_connection_name', 'pgsql'))->table('tenants', function (Blueprint $table): void {
             $table->string('registration_email')->nullable()->index();
         });
     }
@@ -21,7 +21,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection(config('multitenancy.landlord_database_connection_name', 'mysql'))->table('tenants', function (Blueprint $table): void {
+        Schema::connection(config('multitenancy.landlord_database_connection_name', 'pgsql'))->table('tenants', function (Blueprint $table): void {
             $table->dropIndex(['registration_email']);
             $table->dropColumn('registration_email');
         });

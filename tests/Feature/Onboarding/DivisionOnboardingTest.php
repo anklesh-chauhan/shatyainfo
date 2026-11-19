@@ -216,7 +216,7 @@ it('rejects conflicting and misaligned division definitions without creating rec
     } elseif ($case === 'missing') {
         $rows[0]['division_names'] = '';
     } elseif ($case === 'location') {
-        $rows[0]['cities_and_areas'] = 'Missing City|Missing|400058';
+        $rows[0]['cities_and_areas'] = 'Missing City|Missing|499999';
     } else {
         $rows[] = [...$rows[0], 'code' => 'EAST', 'name' => 'East', 'division_names' => 'Conflicting West'];
     }

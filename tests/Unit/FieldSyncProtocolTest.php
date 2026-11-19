@@ -16,10 +16,10 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.default' => 'mysql', 'database.connections.mysql' => [
+    config(['database.default' => 'pgsql', 'database.connections.pgsql' => [
         'driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true,
     ]]);
-    DB::purge('mysql');
+    DB::purge('pgsql');
     Schema::create('users', function (Blueprint $table) {
         $table->id();
         $table->string('name');

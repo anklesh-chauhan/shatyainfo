@@ -152,13 +152,13 @@ trait HasSafeGlobalSearch
 
                             $query->orWhereHas(
                                 $relation,
-                                fn (Builder $relatedQuery): Builder => $relatedQuery->where($column, 'like', "%{$search}%"),
+                                fn (Builder $relatedQuery): Builder => $relatedQuery->whereLike($column, "%{$search}%"),
                             );
 
                             continue;
                         }
 
-                        $query->orWhere($attribute, 'like', "%{$search}%");
+                        $query->orWhereLike($attribute, "%{$search}%");
                     }
                 });
             }

@@ -33,7 +33,7 @@ class TourPlanDraftService
         $previous = $target->copy()->subMonth();
         $plan = SalesTourPlan::query()
             ->where('user_id', $user->id)
-            ->where('month', 'like', $previous->format('Y-m').'%')
+            ->whereLike('month', $previous->format('Y-m').'%')
             ->with(['details.patches.companies', 'details.territory'])
             ->first();
 

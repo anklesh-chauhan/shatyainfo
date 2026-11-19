@@ -11,7 +11,7 @@ class ProvisionTenantDatabaseUsersCommand extends Command
 {
     protected $signature = 'tenants:provision-database-users';
 
-    protected $description = 'Create a dedicated MySQL user for each tenant that still shares the application account.';
+    protected $description = 'Create a dedicated PostgreSQL role for each tenant that still shares the application account.';
 
     public function handle(TenantDatabaseProvisioner $databases): int
     {

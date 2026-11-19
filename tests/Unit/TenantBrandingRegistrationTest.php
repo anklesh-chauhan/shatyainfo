@@ -13,9 +13,9 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'multitenancy.switch_tenant_tasks' => []]);
-    DB::purge('mysql');
-    Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
+    config(['database.connections.pgsql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'multitenancy.switch_tenant_tasks' => []]);
+    DB::purge('pgsql');
+    Schema::connection('pgsql')->create('tenants', function (Blueprint $table): void {
         $table->id();
         $table->string('registration_mobile')->nullable()->unique();
         $table->string('registration_email')->nullable()->index();
@@ -24,7 +24,7 @@ beforeEach(function () {
 
 afterEach(function () {
     Tenant::forgetCurrent();
-    DB::purge('mysql');
+    DB::purge('pgsql');
 });
 
 function mobileRegistrationRequest(mixed $mobile): CompanyRegistrationRequest
@@ -43,7 +43,7 @@ function mobileRegistrationRequest(mixed $mobile): CompanyRegistrationRequest
 }
 
 test('equivalent Indian mobile formats cannot register twice', function (string $mobile) {
-    DB::connection('mysql')->table('tenants')->insert(['registration_mobile' => '+919876543210']);
+    DB::connection('pgsql')->table('tenants')->insert(['registration_mobile' => '+919876543210']);
     $request = mobileRegistrationRequest($mobile);
     $validator = Validator::make($request->all(), ['mobile_number' => $request->rules()['mobile_number']], $request->messages());
     expect($request->input('mobile_number'))->toBe('+919876543210');
@@ -62,7 +62,7 @@ test('new mobile numbers pass validation', function () {
 });
 
 test('registration normalizes email before checking for another tenant', function () {
-    DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
+    DB::connection('pgsql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
     $request = new class extends CompanyRegistrationRequest
     {
         public function normalize(): void
@@ -83,14 +83,14 @@ test('tenant registration email is unique in the database', function () {
     $migration = require base_path('database/migrations/2026_11_02_233457_make_registration_email_unique_on_tenants_table.php');
     $migration->up();
 
-    DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
+    DB::connection('pgsql')->table('tenants')->insert(['registration_email' => 'owner@example.test']);
 
-    expect(fn () => DB::connection('mysql')->table('tenants')->insert(['registration_email' => 'owner@example.test']))
+    expect(fn () => DB::connection('pgsql')->table('tenants')->insert(['registration_email' => 'owner@example.test']))
         ->toThrow(QueryException::class);
 });
 
 test('unique email migration normalizes existing addresses and leaves missing addresses nullable', function () {
-    DB::connection('mysql')->table('tenants')->insert([
+    DB::connection('pgsql')->table('tenants')->insert([
         ['registration_email' => ' Owner@Example.Test '],
         ['registration_email' => '   '],
         ['registration_email' => null],
@@ -98,12 +98,12 @@ test('unique email migration normalizes existing addresses and leaves missing ad
     $migration = require base_path('database/migrations/2026_11_02_233457_make_registration_email_unique_on_tenants_table.php');
     $migration->up();
 
-    expect(DB::connection('mysql')->table('tenants')->where('registration_email', 'owner@example.test')->exists())->toBeTrue()
-        ->and(DB::connection('mysql')->table('tenants')->whereNull('registration_email')->count())->toBe(2);
+    expect(DB::connection('pgsql')->table('tenants')->where('registration_email', 'owner@example.test')->exists())->toBeTrue()
+        ->and(DB::connection('pgsql')->table('tenants')->whereNull('registration_email')->count())->toBe(2);
 });
 
 test('unique email migration stops when existing tenants share an address', function () {
-    DB::connection('mysql')->table('tenants')->insert([
+    DB::connection('pgsql')->table('tenants')->insert([
         ['registration_email' => 'owner@example.test'],
         ['registration_email' => 'Owner@Example.Test'],
     ]);

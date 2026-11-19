@@ -79,11 +79,11 @@ trait AddressDetailsTrait
 
                             // Search across address fields
                             $query->where(function ($q) use ($search) {
-                                $q->where('street', 'like', "%{$search}%")
-                                    ->orWhere('city', 'like', "%{$search}%")
-                                    ->orWhere('state', 'like', "%{$search}%")
-                                    ->orWhere('country', 'like', "%{$search}%")
-                                    ->orWhere('address_type', 'like', "%{$search}%");
+                                $q->whereLike('street', "%{$search}%")
+                                    ->orWhereLike('city', "%{$search}%")
+                                    ->orWhereLike('state', "%{$search}%")
+                                    ->orWhereLike('country', "%{$search}%")
+                                    ->orWhereLike('address_type', "%{$search}%");
                             });
 
                             return $query->get()

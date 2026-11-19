@@ -157,7 +157,7 @@ class FieldMtpService
                 abort_unless($plan->month->format('Y-m') === $data['month'], 422, 'The plan month cannot be changed.');
             } else {
                 Gate::forUser($user)->authorize('create', SalesTourPlan::class);
-                abort_if(SalesTourPlan::query()->where('user_id', $user->id)->where('month', 'like', $data['month'].'%')->exists(), 409, 'A plan already exists for this month. Open it instead.');
+                abort_if(SalesTourPlan::query()->where('user_id', $user->id)->whereLike('month', $data['month'].'%')->exists(), 409, 'A plan already exists for this month. Open it instead.');
                 $plan = new SalesTourPlan(['user_id' => $user->id, 'approval_status' => 'draft']);
                 $plan->setRawAttributes([...$plan->getAttributes(), 'month' => $data['month']]);
             }

@@ -14,17 +14,18 @@ class MigrateTenantsCommand extends Command
 
     public function handle(): int
     {
-        $landlord = (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+        $landlord = (string) config('multitenancy.landlord_database_connection_name', 'pgsql');
 
         $this->components->info('Migrating the landlord database.');
-        Artisan::call('migrate', [
+        $exit = Artisan::call('migrate', [
             '--database' => $landlord,
-            '--path' => 'database/migrations',
             '--force' => true,
         ]);
         $this->output->write(Artisan::output());
 
-        $exit = self::SUCCESS;
+        if ($exit !== self::SUCCESS) {
+            return self::FAILURE;
+        }
 
         app(IsTenant::class)::query()->orderBy('id')->each(function ($tenant) use (&$exit): void {
             $this->components->info("Migrating {$tenant->domain}.");
@@ -37,13 +38,11 @@ class MigrateTenantsCommand extends Command
                         '--force' => true,
                     ];
 
-                    if ($this->option('fresh')) {
-                        Artisan::call('migrate:fresh', $arguments);
-                    } else {
-                        Artisan::call('migrate', $arguments);
-                    }
-
+                    $result = Artisan::call($this->option('fresh') ? 'migrate:fresh' : 'migrate', $arguments);
                     $this->output->write(Artisan::output());
+                    if ($result !== self::SUCCESS) {
+                        throw new \RuntimeException('Tenant migrations failed.');
+                    }
                 });
             } catch (\Throwable $exception) {
                 $exit = self::FAILURE;

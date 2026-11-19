@@ -23,9 +23,9 @@ class EmployeeAttendanceForm
     ->searchable()
     ->getSearchResultsUsing(function (string $search) {
         return \App\Models\Employee::query()
-            ->where('first_name', 'like', "%{$search}%")
-            ->orWhere('middle_name', 'like', "%{$search}%")
-            ->orWhere('last_name', 'like', "%{$search}%")
+            ->whereLike('first_name', "%{$search}%")
+            ->orWhereLike('middle_name', "%{$search}%")
+            ->orWhereLike('last_name', "%{$search}%")
             ->get()
             ->pluck('full_name', 'id');
     })

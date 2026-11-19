@@ -193,7 +193,7 @@ class PatchResource extends BaseResource
                     ->getStateUsing(fn ($record) => $record->territory?->name)
                     // Custom search on the relationship
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        return $query->whereHas('territory', fn (Builder $subQuery) => $subQuery->where('name', 'like', "%{$search}%"));
+                        return $query->whereHas('territory', fn (Builder $subQuery) => $subQuery->whereLike('name', "%{$search}%"));
                     })
                     // Custom sort on the relationship
                     ->sortable(query: function (Builder $query, string $direction): Builder {

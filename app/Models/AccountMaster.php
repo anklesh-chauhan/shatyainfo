@@ -318,9 +318,10 @@ class AccountMaster extends BaseModel
             $account_master->addresses()->forceDelete();
             $account_master->contactDetails()->forceDelete();
         });
-        static::updated(function ($account_master) {
-            // $account_master->addresses()->sync($account_master->addresses()->pluck('addresses.id')->toArray());
-            $account_master->contactDetails()->sync($account_master->contactDetails()->pluck('contact_details.id')->toArray());
+        static::updated(function (self $account): void {
+            $account->contactDetails()
+                ->wherePivotIn('contact_detail_id', ContactDetail::onlyTrashed()->select('id'))
+                ->detach();
         });
         static::restored(function ($account_master) {
             $account_master->addresses()->restore();

@@ -21,9 +21,9 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['database.connections.mysql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'session.driver' => 'array', 'cache.default' => 'array', 'cache.stores.registration' => ['driver' => 'array']]);
-    DB::purge('mysql');
-    Schema::connection('mysql')->create('tenants', function (Blueprint $table): void {
+    config(['database.connections.pgsql' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''], 'session.driver' => 'array', 'cache.default' => 'array', 'cache.stores.registration' => ['driver' => 'array']]);
+    DB::purge('pgsql');
+    Schema::connection('pgsql')->create('tenants', function (Blueprint $table): void {
         $table->id();
         $table->string('name');
         $table->string('registration_mobile', 16)->nullable()->unique();
@@ -315,22 +315,22 @@ test('verified owners can enter before masters finish even when tenant cache pre
         'multitenancy.switch_tenant_tasks' => [PrefixCacheTask::class],
         'cache.default' => 'database',
         'cache.prefix' => 'landlord:',
-        'cache.stores.database' => ['driver' => 'database', 'connection' => 'mysql', 'table' => 'cache', 'lock_connection' => 'mysql', 'lock_table' => 'cache_locks'],
-        'cache.stores.registration' => ['driver' => 'database', 'connection' => 'mysql', 'table' => 'cache', 'lock_connection' => 'mysql', 'lock_table' => 'cache_locks', 'prefix' => 'registration:'],
+        'cache.stores.database' => ['driver' => 'database', 'connection' => 'pgsql', 'table' => 'cache', 'lock_connection' => 'pgsql', 'lock_table' => 'cache_locks'],
+        'cache.stores.registration' => ['driver' => 'database', 'connection' => 'pgsql', 'table' => 'cache', 'lock_connection' => 'pgsql', 'lock_table' => 'cache_locks', 'prefix' => 'registration:'],
         'database.connections.tenant' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''],
     ]);
     Cache::forgetDriver('registration');
-    Schema::connection('mysql')->create('cache', function (Blueprint $table): void {
+    Schema::connection('pgsql')->create('cache', function (Blueprint $table): void {
         $table->string('key')->primary();
         $table->text('value');
         $table->integer('expiration');
     });
-    Schema::connection('mysql')->create('cache_locks', function (Blueprint $table): void {
+    Schema::connection('pgsql')->create('cache_locks', function (Blueprint $table): void {
         $table->string('key')->primary();
         $table->string('owner');
         $table->integer('expiration');
     });
-    Schema::connection('mysql')->table('tenants', function (Blueprint $table): void {
+    Schema::connection('pgsql')->table('tenants', function (Blueprint $table): void {
         $table->string('master_setup_status')->default('pending');
     });
     DB::purge('tenant');
@@ -355,7 +355,7 @@ test('verified owners can enter before masters finish even when tenant cache pre
     $this->get($url)->assertForbidden();
     $prefixedToken = str_repeat('d', 64);
     $logicalKey = 'registration.login.'.hash('sha256', $prefixedToken);
-    DB::connection('mysql')->table('cache')->insert([
+    DB::connection('pgsql')->table('cache')->insert([
         'key' => 'tenant_id_'.$this->tenant->id.$logicalKey,
         'value' => serialize(['tenant_id' => $this->tenant->id, 'email' => 'owner@example.test']),
         'expiration' => now()->addMinutes(10)->getTimestamp(),
@@ -377,7 +377,7 @@ test('public company addresses redirect over https', function () {
 });
 
 test('registration polling exposes provisioning percentage and current step', function () {
-    Schema::connection('mysql')->table('tenants', function (Blueprint $table): void {
+    Schema::connection('pgsql')->table('tenants', function (Blueprint $table): void {
         $table->unsignedTinyInteger('provisioning_progress')->nullable();
         $table->string('provisioning_step')->nullable();
     });

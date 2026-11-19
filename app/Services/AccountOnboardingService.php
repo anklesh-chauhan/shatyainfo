@@ -9,6 +9,7 @@ use App\Models\Patch;
 use App\Models\Tenant;
 use App\Services\DataImport\AccountImportDetails;
 use App\Services\DataImport\AccountImportRow;
+use App\Services\DataImport\CityImport;
 use App\Services\DataImport\ImportRowException;
 use App\Services\DataImport\SpreadsheetFile;
 use Illuminate\Support\Facades\Validator;
@@ -19,7 +20,7 @@ class AccountOnboardingService
     public const COLUMNS = [
         'external_reference', 'account_code', 'name', 'account_type', 'owner_email', 'status_code', 'phone_number', 'email', 'commission',
         'territory_code', 'patch_codes', 'rating', 'specialty_code', 'therapy_area_code',
-        'address_type', 'street', 'city', 'area', 'pin_code', 'parent_reference', 'institution_reference', 'supplier_reference',
+        'address_type', 'street', 'city', 'area', 'pin_code', 'state', 'country', 'parent_reference', 'institution_reference', 'supplier_reference',
         'division_code', 'segment', 'profile_from', 'profile_to', 'potential_value', 'potential_unit_code', 'potential_period', 'currency', 'assessed_on',
         'calls_per_month', 'target_from', 'target_to',
         'account_subtype', 'alias', 'secondary_email', 'website', 'no_of_employees', 'twitter', 'linked_in',
@@ -105,6 +106,7 @@ class AccountOnboardingService
         $errors = [];
         $uniqueDetails = [];
         $newPatchTerritories = [];
+        $cities = new CityImport;
         foreach ($rows as $item) {
             try {
                 foreach (['account_code', 'bank_account_number', 'gst_number'] as $field) {
@@ -119,7 +121,7 @@ class AccountOnboardingService
                 if (($references[$item['data']['external_reference']] ?? 0) > 1) {
                     throw new ImportRowException('Duplicate external reference in this file. Use one row per account.');
                 }
-                $plan = [...$item, ...app(AccountImportRow::class)->resolve($item['data'], array_map('strval', array_keys($references)))];
+                $plan = [...$item, ...app(AccountImportRow::class)->resolve($item['data'], array_map('strval', array_keys($references)), $cities)];
                 foreach ($plan['patch_plans'] as $patchPlan) {
                     $key = mb_strtoupper($patchPlan['code']);
                     if (isset($newPatchTerritories[$key]) && $newPatchTerritories[$key] !== $patchPlan['territory_id']) {
@@ -172,6 +174,7 @@ class AccountOnboardingService
                 throw ValidationException::withMessages(['accountFile' => collect($preview['errors'])->map(fn ($error): string => 'Row '.$error['row'].': '.$error['message'])->implode(' ')]);
             }
             $accounts = [];
+            $cities = new CityImport;
             $total = count($preview['plans']);
             $progress && $progress('Importing accounts', 0, $total);
             foreach (collect($preview['plans'])->sortBy(fn ($plan): bool => $plan['data']['account_code'] === '') as $plan) {
@@ -187,11 +190,18 @@ class AccountOnboardingService
                     }
                     if ($plan['address'] !== []) {
                         if ($plan['area_plan'] !== []) {
+                            $areaPlan = $plan['area_plan'];
+                            if ($areaPlan['city_id'] === null) {
+                                $city = $cities->persist($areaPlan['city_name'], $areaPlan['state_id'], $areaPlan['country_id']);
+                                $areaPlan['city_id'] = $city->id;
+                            }
+                            unset($areaPlan['city_name']);
                             $area = CityPinCode::query()->orderBy('id')->firstOrCreate(
-                                ['city_id' => $plan['area_plan']['city_id'], 'pin_code' => $plan['area_plan']['pin_code']],
-                                $plan['area_plan'],
+                                ['city_id' => $areaPlan['city_id'], 'pin_code' => $areaPlan['pin_code']],
+                                $areaPlan,
                             );
                             $plan['address']['area_town_id'] = $area->id;
+                            $plan['address']['city_id'] = $areaPlan['city_id'];
                         }
                         $account->addresses()->updateOrCreate(['is_primary' => true], $plan['address']);
                     }
@@ -219,10 +229,12 @@ class AccountOnboardingService
                     }
                 } catch (ValidationException $exception) {
                     throw ValidationException::withMessages(['accountFile' => 'Row '.$plan['line'].': '.collect($exception->errors())->flatten()->implode(' ')]);
+                } catch (ImportRowException $exception) {
+                    throw ValidationException::withMessages(['accountFile' => 'Row '.$plan['line'].': '.$exception->getMessage()]);
                 }
             }
-            $progress && $progress('Finalizing relationships and saving', $total, $total);
-            foreach ($preview['plans'] as $plan) {
+            $progress && $progress('Finalizing account relationships', 0, $total);
+            foreach ($preview['plans'] as $index => $plan) {
                 $account = $accounts[$plan['data']['external_reference']];
                 foreach (['parent_reference' => 'parent_id', 'institution_reference' => 'institution_account_id', 'supplier_reference' => 'supplier_account_id'] as $column => $field) {
                     if ($plan['data'][$column] !== '') {
@@ -230,8 +242,15 @@ class AccountOnboardingService
                     }
                 }
                 $account->account_status_id = $plan['status'];
-                $account->save();
+                if ($account->isDirty()) {
+                    $account->save();
+                }
+                $processed = $index + 1;
+                if ($processed % 10 === 0 || $processed === $total) {
+                    $progress && $progress('Finalizing account relationships', $processed, $total);
+                }
             }
+            $progress && $progress('Saving the completed import', $total, $total);
             app(CompanyOnboardingService::class)->mark('accounts_reviewed');
 
             return ['created' => $preview['created'], 'updated' => $preview['updated']];

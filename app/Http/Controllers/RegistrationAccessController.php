@@ -265,7 +265,7 @@ class RegistrationAccessController extends Controller
 
     private function landlordConnection(): string
     {
-        return (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+        return (string) config('multitenancy.landlord_database_connection_name', 'pgsql');
     }
 
     private function cacheTable(): string
@@ -293,12 +293,12 @@ class RegistrationAccessController extends Controller
             return $handoff;
         }
 
-        $landlord = (string) config('multitenancy.landlord_database_connection_name', 'mysql');
+        $landlord = (string) config('multitenancy.landlord_database_connection_name', 'pgsql');
         $table = (string) (config('cache.stores.registration.table') ?: config('cache.stores.database.table') ?: 'cache');
 
         try {
             $row = DB::connection($landlord)->table($table)
-                ->where('key', 'like', '%'.$key)
+                ->whereLike('key', '%'.$key)
                 ->where('expiration', '>', now()->getTimestamp())
                 ->orderByDesc('expiration')
                 ->first();

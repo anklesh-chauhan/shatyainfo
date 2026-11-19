@@ -53,9 +53,9 @@ trait ContactDetailsTrait
                             }
 
                             $query->where(function ($query) use ($search) {
-                                $query->where('first_name', 'like', "%{$search}%")
-                                    ->orWhere('last_name', 'like', "%{$search}%")
-                                    ->orWhereHas('accountMasters', fn ($q) => $q->where('name', 'like', "%{$search}%")
+                                $query->whereLike('first_name', "%{$search}%")
+                                    ->orWhereLike('last_name', "%{$search}%")
+                                    ->orWhereHas('accountMasters', fn ($q) => $q->whereLike('name', "%{$search}%")
                                     );
                             });
 

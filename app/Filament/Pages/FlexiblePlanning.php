@@ -82,7 +82,7 @@ class FlexiblePlanning extends Page implements HasForms
         return $schema->components([
             Hidden::make('client_plan_id'), Hidden::make('expected_version'), Hidden::make('status'),
             Select::make('account_id')->label('Customer')->required()->searchable()
-                ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->where('name', 'like', '%'.$search.'%')->limit(100)->pluck('name', 'id')->all())
+                ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereLike('name', '%'.$search.'%')->limit(100)->pluck('name', 'id')->all())
                 ->getOptionLabelUsing(fn ($value): ?string => AccountMaster::query()->applyVisibility('AccountMaster')->find($value)?->name)->live(),
             DatePicker::make('date')->label('Intended visit date')->required()->minDate(today())->maxDate(today()->addDays(90)),
             Select::make('patch_id')->label('Patch (optional)')->searchable()

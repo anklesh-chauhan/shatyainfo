@@ -47,13 +47,7 @@ class StandardFareChartForm
                                 return CityPinCode::query()
                                     ->when(count($words) > 0, function ($query) use ($words) {
                                         foreach ($words as $word) {
-                                            $query->where(function ($q) use ($word) {
-                                                $q->where('area_town', 'like', "%{$word}%")
-                                                    ->orWhere('pin_code', 'like', "%{$word}%")
-                                                    ->orWhereHas('city', function ($cityQuery) use ($word) {
-                                                        $cityQuery->where('name', 'like', "%{$word}%");
-                                                    });
-                                            });
+                                            $query->searchLocation($word);
                                         }
                                     })
                                     ->with('city')
@@ -78,13 +72,7 @@ class StandardFareChartForm
                                 return CityPinCode::query()
                                     ->when(count($words) > 0, function ($query) use ($words) {
                                         foreach ($words as $word) {
-                                            $query->where(function ($q) use ($word) {
-                                                $q->where('area_town', 'like', "%{$word}%")
-                                                    ->orWhere('pin_code', 'like', "%{$word}%")
-                                                    ->orWhereHas('city', function ($cityQuery) use ($word) {
-                                                        $cityQuery->where('name', 'like', "%{$word}%");
-                                                    });
-                                            });
+                                            $query->searchLocation($word);
                                         }
                                     })
                                     ->with('city')

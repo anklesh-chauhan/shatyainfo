@@ -33,8 +33,8 @@ if (($job['mode'] ?? '') === 'company_isolation') {
     require __DIR__.'/company_isolation_support.php';
 }
 if (($job['mode'] ?? '') === 'company_launch') {
-    config(['multitenancy.switch_tenant_tasks' => [], 'database.connections.tenant' => config('database.connections.mysql')]);
-    $connection = $app->make('db')->connection('mysql');
+    config(['multitenancy.switch_tenant_tasks' => [], 'database.connections.tenant' => config('database.connections.pgsql')]);
+    $connection = $app->make('db')->connection('pgsql');
     $app->make('db')->connection('tenant')->setPdo($connection->getPdo())->setReadPdo($connection->getPdo());
     $app->make('db')->setDefaultConnection('tenant');
     $tenant = new Tenant;
@@ -104,7 +104,7 @@ if (($job['mode'] ?? '') === 'company_isolation') {
                 $organization->update(['metadata' => $metadata]);
             }, 3);
             Tenant::forgetCurrent();
-            if (app('db')->getDefaultConnection() !== 'mysql'
+            if (app('db')->getDefaultConnection() !== 'pgsql'
                 || config('database.connections.tenant.database') !== null) {
                 throw new RuntimeException('Company connection was not reset.');
             }

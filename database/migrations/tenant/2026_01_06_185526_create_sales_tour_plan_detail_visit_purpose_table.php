@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('sales_tour_plan_detail_id');
             $table->unsignedBigInteger('visit_purpose_id');
 
-            // Short, custom FK names to avoid MySQL 64-char limit
+            // Short foreign key names fit PostgreSQL's 63-byte identifier limit.
             $table->foreign(
                 'sales_tour_plan_detail_id',
                 'stpdvp_stpd_id_fk'

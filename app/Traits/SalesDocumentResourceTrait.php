@@ -240,7 +240,7 @@ trait SalesDocumentResourceTrait
                             })
                             ->getSearchResultsUsing(function (string $search): array {
                                 return \App\Models\ItemMaster::with('parent')
-                                    ->where('item_name', 'like', "%{$search}%")
+                                    ->whereLike('item_name', "%{$search}%")
                                     ->limit(50)
                                     ->get()
                                     ->mapWithKeys(function ($item) {

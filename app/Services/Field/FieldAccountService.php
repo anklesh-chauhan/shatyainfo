@@ -95,11 +95,11 @@ class FieldAccountService
         if (filled($search)) {
             $query->where(function ($builder) use ($search): void {
                 $builder
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('account_code', 'like', '%'.$search.'%')
-                    ->orWhere('phone_number', 'like', '%'.$search.'%')
-                    ->orWhere('email', 'like', '%'.$search.'%')
-                    ->orWhere('alias', 'like', '%'.$search.'%');
+                    ->whereLike('name', '%'.$search.'%')
+                    ->orWhereLike('account_code', '%'.$search.'%')
+                    ->orWhereLike('phone_number', '%'.$search.'%')
+                    ->orWhereLike('email', '%'.$search.'%')
+                    ->orWhereLike('alias', '%'.$search.'%');
             });
         }
 

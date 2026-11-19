@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $connection = config('multitenancy.landlord_database_connection_name', 'mysql');
+        $connection = config('multitenancy.landlord_database_connection_name', 'pgsql');
         $hasDuplicateEmails = DB::connection($connection)->table('tenants')
             ->selectRaw('LOWER(TRIM(registration_email))')
             ->whereNotNull('registration_email')
@@ -39,7 +39,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection(config('multitenancy.landlord_database_connection_name', 'mysql'))->table('tenants', function (Blueprint $table): void {
+        Schema::connection(config('multitenancy.landlord_database_connection_name', 'pgsql'))->table('tenants', function (Blueprint $table): void {
             $table->dropUnique(['registration_email']);
             $table->index('registration_email');
         });

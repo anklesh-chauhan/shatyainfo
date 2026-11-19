@@ -57,12 +57,12 @@ class ContactDetailsRelationManager extends RelationManager
                 TextColumn::make('email')
                     ->sortable()
                     ->searchable(query: function ($query, string $search) {
-                        $query->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%")
-                            ->orWhere('mobile_number', 'like', "%{$search}%")
+                        $query->whereLike('first_name', "%{$search}%")
+                            ->orWhereLike('last_name', "%{$search}%")
+                            ->orWhereLike('email', "%{$search}%")
+                            ->orWhereLike('mobile_number', "%{$search}%")
                             ->orWhereHas('company', fn ($q) =>
-                                $q->where('name', 'like', "%{$search}%")
+                                $q->whereLike('name', "%{$search}%")
                             );
                     }),
                 TextColumn::make('mobile_number')
@@ -96,11 +96,11 @@ class ContactDetailsRelationManager extends RelationManager
                                     return ContactDetail::query()
                                         ->where(function ($query) use ($search) {
                                             // Search across first_name and last_name instead of a single full_name column
-                                            $query->where('first_name', 'like', "%{$search}%")
-                                                ->orWhere('last_name', 'like', "%{$search}%")
-                                                ->orWhere('email', 'like', "%{$search}%")
-                                                ->orWhere('mobile_number', 'like', "%{$search}%")
-                                                ->orWhereHas('company', fn ($q) => $q->where('name', 'like', "%{$search}%"));
+                                            $query->whereLike('first_name', "%{$search}%")
+                                                ->orWhereLike('last_name', "%{$search}%")
+                                                ->orWhereLike('email', "%{$search}%")
+                                                ->orWhereLike('mobile_number', "%{$search}%")
+                                                ->orWhereHas('company', fn ($q) => $q->whereLike('name', "%{$search}%"));
                                         })
                                         ->limit(50)
                                         ->get()

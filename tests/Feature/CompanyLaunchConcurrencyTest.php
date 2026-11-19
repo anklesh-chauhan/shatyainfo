@@ -16,8 +16,8 @@ uses(FieldConcurrencyDatabase::class);
 
 it('serializes overlapping company launches without duplicate history or partial failed teams', function () {
     expect(User::query()->getConnection()->getDatabaseName())->toBe('it_erp_testing');
-    config(['multitenancy.switch_tenant_tasks' => [], 'database.connections.tenant' => config('database.connections.mysql')]);
-    $connection = app('db')->connection('mysql');
+    config(['multitenancy.switch_tenant_tasks' => [], 'database.connections.tenant' => config('database.connections.pgsql')]);
+    $connection = app('db')->connection('pgsql');
     app('db')->connection('tenant')->setPdo($connection->getPdo())->setReadPdo($connection->getPdo());
     app('db')->setDefaultConnection('tenant');
     $tenant = new Tenant;
@@ -85,6 +85,6 @@ it('serializes overlapping company launches without duplicate history or partial
             'activated_policies' => 1, 'unique_launched_mrs' => count($launchedIds)])."\n");
     } finally {
         Tenant::forgetCurrent();
-        app('db')->setDefaultConnection('mysql');
+        app('db')->setDefaultConnection('pgsql');
     }
 })->group('performance')->skip(fn (): bool => getenv('FIELD_CONCURRENCY') !== '1', 'Run with -Concurrency against the isolated test database; do not run competing database suites.');

@@ -35,9 +35,9 @@ return [
 
         'registration' => [
             'driver' => 'database',
-            'connection' => env('DB_CACHE_CONNECTION') ?: 'mysql',
+            'connection' => env('DB_CACHE_CONNECTION') ?: 'pgsql',
             'table' => env('DB_CACHE_TABLE', 'cache'),
-            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION') ?: 'mysql',
+            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION') ?: 'pgsql',
             'lock_table' => env('DB_CACHE_LOCK_TABLE'),
             'prefix' => 'registration:',
         ],
@@ -49,9 +49,9 @@ return [
 
         'database' => [
             'driver' => 'database',
-            'connection' => env('DB_CACHE_CONNECTION') ?: 'mysql',
+            'connection' => env('DB_CACHE_CONNECTION') ?: 'pgsql',
             'table' => env('DB_CACHE_TABLE', 'cache'),
-            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION') ?: 'mysql',
+            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION') ?: 'pgsql',
             'lock_table' => env('DB_CACHE_LOCK_TABLE'),
         ],
 

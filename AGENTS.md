@@ -391,7 +391,7 @@ Tour plan → visit → DCR → travel segments / expenses / SGIP samples. Sales
 
 ## Tests
 
-- Pest + `RefreshDatabase`. MySQL database is `it_erp_testing`.
+- Pest + `RefreshDatabase`. PostgreSQL database is `it_erp_testing`.
 - Use `reportingUser`, `reportingShift` (`ShiftMaster::withoutEvents`), `reportingLeaveType`.
 - Creating a `Visit` while authenticated attaches a DCR (`VisitObserver` + `DcrService`). Wrap Visit creates in `withoutEvents` only when that side effect is not under test.
 - `ShiftMaster::created` inserts five setup rows. Tenant create drops databases — never run in Pest.

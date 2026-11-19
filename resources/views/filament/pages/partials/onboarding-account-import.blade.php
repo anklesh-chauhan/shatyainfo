@@ -7,7 +7,12 @@
         <summary>How to prepare your customer file</summary>
         <p>Fill the Accounts sheet. Required columns: external_reference, name, account_type and owner_email.</p>
         <p>Keep external_reference unchanged when updating a customer. Blank optional cells keep existing values. Leave account_code blank to generate it.</p>
-        <p>{{ $directAccountImport ? 'Direct DCR does not require territories or patches.' : 'Create patches before using patch codes. Use existing city names for addresses.' }}</p>
+        @if ($directAccountImport)
+            <p>Direct DCR does not require territories or patches.</p>
+        @else
+            <p>Supply a territory code when using a new patch code.</p>
+        @endif
+        <p>Missing address cities and areas are created when you confirm the import. For a new city whose PIN does not identify one state and country, fill in the state and country columns.</p>
         <p>Use the References sheet for company values. Preview the file, fix any errors, then select Confirm import.</p>
     </details>
     @if (in_array($accountImportStatus['status'] ?? null, ['queued', 'running'], true))

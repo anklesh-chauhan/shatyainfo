@@ -16,10 +16,10 @@ uses(RefreshDatabase::class);
 it('rejects unsafe database identifiers', function () {
     $provisioner = app(TenantDatabaseProvisioner::class);
 
-    expect(fn () => $provisioner->quoteIdentifier('tenant_1; DROP DATABASE mysql'))
+    expect(fn () => $provisioner->quoteIdentifier('tenant_1; DROP DATABASE postgres'))
         ->toThrow(InvalidArgumentException::class);
 
-    expect($provisioner->quoteIdentifier('tenant_abc123'))->toBe('`tenant_abc123`');
+    expect($provisioner->quoteIdentifier('tenant_abc123'))->toBe('"tenant_abc123"');
 });
 
 it('uses the landlord database when no company is selected', function () {
@@ -33,11 +33,11 @@ it('uses the landlord database when no company is selected', function () {
     $this->getJson('/__tenancy-probe')
         ->assertOk()
         ->assertJsonPath('domain', null)
-        ->assertJsonPath('default', 'mysql');
+        ->assertJsonPath('default', 'pgsql');
 });
 
 it('switches to the tenant database for a company domain', function () {
-    $database = (string) config('database.connections.mysql.database');
+    $database = (string) config('database.connections.pgsql.database');
 
     Tenant::withoutEvents(function () use ($database) {
         $tenant = new Tenant;
@@ -63,12 +63,12 @@ it('switches to the tenant database for a company domain', function () {
         ->assertJsonPath('database', $database)
         ->assertJsonPath('default', 'tenant');
 
-    expect(DB::getDefaultConnection())->toBe('mysql');
+    expect(DB::getDefaultConnection())->toBe('pgsql');
     expect(config('database.connections.tenant.database'))->toBeNull();
 });
 
 it('does not let a header override the company host', function () {
-    $database = (string) config('database.connections.mysql.database');
+    $database = (string) config('database.connections.pgsql.database');
 
     Tenant::withoutEvents(function () use ($database) {
         $acme = new Tenant;
@@ -98,7 +98,7 @@ it('does not let a header override the company host', function () {
 });
 
 it('blocks landlord routes on a company host', function () {
-    $database = (string) config('database.connections.mysql.database');
+    $database = (string) config('database.connections.pgsql.database');
 
     Tenant::withoutEvents(function () use ($database) {
         $tenant = new Tenant;
@@ -138,7 +138,7 @@ it('blocks companies that are not ready before switching databases', function (s
         ->assertJsonPath('message', 'Company setup is not complete. Please try again later.');
 
     expect(Tenant::current())->toBeNull()
-        ->and(DB::getDefaultConnection())->toBe('mysql')
+        ->and(DB::getDefaultConnection())->toBe('pgsql')
         ->and(config('database.connections.tenant.database'))->toBeNull();
 })->with(['pending', 'provisioning', 'failed'])->with([true, false]);
 
@@ -146,7 +146,7 @@ it('resolves the database queue on the landlord connection while a tenant is act
     $configuration = config('queue.connections.database');
     $resolver = Mockery::mock(ConnectionResolverInterface::class);
     $connection = Mockery::mock(Connection::class);
-    $resolver->shouldReceive('connection')->once()->with('mysql')->andReturn($connection);
+    $resolver->shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
 
     DB::setDefaultConnection('tenant');
 
@@ -155,7 +155,7 @@ it('resolves the database queue on the landlord connection while a tenant is act
 
         expect($queue)->toBeInstanceOf(DatabaseQueue::class);
     } finally {
-        DB::setDefaultConnection('mysql');
+        DB::setDefaultConnection('pgsql');
     }
 });
 

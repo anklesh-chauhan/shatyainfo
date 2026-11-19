@@ -30,7 +30,7 @@ class ListVisits extends ListRecords
                 ->schema([
                     Hidden::make('client_call_id')->default(fn () => (string) Str::uuid()),
                     Select::make('company_id')->label('Doctor or chemist')->searchable()->required()
-                        ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->where('name', 'like', '%'.$search.'%')->limit(50)->pluck('name', 'id')->all())
+                        ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereLike('name', '%'.$search.'%')->limit(50)->pluck('name', 'id')->all())
                         ->getOptionLabelUsing(fn ($value): ?string => AccountMaster::query()->applyVisibility('AccountMaster')->find($value)?->name),
                     DatePicker::make('date')->default(today())->maxDate(today())->required(),
                     Textarea::make('unplanned_reason')->label('Reason for unplanned call')->maxLength(2000),
