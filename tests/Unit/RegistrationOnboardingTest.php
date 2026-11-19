@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Spatie\Multitenancy\Tasks\PrefixCacheTask;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
@@ -34,6 +35,8 @@ beforeEach(function () {
         $table->text('provisioning_owner')->nullable();
         $table->text('onboarding_data')->nullable();
         $table->string('onboarding_status')->nullable();
+        $table->string('legal_terms_version')->nullable();
+        $table->timestamp('legal_accepted_at')->nullable();
         $table->timestamps();
     });
     Queue::fake();
@@ -140,13 +143,30 @@ test('captcha returns a noncached image and stores an expiring challenge', funct
 test('registration waits for email verification without dispatching provisioning', function () {
     Mail::fake();
     $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
-        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234',
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234', 'legal_acceptance' => '1',
     ])->assertRedirect();
     expect(Tenant::query()->where('name', 'Example')->first()->provisioning_status)->toBe('awaiting_verification');
     expect(Tenant::query()->where('name', 'Example')->first()->registration_mobile)->toBe('+919876543210');
     expect(Cache::store('registration')->get('registration.verify.'.Tenant::query()->where('name', 'Example')->first()->id))->toHaveKeys(['hash', 'attempts', 'expires']);
     $statusUrl = URL::temporarySignedRoute('signup.status', now()->addHour(), ['tenant' => Tenant::query()->where('name', 'Example')->first()]);
     $this->get($statusUrl)->assertOk()->assertSee('Email verification code')->assertSee('autocomplete="one-time-code"', false);
+    Queue::assertNothingPushed();
+});
+
+test('registration can resume and resend after verification email delivery fails', function () {
+    Mail::shouldReceive('raw')->once()->andThrow(new TransportException('Mail transport unavailable'));
+    $registration = $this->withSession(['registration_captcha' => ['answer' => 'ABC234', 'expires' => time() + 600]])->post('/register', [
+        'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test', 'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'captcha' => 'abc234', 'legal_acceptance' => '1',
+    ])->assertRedirect()->assertSessionHas('status');
+
+    $tenant = Tenant::query()->where('registration_email', 'owner@example.test')->sole();
+    expect($tenant->provisioning_status)->toBe('awaiting_verification');
+    $statusUrl = $registration->headers->get('Location');
+    $this->get($statusUrl)->assertOk()->assertSee('Your registration was saved')->assertSee('Send a new code');
+
+    Mail::shouldReceive('raw')->once();
+    $resendUrl = URL::temporarySignedRoute('signup.resend', now()->addHour(), ['tenant' => $tenant]);
+    $this->from($statusUrl)->post($resendUrl)->assertRedirect($statusUrl)->assertSessionHas('status', 'If verification is still pending, a new code was sent. Check your inbox.');
     Queue::assertNothingPushed();
 });
 
@@ -276,7 +296,7 @@ test('cloudflare turnstile must pass before a company is created', function () {
     ]);
     $this->post('/register', [
         'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
-        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
+        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token', 'legal_acceptance' => '1',
     ])->assertSessionHasErrors('cf-turnstile-response');
     expect(Tenant::query()->where('name', 'Example')->exists())->toBeFalse();
 });
@@ -289,7 +309,7 @@ test('a passing cloudflare turnstile allows company registration', function () {
     ]);
     $this->post('/register', [
         'mobile_number' => '9876543210', 'company' => 'Example', 'slug' => 'example', 'name' => 'Owner', 'email' => 'owner@example.test',
-        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token',
+        'password' => 'Long-password-1', 'password_confirmation' => 'Long-password-1', 'cf-turnstile-response' => 'token', 'legal_acceptance' => '1',
     ])->assertRedirect()->assertSessionHasNoErrors();
     expect(Tenant::query()->where('name', 'Example')->exists())->toBeTrue();
 });

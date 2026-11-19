@@ -49,35 +49,43 @@ class RegistrationAccessController extends Controller
         return response($png, 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'no-store']);
     }
 
-    public function sendVerification(Tenant $tenant): void
+    public function sendVerification(Tenant $tenant): bool
     {
         if ($tenant->provisioning_status !== 'awaiting_verification') {
-            return;
+            return true;
         }
         $key = $this->verificationKey($tenant);
-        Cache::store('registration')->lock($key.'.lock', 30)->block(5, function () use ($tenant, $key): void {
-            $tenant->refresh();
-            if ($tenant->provisioning_status !== 'awaiting_verification') {
-                return;
-            }
-            $code = (string) random_int(100000, 999999);
-            $expires = now()->addMinutes(10);
-            Cache::store('registration')->put($key, [
-                'hash' => hash_hmac('sha256', $code, (string) config('app.key')),
-                'attempts' => 0,
-                'expires' => $expires->getTimestamp(),
-            ], $expires);
-            Mail::raw('Your verification code for '.$tenant->name.' is '.$code.'. It expires in 10 minutes.', function ($message) use ($tenant): void {
-                $message->to($tenant->provisioning_owner['email'])->subject('Verify your company registration');
+        try {
+            Cache::store('registration')->lock($key.'.lock', 30)->block(5, function () use ($tenant, $key): void {
+                $tenant->refresh();
+                if ($tenant->provisioning_status !== 'awaiting_verification') {
+                    return;
+                }
+                $code = (string) random_int(100000, 999999);
+                $expires = now()->addMinutes(10);
+                Cache::store('registration')->put($key, [
+                    'hash' => hash_hmac('sha256', $code, (string) config('app.key')),
+                    'attempts' => 0,
+                    'expires' => $expires->getTimestamp(),
+                ], $expires);
+                Mail::raw('Your verification code for '.$tenant->name.' is '.$code.'. It expires in 10 minutes.', function ($message) use ($tenant): void {
+                    $message->to($tenant->provisioning_owner['email'])->subject('Verify your company registration');
+                });
             });
-        });
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
+
+        return true;
     }
 
     public function resend(Tenant $tenant): RedirectResponse
     {
-        $this->sendVerification($tenant);
-
-        return back()->with('status', 'If verification is still pending, a new code was sent. Check your inbox.');
+        return back()->with('status', $this->sendVerification($tenant)
+            ? 'If verification is still pending, a new code was sent. Check your inbox.'
+            : 'We could not send a new verification code. Please try again shortly.');
     }
 
     public function verify(CompanyEmailVerificationRequest $request, Tenant $tenant): RedirectResponse

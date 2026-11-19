@@ -31,7 +31,7 @@
         @endphp
         <p id="setup-progress" role="status">
             @if($status === 'awaiting_verification')
-                Enter the six-digit code sent to {{ $tenant->provisioning_owner['email'] }}. It expires in 10 minutes.
+                Check {{ $tenant->provisioning_owner['email'] }} for a six-digit verification code. Codes expire in 10 minutes.
             @elseif($status === 'ready')
                 Your company is ready. Opening your workspace…
             @elseif($status === 'failed')

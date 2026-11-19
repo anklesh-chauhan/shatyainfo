@@ -108,9 +108,12 @@ class MarketingController extends Controller
             ]);
         }
 
-        app(RegistrationAccessController::class)->sendVerification($tenant);
+        $redirect = redirect()->to($this->statusUrl($tenant));
+        if (! app(RegistrationAccessController::class)->sendVerification($tenant)) {
+            $redirect->with('status', 'Your registration was saved, but we could not send the verification code. Use Send a new code to try again.');
+        }
 
-        return redirect()->to($this->statusUrl($tenant));
+        return $redirect;
     }
 
     public function status(Request $request, Tenant $tenant): View|JsonResponse|RedirectResponse
