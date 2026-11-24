@@ -28,6 +28,11 @@ class ApprovalFlowResource extends Resource
 
     protected static ?int $navigationSort = 10;
 
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'module'];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return ApprovalFlowForm::configure($schema);

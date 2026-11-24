@@ -44,10 +44,12 @@ it('searches the configured admin catalog without querying missing columns', fun
 it('searches approval flows by module and employees by name', function () {
     $user = reportingUser('Meera');
     $user->givePermissionTo(Permission::findOrCreate('ViewAny:Employee', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('View:Employee', 'web'));
+    $user->givePermissionTo(Permission::findOrCreate('View:ApprovalFlow', 'web'));
     $this->actingAs($user);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-    ApprovalFlow::query()->create(['module' => 'LeaveApplication']);
+    $flow = ApprovalFlow::query()->create(['module' => 'LeaveApplication', 'name' => 'Leave Review Route']);
 
     $approvalSql = [];
     $employeeSql = [];
@@ -62,10 +64,13 @@ it('searches approval flows by module and employees by name', function () {
         }
     });
 
-    ApprovalFlowResource::getGlobalSearchResults('LeaveApplication');
+    $flowsByModule = ApprovalFlowResource::getGlobalSearchResults('LeaveApplication');
+    $flowsByName = ApprovalFlowResource::getGlobalSearchResults('Leave Review Route');
     $results = EmployeeResource::getGlobalSearchResults('meera');
 
     expect(implode("\n", $approvalSql))->toContain('module');
+    expect($flowsByModule->pluck('title')->all())->toContain($flow->display_name);
+    expect($flowsByName->pluck('title')->all())->toContain($flow->display_name);
     expect(implode("\n", $employeeSql))->toContain('first_name');
     expect($results->pluck('title')->implode(' '))->toContain('Meera');
 });

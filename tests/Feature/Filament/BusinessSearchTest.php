@@ -3,9 +3,12 @@
 use App\Filament\Clusters\HR\AttendanceCluster;
 use App\Filament\GlobalSearch\BusinessSearchProvider;
 use App\Filament\Resources\AccountMasters\AccountMasterResource;
+use App\Filament\Resources\SalesDcrs\SalesDcrResource;
 use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
 use App\Models\ContactDetail;
 use App\Models\ItemMaster;
+use App\Models\SalesDcr;
+use App\Models\SalesTourPlan;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -135,4 +138,36 @@ it('finds accessible menu names separately from business records', function (): 
 it('does not suggest inaccessible or hidden menu entries', function (): void {
     expect($this->search->getResults('tour plan')->getCategories()->get('Menus', collect()))->toBeEmpty();
     expect($this->search->getResults('My quick links')->getCategories()->get('Menus', collect()))->toBeEmpty();
+});
+
+it('searches and ranks numeric IDs and dates alongside related names on PostgreSQL', function (): void {
+    allowBusinessSearch($this->user);
+
+    foreach ([42001, 420010] as $id) {
+        SalesDcr::query()->forceCreate(['id' => $id, 'user_id' => $this->user->id, 'dcr_date' => '2026-11-24']);
+    }
+
+    foreach ([53001, 530010] as $id) {
+        SalesTourPlan::query()->forceCreate(['id' => $id, 'user_id' => $this->user->id, 'month' => '2026-11-01']);
+    }
+
+    $dcrCategory = SalesDcrResource::getNavigationLabel();
+    $tourCategory = SalesTourPlanResource::getNavigationLabel();
+
+    $dcrs = $this->search->getResults('42001')->getCategories()->get($dcrCategory);
+    expect($dcrs)->toHaveCount(2);
+    expect($dcrs->first()->title)->toStartWith('DCR #42001 —');
+
+    $plans = $this->search->getResults('53001')->getCategories()->get($tourCategory);
+    expect($plans)->toHaveCount(2);
+    expect($plans->first()->title)->toStartWith('Tour Plan #53001 —');
+
+    expect($this->search->getResults('2026-11-24')->getCategories()->get($dcrCategory))->toHaveCount(2);
+    expect($this->search->getResults('2026-11')->getCategories()->get($tourCategory))->toHaveCount(2);
+
+    $byName = $this->search->getResults('sEaRcH rEp')->getCategories();
+    expect($byName->get($dcrCategory))->toHaveCount(2);
+    expect($byName->get($tourCategory))->toHaveCount(2);
+
+    expect($this->search->getResults('approval')->getCategories()->except('Menus'))->toBeEmpty();
 });

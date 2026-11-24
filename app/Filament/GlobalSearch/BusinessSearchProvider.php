@@ -162,7 +162,7 @@ class BusinessSearchProvider implements GlobalSearchProvider
 
     protected function matching(Builder $query, string $field, string $search): Builder
     {
-        $column = $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($field));
+        $column = $this->searchColumn($query, $field);
 
         return $query->whereRaw("LOWER({$column}) LIKE ? ESCAPE '!'", ['%'.$this->escaped($search).'%']);
     }
@@ -170,6 +170,15 @@ class BusinessSearchProvider implements GlobalSearchProvider
     protected function escaped(string $search): string
     {
         return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($search));
+    }
+
+    protected function searchColumn(Builder $query, string $field): string
+    {
+        $column = $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($field));
+
+        return $query->getConnection()->getDriverName() === 'pgsql'
+            ? "CAST({$column} AS TEXT)"
+            : $column;
     }
 
     /** @param array{fields: list<string>, codes: list<string>} $profile */
@@ -181,14 +190,14 @@ class BusinessSearchProvider implements GlobalSearchProvider
             if (str_contains($field, '.')) {
                 continue;
             }
-            $column = $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($field));
+            $column = $this->searchColumn($query, $field);
             $rank = in_array($field, $profile['codes'], true) ? 0 : 1;
             $clauses[] = "WHEN LOWER({$column}) = ? THEN {$rank}";
             $bindings[] = mb_strtolower($search);
         }
         foreach ($profile['fields'] as $field) {
             if (! str_contains($field, '.')) {
-                $column = $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($field));
+                $column = $this->searchColumn($query, $field);
                 $clauses[] = "WHEN LOWER({$column}) LIKE ? ESCAPE '!' THEN 2";
                 $bindings[] = $this->escaped($search).'%';
             }
