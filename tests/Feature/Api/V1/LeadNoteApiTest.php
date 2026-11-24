@@ -76,6 +76,18 @@ it('lists all notes of a visible lead newest first with attachments', function (
         ->assertJsonPath('data.1.attachments.0.file_name', 'brochure.pdf')
         ->assertJsonMissingPath('data.1.attachments.0.file_path')
         ->assertJsonMissing(['id' => $elsewhere->id]);
+
+    $url = '/api/v1/leads/'.$lead->id.'/notes?per_page=1';
+    $this->getJson($url.'&page=1')->assertSuccessful()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $newer->id)
+        ->assertJsonPath('meta.last_page', 2);
+    $this->getJson($url.'&page=2')->assertSuccessful()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $older->id)
+        ->assertJsonPath('data.0.attachments.0.file_name', 'brochure.pdf')
+        ->assertJsonPath('meta.current_page', 2)
+        ->assertJsonPath('links.next', null);
 });
 
 it('forbids lead notes without lead permissions', function () {
@@ -150,5 +162,5 @@ it('returns 404 for notes of a hidden lead', function () {
 
     Sanctum::actingAs($user);
 
-    $this->getJson('/api/v1/leads/'.$hiddenLead->id.'/notes')->assertNotFound();
+    $this->getJson('/api/v1/leads/'.$hiddenLead->id.'/notes?page=2')->assertNotFound();
 });

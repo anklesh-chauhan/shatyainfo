@@ -11,6 +11,12 @@ class FieldCoverageController extends Controller
 {
     public function __invoke(FieldCoverageRequest $request, FieldCoverageService $service): JsonResponse
     {
-        return response()->json(['data' => $service->forMonth($request->user(), $request->user()->id, $request->validated('month', today()->format('Y-m')))]);
+        $actor = $request->user();
+        $report = $service->forMonth($actor, (int) $request->validated('user_id', $actor->id),
+            $request->validated('month', today()->format('Y-m')),
+            $request->has('hq_id') ? $request->integer('hq_id') : null);
+        $team = $request->boolean('include_team') ? $service->teamReview($actor) : null;
+
+        return response()->json(['data' => $report, ...($team === null ? [] : ['team_review' => $team])]);
     }
 }

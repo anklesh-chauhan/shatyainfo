@@ -8,6 +8,7 @@ use App\Filament\Resources\PromotionalSchemes\Pages\ListPromotionalSchemes;
 use App\Filament\Resources\PromotionalSchemes\Schemas\PromotionalSchemeForm;
 use App\Filament\Resources\PromotionalSchemes\Tables\PromotionalSchemesTable;
 use App\Models\PromotionalScheme;
+use App\Services\Marketing\PromotionalSchemeRegister;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -44,6 +45,11 @@ class PromotionalSchemeResource extends Resource
             'create' => CreatePromotionalScheme::route('/create'),
             'edit' => EditPromotionalScheme::route('/{record}/edit'),
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return app(PromotionalSchemeRegister::class)->visible(auth()->user(), parent::getEloquentQuery());
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder

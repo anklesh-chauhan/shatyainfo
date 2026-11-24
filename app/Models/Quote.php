@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Traits\HasApprovalWorkflow;
 
 class Quote extends SalesDocument
@@ -40,4 +39,8 @@ class Quote extends SalesDocument
         return $this->belongsTo(AccountMaster::class);
     }
 
+    protected function resolveApprovalTerritoryId(): ?int
+    {
+        return $this->accountMaster?->territory_id;
+    }
 }

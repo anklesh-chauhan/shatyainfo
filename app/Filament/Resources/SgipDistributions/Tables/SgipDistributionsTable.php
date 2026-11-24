@@ -2,22 +2,18 @@
 
 namespace App\Filament\Resources\SgipDistributions\Tables;
 
-use App\Models\ApprovalSetting;
 use App\Models\SgipDistribution;
-use App\Services\SGIPComplianceService;
-use Filament\Actions\Action;
+use App\Services\Marketing\SgipRegister;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
 use Filament\Notifications\Notification;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
-use Throwable;
+use Illuminate\Database\Eloquent\Collection;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SgipDistributionsTable
 {
@@ -25,111 +21,47 @@ class SgipDistributionsTable
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('doctor.name')
-                    ->label('Doctor')
-                    ->searchable(),
-
-                Tables\Columns\TextColumn::make('user')
-                    ->label('Sales Employee')
-                    ->getStateUsing(fn ($record) => $record->user?->employee?->full_name
-                    )
-                    ->visible(fn () => ! Auth::user()->hasRole('sales_user')),
-
-                Tables\Columns\TextColumn::make('visit_date')
-                    ->date(),
-
-                Tables\Columns\TextColumn::make('total_value')
-                    ->money('INR'),
-
-                Tables\Columns\TextColumn::make('approval_status')
-                    ->badge()
-                    ->colors([
-                        'warning' => 'draft',
-                        'info' => 'submitted',
-                        'success' => 'approved',
-                        'danger' => 'rejected',
-                    ]),
+                TextColumn::make('id')->label('Distribution')->sortable(),
+                TextColumn::make('doctor.name')->label('Doctor')->searchable(),
+                TextColumn::make('user.name')->label('Sales Employee')->searchable(),
+                TextColumn::make('visit_date')->date()->sortable(),
+                TextColumn::make('total_value')->money('INR'),
+                TextColumn::make('approval_status')->badge(),
+                TextColumn::make('inventory_posted_at')->dateTime(),
             ])
             ->filters([
+                SelectFilter::make('approval_status')->options(['draft' => 'Draft', 'submitted' => 'Submitted', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled']),
                 TrashedFilter::make(),
             ])
             ->recordActions([
-                EditAction::make()
-                    ->visible(fn ($record) => $record->approval_status === 'draft'),
-
-                Action::make('submit')
-                    ->label('Submit')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->approval_status === 'draft')
-                    ->action(function ($record): void {
-                        if (! $record->items()->exists()) {
-                            Notification::make()
-                                ->title('Add at least one item before submitting.')
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
-                        try {
-                            SGIPComplianceService::validate($record, true);
-                            $record->update(['approval_status' => 'submitted']);
-
-                            Notification::make()
-                                ->title('SGIP distribution submitted')
-                                ->success()
-                                ->send();
-                        } catch (ValidationException $exception) {
-                            Notification::make()
-                                ->title('Unable to submit SGIP distribution')
-                                ->body(collect($exception->errors())->flatten()->implode(' '))
-                                ->danger()
-                                ->send();
-                        } catch (Throwable $exception) {
-                            Notification::make()
-                                ->title('Unable to submit SGIP distribution')
-                                ->body($exception->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-
-                Action::make('approve')
-                    ->label(fn (): string => ApprovalSetting::moduleRequiresApproval(SgipDistribution::class) ? 'Approve & Deduct Stock' : 'Post & Deduct Stock')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->approval_status === 'submitted' && ! $record->isInventoryPosted())
-                    ->action(function ($record): void {
-                        try {
-                            SGIPComplianceService::validate($record, true);
-                            $record->approve();
-
-                            Notification::make()
-                                ->title('SGIP posted and stock deducted')
-                                ->success()
-                                ->send();
-                        } catch (ValidationException $exception) {
-                            Notification::make()
-                                ->title('Unable to post SGIP distribution')
-                                ->body(collect($exception->errors())->flatten()->implode(' '))
-                                ->danger()
-                                ->send();
-                        } catch (Throwable $exception) {
-                            Notification::make()
-                                ->title('Unable to post SGIP distribution')
-                                ->body($exception->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
+                EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    self::bulk('delete', 'Delete', 'deleteAny'),
+                    self::bulk('force-delete', 'Permanently Delete', 'forceDeleteAny'),
+                    self::bulk('restore', 'Restore', 'restoreAny'),
                 ]),
             ]);
+    }
+
+    private static function bulk(string $action, string $label, string $ability): BulkAction
+    {
+        return BulkAction::make($action)->label($label)
+            ->authorize(fn (): bool => auth()->user()->can($ability, SgipDistribution::class))
+            ->requiresConfirmation()->deselectRecordsAfterCompletion()
+            ->action(function (Collection $records) use ($action): void {
+                try {
+                    app(SgipRegister::class)->act(auth()->user(), $records->modelKeys(), $action, bulk: true);
+                } catch (HttpException $exception) {
+                    if ($exception->getStatusCode() !== 409) {
+                        throw $exception;
+                    }
+                    Notification::make()->title($exception->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('SGIP distributions updated')->success()->send();
+            });
     }
 }

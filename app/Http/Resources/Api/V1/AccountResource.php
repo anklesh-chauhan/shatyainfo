@@ -4,6 +4,10 @@ namespace App\Http\Resources\Api\V1;
 
 use App\Models\AccountMaster;
 use App\Models\ApprovalSetting;
+use App\Models\ContactDetail;
+use App\Services\Field\FieldAccountService;
+use App\Services\Field\FieldContactService;
+use App\Services\Field\FieldTeamOnboardingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,11 +21,33 @@ class AccountResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $actor = $request->user();
+        $register = $request->boolean('register') && $actor !== null;
+        $service = app(FieldAccountService::class);
+        $manageContacts = $register && $this->relationLoaded('callTargets') && $service->canEdit($actor, $this->resource);
+        $canFindContacts = $manageContacts && $actor->can(['ViewAny:ContactDetail', 'View:ContactDetail']);
+        $editableContacts = $canFindContacts && $actor->can('Update:ContactDetail')
+            ? ContactDetail::query()->applyVisibility('ContactDetail', $actor)->whereKey($this->contactDetails->modelKeys())->pluck('id')->flip()
+            : collect();
+
         return [
             'approval_required' => ApprovalSetting::moduleRequiresApproval($this->resource::class),
             'id' => $this->id,
             'name' => $this->name,
-            'can_update' => $request->user()?->can('update', $this->resource) ?? false,
+            'can_update' => $register ? $service->canEdit($actor, $this->resource) : ($actor?->can('update', $this->resource) ?? false),
+            ...($register ? [
+                'trashed' => $this->trashed(),
+                'actions' => $service->lifecycleActions($actor, $this->resource),
+                'specialty_name' => $this->specialty?->name,
+                'therapy_area_name' => $this->therapyArea?->name,
+                'lifecycle_status' => $this->accountStatus?->name,
+                'can_assign_owner' => $this->relationLoaded('owner') && $service->canEdit($actor, $this->resource) && FieldTeamOnboardingService::canManage($actor),
+            ] : []),
+            ...($manageContacts ? ['contact_actions' => [
+                'create' => $actor->can('create', ContactDetail::class), 'attach' => $canFindContacts, 'detach' => true,
+                'delete' => $canFindContacts && $actor->can('Delete:ContactDetail'),
+            ]] : []),
+            ...($register && $this->relationLoaded('callTargets') ? ['can_manage_related' => $service->canEdit($actor, $this->resource)] : []),
             'geo_latitude' => $this->geo_latitude !== null ? (float) $this->geo_latitude : null,
             'geo_longitude' => $this->geo_longitude !== null ? (float) $this->geo_longitude : null,
             'geo_radius_meters' => (int) $this->geo_radius_meters,
@@ -42,6 +68,7 @@ class AccountResource extends JsonResource
             'description' => $this->description,
             'commission' => $this->commission,
             'owner_id' => $this->owner_id,
+            'owner_name' => $this->whenLoaded('owner', fn () => $this->owner?->name),
             'type_master_id' => $this->type_master_id,
             'industry_type_id' => $this->industry_type_id,
             'rating_type_id' => $this->rating_type_id,
@@ -50,9 +77,12 @@ class AccountResource extends JsonResource
             'therapy_area_id' => $this->therapy_area_id,
             'institution_account_id' => $this->institution_account_id,
             'supplier_account_id' => $this->supplier_account_id,
-            'division_profiles' => $this->whenLoaded('divisionProfiles', fn () => $this->divisionProfiles->map(fn ($profile) => collect($profile->getAttributes())->only(['id', 'division_ou_id', 'rating_type_id', 'effective_from', 'effective_to', 'potential_value', 'potential_unit_id', 'potential_period', 'currency', 'assessed_on'])->all())),
+            'division_profiles' => $this->whenLoaded('divisionProfiles', fn () => $this->divisionProfiles->map(fn ($profile) => [
+                ...collect($profile->getAttributes())->only(['id', 'division_ou_id', 'rating_type_id', 'effective_from', 'effective_to', 'potential_value', 'potential_unit_id', 'potential_period', 'currency', 'assessed_on'])->all(),
+                'division_name' => $profile->division?->name, 'rating_name' => $profile->ratingType?->name, 'unit_name' => $profile->potentialUnit?->name,
+            ])),
             'call_targets' => $this->whenLoaded('callTargets', fn () => $this->callTargets->map(fn ($target) => collect($target->getAttributes())->only(['id', 'calls_per_month', 'effective_from', 'effective_to'])->all())),
-            'assignment_history' => $this->whenLoaded('assignmentHistory', fn () => $this->assignmentHistory->map(fn ($history) => ['owner_id' => $history->owner_id, 'territory_id' => $history->territory_id, 'patch_ids' => $history->patch_ids, 'effective_from' => $history->effective_from?->toISOString(), 'effective_to' => $history->effective_to?->toISOString()])),
+            'assignment_history' => $this->whenLoaded('assignmentHistory', fn () => $this->assignmentHistory->map(fn ($history) => ['owner_id' => $history->owner_id, 'owner_name' => $history->owner?->name, 'territory_id' => $history->territory_id, 'territory_name' => $history->territory?->name, 'patch_ids' => $history->patch_ids, 'effective_from' => $history->effective_from?->toISOString(), 'effective_to' => $history->effective_to?->toISOString()])),
             'territory_id' => $this->territory_id,
             'parent_id' => $this->parent_id,
             'ref_dealer_contact' => $this->ref_dealer_contact,
@@ -79,6 +109,8 @@ class AccountResource extends JsonResource
                 'mobile_number' => $contact->mobile_number,
                 'whatsapp_number' => $contact->whatsapp_number,
                 'email' => $contact->email,
+                ...($manageContacts ? ['can_edit' => $editableContacts->has($contact->id)
+                    && app(FieldContactService::class)->canWrite($actor, $contact, 'update')] : []),
             ])->values()),
             'addresses' => $this->whenLoaded('addresses', fn () => AddressResource::collection($this->addresses)),
             'gst_detail' => $this->whenLoaded('gstDetail', fn (): ?array => $this->gstDetail ? [

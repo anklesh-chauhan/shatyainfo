@@ -67,6 +67,10 @@ it('applies weekly and fortnightly due windows and rejects incomplete competitor
     $this->travel(7)->days();
     $chemists = collect($this->getJson('/api/v1/rcpa/options')->assertSuccessful()->json('data.chemists'))->keyBy('id');
     expect($chemists[$this->chemist->id]['is_due'])->toBeTrue()->and($chemists[$bChemist->id]['is_due'])->toBeFalse();
+    $due = $this->getJson('/api/v1/rcpa-observations/due')->assertOk()->assertJsonCount(2, 'data')->json('data');
+    expect(collect($due)->keyBy('id')->all())->toBe($chemists->all());
+    $this->getJson('/api/v1/rcpa-observations/due?search=Tier+B')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $bChemist->id)->assertJsonPath('data.0.is_due', false);
     $this->travel(7)->days();
     $chemists = collect($this->getJson('/api/v1/rcpa/options')->assertSuccessful()->json('data.chemists'))->keyBy('id');
     expect($chemists[$bChemist->id]['is_due'])->toBeTrue();
@@ -95,4 +99,52 @@ it('keeps a visited chemist DCR editable until its mandatory RCPA has synchroniz
     $data = $this->observation;
     $this->postJson('/api/v1/rcpa-observations', $data, ['Idempotency-Key' => $data['event_id']])->assertCreated();
     $this->postJson('/api/v1/dcrs/'.$dcr->id.'/submit')->assertSuccessful()->assertJsonPath('data.approval_status', 'approved');
+});
+
+it('shares register visibility with Admin and exports only authorized estimates matching the filters', function () {
+    $root = '/api/v1/rcpa-observations';
+    $capture = fn (array $data) => $this->postJson($root, $data, ['Idempotency-Key' => $data['event_id']])
+        ->assertCreated()->json('data.id');
+    $mine = $capture($this->observation);
+    $other = fieldReportingUser('Other RCPA observer');
+    $other->givePermissionTo(['Capture:Rcpa', 'View:AccountMaster', 'AccessAllRecords']);
+    Sanctum::actingAs($other);
+    $outside = reportingDoctor($other, 'Outside chemist');
+    $outside->update(['rcpa_tier' => 'B']);
+    $otherVisible = $capture([...$this->observation, 'event_id' => (string) Str::uuid()]);
+    $otherHidden = $capture([...$this->observation, 'event_id' => (string) Str::uuid(), 'chemist_id' => $outside->id]);
+
+    Sanctum::actingAs($this->rep);
+    $this->getJson($root.'?register=1')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $mine)->assertJsonPath('can_export', true);
+    $this->getJson($root.'/'.$otherVisible)->assertNotFound();
+    $this->rep->revokePermissionTo('AccessAllRecords');
+    $this->rep->givePermissionTo('View:Rcpa');
+    $today = today()->toDateString();
+    $filter = '?search=Own+RCPA+Brand&from='.$today.'&to='.$today;
+    $this->getJson($root.$filter.'&register=1')->assertOk()->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $otherVisible)->assertJsonPath('data.1.id', $mine)
+        ->assertJsonMissingPath('data.0.competitors');
+    $this->getJson($root.'/'.$otherVisible)->assertOk()->assertJsonPath('data.data_flag', 'ESTIMATED_FIELD')
+        ->assertJsonPath('data.chemist', 'Tier A Chemist')->assertJsonPath('data.segment', 'Cardiac')
+        ->assertJsonPath('data.observer', $other->name)->assertJsonPath('data.competitors.1.present', true);
+    $this->getJson($root.'/'.$otherHidden)->assertNotFound();
+    $this->getJson($root.'/due')->assertOk()->assertJsonCount(1, 'data');
+    $this->getJson($root.'/export?from='.$today.'&to='.today()->subDay()->toDateString())->assertUnprocessable();
+    $response = $this->get($root.'/export'.$filter)->assertOk()->assertDownload('rcpa-estimates.csv')->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    expect($response->headers->get('cache-control'))->toContain('private', 'no-store');
+    $csv = array_map(fn (string $line): array => str_getcsv($line, ',', '"', ''), explode("\n", trim($response->streamedContent())));
+    expect(array_column(array_slice($csv, 1), 0))->toBe([(string) $mine, (string) $otherVisible])
+        ->and(array_column(array_slice($csv, 1), 8))->toBe(['[ESTIMATED_FIELD]', '[ESTIMATED_FIELD]']);
+    $this->getJson($root.'?register=1&search=Outside')->assertOk()->assertJsonCount(0, 'data');
+
+    $this->rep->revokePermissionTo(['Capture:Rcpa', 'View:Rcpa']);
+    $this->rep->givePermissionTo(Permission::findOrCreate('ViewAny:RcpaObservation', 'web'));
+    $this->getJson($root)->assertForbidden();
+    $this->getJson($root.'?register=1')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $mine)
+        ->assertJsonPath('can_export', false)->assertJsonPath('can_due', false);
+    $this->getJson($root.'/'.$mine)->assertOk();
+    $this->getJson($root.'/'.$otherVisible)->assertNotFound();
+    $this->getJson($root.'/due')->assertForbidden();
+    $this->getJson($root.'/export')->assertForbidden();
 });

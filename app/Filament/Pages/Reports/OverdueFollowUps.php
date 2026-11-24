@@ -6,8 +6,10 @@ use App\Filament\Exports\Reports\OverdueFollowUpExporter;
 use App\Filament\Resources\FollowUps\FollowUpResource;
 use App\Models\FollowUp;
 use App\Services\Reports\OverdueFollowUpQuery;
+use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -42,27 +44,19 @@ class OverdueFollowUps extends BaseReportPage
 
     protected function applyPeriodFilter(Builder $query, array $data): Builder
     {
-        return $query
-            ->when(
-                $data['from'] ?? null,
-                function (Builder $periodQuery, mixed $date): Builder {
-                    return $periodQuery->where(function (Builder $dueQuery) use ($date): void {
-                        $dueQuery
-                            ->whereDate('next_follow_up_date', '>=', $date)
-                            ->orWhereDate('follow_up_date', '>=', $date);
-                    });
-                }
-            )
-            ->when(
-                $data['until'] ?? null,
-                function (Builder $periodQuery, mixed $date): Builder {
-                    return $periodQuery->where(function (Builder $dueQuery) use ($date): void {
-                        $dueQuery
-                            ->whereDate('next_follow_up_date', '<=', $date)
-                            ->orWhereDate('follow_up_date', '<=', $date);
-                    });
-                }
-            );
+        return app(OverdueFollowUpQuery::class)->period($query, $data['from'] ?? null, $data['until'] ?? null);
+    }
+
+    protected function getPeriodFilter(): array
+    {
+        return [
+            Filter::make('period')
+                ->schema([
+                    DatePicker::make('from')->label('Due from'),
+                    DatePicker::make('until')->label('Due until'),
+                ])
+                ->query(fn (Builder $query, array $data): Builder => $this->applyPeriodFilter($query, $data)),
+        ];
     }
 
     protected function getReportQuery(): Builder

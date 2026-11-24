@@ -2,6 +2,8 @@
 
 namespace App\Services\Field;
 
+use App\Models\Approval;
+use App\Models\ApprovalOverride;
 use App\Models\ContactDetail;
 use App\Models\FollowUp;
 use App\Models\FollowUpMedia;
@@ -12,8 +14,10 @@ use App\Models\Lead;
 use App\Models\LeadActivity;
 use App\Models\User;
 use App\Services\DateFormatService;
+use App\Services\OptionalModuleService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +32,7 @@ class FieldFollowUpService
     private function relations(): array
     {
         return [
+            'approval',
             'user:id,name',
             'contactDetail',
             'media:id,name',
@@ -61,9 +66,20 @@ class FieldFollowUpService
 
         if (filled($search)) {
             $term = '%'.$search.'%';
-            $query->where(function ($builder) use ($term): void {
+            $query->where(function (Builder $builder) use ($term, $leadId): void {
                 $builder->whereLike('interaction', $term)
                     ->orWhereLike('outcome', $term);
+
+                if ($leadId === null) {
+                    $builder->orWhereLike('followupable_type', $term)
+                        ->orWhereHas('contactDetail', fn (Builder $contacts): Builder => $contacts
+                            ->whereLike('first_name', $term)->orWhereLike('last_name', $term))
+                        ->orWhereHasMorph('followupable', Lead::class, fn (Builder $leads): Builder => $leads->whereLike('reference_code', $term));
+
+                    foreach (['media', 'result', 'priority', 'status'] as $relation) {
+                        $builder->orWhereHas($relation, fn (Builder $related): Builder => $related->whereLike('name', $term));
+                    }
+                }
             });
         }
 
@@ -90,9 +106,58 @@ class FieldFollowUpService
         return $user->can('update', $followUp);
     }
 
+    public function canDelete(User $user, FollowUp $followUp): bool
+    {
+        return $user->can(['view', 'delete'], $followUp)
+            && (! $this->requiresDeleteOverride($followUp) || $user->can('overrideApproval', $followUp));
+    }
+
+    private function requiresDeleteOverride(FollowUp $followUp): bool
+    {
+        return $followUp->approval_status === 'approved' || $followUp->approval?->approval_status === 'approved';
+    }
+
+    /** @param list<int> $ids */
+    public function delete(User $user, array $ids): int
+    {
+        abort_unless($user->can('viewAny', FollowUp::class), 403);
+
+        return $user->getConnection()->transaction(function () use ($user, $ids): int {
+            $records = FollowUp::query()->applyVisibility('FollowUp', $user)->whereKey($ids)
+                ->with(['approval', 'followupable', 'media:id,name'])->orderBy('id')->lockForUpdate()->get();
+            abort_unless($records->count() === count($ids), 404, 'One or more follow-ups are unavailable.');
+
+            $approvals = Approval::query()->whereKey($records->pluck('approval.id')->filter()->all())
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+
+            foreach ($records as $followUp) {
+                $followUp->setRelation('approval', $approvals->get($followUp->approval?->id));
+                abort_unless($user->can(['view', 'delete'], $followUp), 403);
+                abort_if($this->requiresDeleteOverride($followUp) && $user->cannot('overrideApproval', $followUp), 422,
+                    'Approved follow-ups require approval override to delete.');
+            }
+
+            foreach ($records as $followUp) {
+                if ($followUp->approval_status !== 'approved' && $followUp->approval?->approval_status === 'approved') {
+                    ApprovalOverride::query()->create([
+                        'model_type' => FollowUp::class, 'model_id' => $followUp->id, 'user_id' => $user->id,
+                        'reason' => 'Follow-up deleted through the mobile API',
+                    ]);
+                }
+                abort_unless($followUp->delete(), 409, 'Could not delete the selected follow-ups.');
+                if ($followUp->followupable instanceof Lead) {
+                    $this->logLeadActivity($user, $followUp->followupable, $followUp, 'Follow-up Deleted');
+                }
+            }
+
+            return $records->count();
+        }, attempts: 3);
+    }
+
     /**
      * @return array{
      *     can_create: bool,
+     *     can_select_lead: bool,
      *     media: Collection<int, FollowUpMedia>,
      *     results: Collection<int, FollowUpResult>,
      *     statuses: Collection<int, FollowUpStatus>,
@@ -105,6 +170,8 @@ class FieldFollowUpService
 
         return [
             'can_create' => $user->can('create', FollowUp::class),
+            'can_select_lead' => $user->can(['ViewAny:Lead', 'View:Lead'])
+                && app(OptionalModuleService::class)->navigationEnabled('Lead'),
             'media' => FollowUpMedia::query()->orderBy('name')->get(['id', 'name']),
             'results' => FollowUpResult::query()->orderBy('name')->get(['id', 'name']),
             'statuses' => FollowUpStatus::query()->orderBy('name')->get(['id', 'name']),

@@ -3,12 +3,19 @@
 namespace App\Filament\Resources\DeliveryChallans\Tables;
 
 use App\Enums\DeliveryChallanStatus;
+use App\Models\DeliveryChallan;
+use App\Services\Inventory\DeliveryChallanRegister;
+use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class DeliveryChallansTable
 {
@@ -51,7 +58,7 @@ class DeliveryChallansTable
                 SelectFilter::make('status')
                     ->options(DeliveryChallanStatus::class),
                 SelectFilter::make('customer_id')
-                    ->relationship('customer', 'name')
+                    ->options(fn (): array => app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'customers')->pluck('name', 'id')->all())
                     ->label('Customer')
                     ->searchable()
                     ->preload(),
@@ -63,6 +70,24 @@ class DeliveryChallansTable
                     ->query(fn (Builder $query, array $data): Builder => $query
                         ->when($data['from'] ?? null, fn (Builder $query, string $date) => $query->whereDate('delivery_date', '>=', $date))
                         ->when($data['until'] ?? null, fn (Builder $query, string $date) => $query->whereDate('delivery_date', '<=', $date))),
+            ])
+            ->recordActions([EditAction::make()])
+            ->toolbarActions([
+                BulkAction::make('delete')->label('Delete')->requiresConfirmation()->deselectRecordsAfterCompletion()
+                    ->visible(fn (): bool => auth()->user()->can('deleteAny', DeliveryChallan::class))
+                    ->action(function (Collection $records): void {
+                        try {
+                            app(DeliveryChallanRegister::class)->act(auth()->user(), $records->modelKeys(), 'delete', bulk: true);
+                        } catch (HttpException $exception) {
+                            if ($exception->getStatusCode() !== 409) {
+                                throw $exception;
+                            }
+                            Notification::make()->title($exception->getMessage())->danger()->send();
+
+                            return;
+                        }
+                        Notification::make()->title('Delivery challans deleted')->success()->send();
+                    }),
             ])
             ->defaultSort('delivery_date', 'desc');
     }

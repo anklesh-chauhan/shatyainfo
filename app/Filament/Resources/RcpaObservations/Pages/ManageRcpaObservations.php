@@ -14,13 +14,15 @@ class ManageRcpaObservations extends ManageRecords
 
     protected function getHeaderActions(): array
     {
+        $rcpa = app(FieldRcpaService::class);
+
         return [
-            Action::make('due')->label('Chemist due list')->schema([
+            Action::make('due')->label('Chemist due list')->visible(fn (): bool => $rcpa->canUseFieldData(auth()->user()))->schema([
                 Textarea::make('due_list')->label('Current rolling 7/14-day frequency status')
-                    ->default(fn () => collect(app(FieldRcpaService::class)->options(auth()->user())['chemists'])
+                    ->default(fn () => $rcpa->dueChemists(auth()->user())->get()->map($rcpa->chemistDueStatus(...))
                         ->map(fn ($chemist) => $chemist['name'].' · Tier '.$chemist['tier'].' · '.($chemist['is_due'] ? 'DUE' : 'Current').' · next '.($chemist['next_due_on'] ?? 'now'))->implode("\n"))->rows(20)->disabled()->dehydrated(false),
             ])->modalSubmitAction(false),
-            Action::make('export')->label('Export estimates')->url(fn () => route('sfa.rcpa.export')),
+            Action::make('export')->label('Export estimates')->visible(fn (): bool => $rcpa->canUseFieldData(auth()->user()))->url(fn () => route('sfa.rcpa.export')),
         ];
     }
 }

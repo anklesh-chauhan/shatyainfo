@@ -4,6 +4,7 @@ use App\Filament\Pages\FieldCoverage;
 use App\Filament\Pages\FieldTeamOnboarding;
 use App\Models\AccountMaster;
 use App\Models\FieldUserHq;
+use App\Models\Patch;
 use App\Models\SalesDcr;
 use App\Models\Visit;
 use App\Services\Field\FieldCoverageService;
@@ -88,6 +89,27 @@ it('uses historical ownership and prorates frequency when a customer changes MR'
         ->and($old['unassigned_completed_calls'])->toBe(1)
         ->and($new['customers'][0]['target_calls'])->toBe(1)
         ->and($new['customers'][0]['status'])->toBe('missed');
+});
+
+it('reports only the patches linked to an assignment during the selected month', function () {
+    $territory = reportingTerritory('Coverage Patches');
+    $old = Patch::query()->create(['name' => 'Old Patch', 'code' => 'COV-OLD', 'territory_id' => $territory->id]);
+    $current = Patch::query()->create(['name' => 'New Patch', 'code' => 'COV-NEW', 'territory_id' => $territory->id]);
+    $this->doctor->patches()->attach($old);
+    $this->onboarding->save($this->admin, $this->setup);
+    completedCoverageVisit($this, $this->rep, $this->doctor, '2026-06-10');
+    $this->travelTo(Carbon::parse('2026-07-01 09:00:00'));
+    $this->doctor->patches()->sync([$current->id]);
+
+    Sanctum::actingAs($this->rep);
+    $this->getJson('/api/v1/field-coverage?month=2026-06')->assertOk()
+        ->assertJsonPath('data.customers.0.patch_ids', [$old->id])
+        ->assertJsonPath('data.patches', [['id' => $old->id, 'name' => $old->name]])
+        ->assertJsonPath('data.covered_customers', 1)
+        ->assertJsonPath('data.customers.0.last_visit_date', '2026-06-10');
+    $this->getJson('/api/v1/field-coverage?month=2026-07')->assertOk()
+        ->assertJsonPath('data.customers.0.patch_ids', [$old->id, $current->id])
+        ->assertJsonCount(2, 'data.patches');
 });
 it('shows N/A without a denominator and does not credit joint participation as owned coverage', function () {
     $this->onboarding->save($this->admin, $this->setup);

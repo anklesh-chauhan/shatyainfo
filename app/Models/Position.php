@@ -169,6 +169,11 @@ class Position extends BaseModel
         return $this->name;
     }
 
+    public function getDocumentNumber(): ?string
+    {
+        return $this->code;
+    }
+
     protected static function booted(): void
     {
         static::saving(fn (Position $position) => OrganizationalUnitService::normalizeDivision($position));

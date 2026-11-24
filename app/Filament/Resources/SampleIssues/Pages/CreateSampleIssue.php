@@ -3,13 +3,18 @@
 namespace App\Filament\Resources\SampleIssues\Pages;
 
 use App\Filament\Resources\SampleIssues\SampleIssueResource;
-use App\Models\SampleRequest;
-use App\Models\SampleRequestLine;
+use App\Filament\Resources\SampleIssues\Schemas\SampleIssueForm;
+use App\Services\Inventory\SampleIssueRegister;
+use App\Services\Inventory\SampleRequestRegister;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 class CreateSampleIssue extends CreateRecord
 {
     protected static string $resource = SampleIssueResource::class;
+
+    protected ?bool $hasDatabaseTransactions = true;
 
     public function mount(): void
     {
@@ -21,26 +26,25 @@ class CreateSampleIssue extends CreateRecord
             return;
         }
 
-        $sampleRequest = SampleRequest::query()->with('lines.item')->find($sampleRequestId);
+        $register = app(SampleRequestRegister::class);
+        $sampleRequest = $register->find(auth()->user(), $sampleRequestId);
+        abort_unless($register->canHandoff(auth()->user(), $sampleRequest), 403);
 
-        if ($sampleRequest === null) {
-            return;
-        }
-
-        $this->form->fill([
+        $this->data = [
+            ...$this->data,
             'sample_request_id' => $sampleRequest->id,
             'to_location_id' => $sampleRequest->location_master_id,
             'issue_date' => now()->toDateString(),
-            'lines' => $sampleRequest->lines
-                ->filter(fn (SampleRequestLine $line): bool => $line->remainingApprovedQuantity() > 0)
-                ->map(fn (SampleRequestLine $line): array => [
-                    'sample_request_line_id' => $line->id,
-                    'item_master_id' => $line->item_master_id,
-                    'quantity' => $line->remainingApprovedQuantity(),
-                    'unit_cost' => $line->item?->purchase_price,
-                ])
-                ->values()
-                ->all(),
-        ]);
+            'lines' => SampleIssueForm::requestLines($sampleRequest),
+        ];
+    }
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        try {
+            return app(SampleIssueRegister::class)->save(auth()->user(), null, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        }
     }
 }

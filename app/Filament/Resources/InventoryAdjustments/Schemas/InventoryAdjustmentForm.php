@@ -5,9 +5,9 @@ namespace App\Filament\Resources\InventoryAdjustments\Schemas;
 use App\Enums\InventoryAdjustmentType;
 use App\Enums\InventoryDocumentStatus;
 use App\Models\InventoryAdjustment;
-use App\Models\ItemMaster;
-use App\Models\LocationMaster;
 use App\Models\NumberSeries;
+use App\Services\Inventory\StockAdjustmentRegister;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -19,21 +19,21 @@ class InventoryAdjustmentForm
     public static function configure(Schema $schema): Schema
     {
         return $schema
-            ->components([
-                Section::make('Adjustment Details')
+            ->components([Hidden::make('revision'),
+                Section::make('Adjustment Details')->disabled(fn (?InventoryAdjustment $record): bool => $record !== null && ! $record->isEditable())
                     ->columns(3)
                     ->schema([
                         TextInput::make('adjustment_number')
                             ->label('Document No.')
                             ->default(fn (): string => NumberSeries::getNextNumber(InventoryAdjustment::class))
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         Select::make('status')
                             ->options(InventoryDocumentStatus::class)
                             ->default(InventoryDocumentStatus::Draft)
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         Select::make('adjustment_type')
                             ->options(InventoryAdjustmentType::class)
@@ -41,11 +41,7 @@ class InventoryAdjustmentForm
 
                         Select::make('item_master_id')
                             ->label('Item')
-                            ->options(fn (): array => ItemMaster::query()
-                                ->whereNull('parent_id')
-                                ->orderBy('item_name')
-                                ->pluck('item_name', 'id')
-                                ->all())
+                            ->options(fn (): array => app(StockAdjustmentRegister::class)->catalog(auth()->user(), 'items')->orderBy('item_name')->pluck('item_name', 'id')->all())
                             ->searchable()
                             ->required(),
 
@@ -62,14 +58,14 @@ class InventoryAdjustmentForm
                             ->required(),
 
                         TextInput::make('unit_cost')
-                            ->label('Unit Cost')
+                            ->label('Unit Cost')->minValue(0)
                             ->numeric(),
 
-                        TextInput::make('reason')
+                        TextInput::make('reason')->maxLength(255)
                             ->required()
                             ->columnSpan(2),
 
-                        Textarea::make('remarks')
+                        Textarea::make('remarks')->maxLength(5000)
                             ->columnSpanFull(),
                     ])->columnSpanFull(),
             ]);
@@ -77,29 +73,6 @@ class InventoryAdjustmentForm
 
     protected static function locationOptions(): array
     {
-        $locations = LocationMaster::query()
-            ->where('is_active', true)
-            ->whereNull('parent_id')
-            ->with('subLocations')
-            ->orderBy('name')
-            ->get();
-
-        $options = [];
-        self::buildLocationOptions($locations, $options);
-
-        return $options;
-    }
-
-    protected static function buildLocationOptions($locations, array &$options, string $prefix = ''): void
-    {
-        foreach ($locations as $location) {
-            $options[$location->id] = $prefix.$location->name.' ['.$location->location_code.']';
-
-            $activeSubLocations = $location->subLocations->where('is_active', true);
-
-            if ($activeSubLocations->isNotEmpty()) {
-                self::buildLocationOptions($activeSubLocations, $options, $prefix.'— ');
-            }
-        }
+        return app(StockAdjustmentRegister::class)->catalog(auth()->user(), 'locations')->orderBy('name')->pluck('name', 'id')->all();
     }
 }

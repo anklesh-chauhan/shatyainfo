@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\AccountRegisterActionRequest;
+use App\Http\Requests\Api\V1\AccountRegisterRequest;
 use App\Http\Requests\Api\V1\StoreAccountRequest;
 use App\Http\Requests\Api\V1\UpdateAccountRequest;
 use App\Http\Resources\Api\V1\AccountResource;
@@ -13,6 +15,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\RatingType;
 use App\Models\TypeMaster;
 use App\Services\Field\FieldAccountService;
+use App\Services\Field\FieldTeamOnboardingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -36,7 +39,7 @@ class AccountController extends Controller
         private FieldAccountService $accountService,
     ) {}
 
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(AccountRegisterRequest $request): AnonymousResourceCollection
     {
         $typeMasterId = $request->query('type_master_id');
         $territoryId = $request->query('territory_id');
@@ -52,14 +55,53 @@ class AccountController extends Controller
                 is_numeric($territoryId) ? (int) $territoryId : null,
                 is_numeric($patchId) ? (int) $patchId : null,
                 $perPage > 0 ? $perPage : 50,
+                $request->boolean('register') ? ['trash' => 'active', ...$request->validated()] : [],
             ),
-        )->additional(['can_create' => $request->user()->can('create', AccountMaster::class)]);
+        )->additional([
+            'can_create' => $request->user()->can('create', AccountMaster::class),
+            ...($request->boolean('register') ? ['register' => [
+                'can_assign_owner' => $request->user()->can('create', AccountMaster::class) && FieldTeamOnboardingService::canManage($request->user()),
+                'can_bulk_restore' => $request->user()->can('restoreAny', AccountMaster::class),
+                'can_bulk_force_delete' => $request->user()->can('forceDeleteAny', AccountMaster::class),
+            ]] : []),
+        ]);
     }
 
-    public function show(Request $request, int $account): AccountResource
+    public function registerOptions(Request $request): JsonResponse
+    {
+        return response()->json(['data' => $this->accountService->registerOptions($request->user())]);
+    }
+
+    public function ownerOptions(Request $request): JsonResponse
+    {
+        $search = $request->query('search');
+        $owners = $this->accountService->ownerOptions($request->user(), is_string($search) ? mb_substr($search, 0, 100) : '');
+
+        return response()->json(['data' => $owners->through(fn ($owner): array => ['id' => $owner->id, 'label' => $owner->name])->items(),
+            'meta' => ['last_page' => $owners->lastPage()]]);
+    }
+
+    public function registerAction(AccountRegisterActionRequest $request): JsonResponse
+    {
+        return response()->json(['data' => ['updated' => $this->accountService->applyLifecycle(
+            $request->user(), $request->validated('action'), array_map('intval', $request->validated('ids')),
+        )]]);
+    }
+
+    public function relatedAction(AccountRegisterActionRequest $request, int $account): JsonResponse
+    {
+        $actor = $request->user();
+        $record = $this->accountService->findVisible($actor, $account);
+        $updated = $this->accountService->applyRelatedAction($actor, $record, $request->validated('group'),
+            $request->validated('action'), array_map('intval', $request->validated('ids')));
+
+        return response()->json(['data' => ['updated' => $updated]]);
+    }
+
+    public function show(AccountRegisterRequest $request, int $account): AccountResource
     {
         return new AccountResource(
-            $this->accountService->findVisible($request->user(), $account),
+            $this->accountService->findVisible($request->user(), $account, withTrash: $request->boolean('register')),
         );
     }
 

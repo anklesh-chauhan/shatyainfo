@@ -4,8 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\FieldCoverageStatsWidget;
 use App\Models\FieldUserHq;
-use App\Models\LocationMaster;
-use App\Models\User;
 use App\Services\Field\FieldCoverageService;
 use App\Services\Field\FieldTeamOnboardingService;
 use Filament\Forms\Components\Select;
@@ -116,14 +114,7 @@ class FieldCoverage extends Page implements HasForms, HasTable
                             ->label('HQ')
                             ->placeholder('All HQs')
                             ->searchable()
-                            ->options(fn (): array => LocationMaster::query()
-                                ->whereIn(
-                                    'id',
-                                    FieldUserHq::query()
-                                        ->when(! $canManage, fn ($query) => $query->where('user_id', auth()->id()))
-                                        ->select('location_master_id')
-                                )
-                                ->orderBy('name')
+                            ->options(fn (): array => app(FieldCoverageService::class)->hqs(auth()->user())
                                 ->pluck('name', 'id')
                                 ->all())
                             ->live()
@@ -142,16 +133,8 @@ class FieldCoverage extends Page implements HasForms, HasTable
                             ->searchable()
                             ->disabled(fn (): bool => ! $canManage)
                             ->dehydrated()
-                            ->options(fn (Get $get): array => User::query()
-                                ->when(
-                                    $get('hq_filter'),
-                                    fn ($query, $hqId) => $query->whereIn(
-                                        'id',
-                                        FieldUserHq::query()->where('location_master_id', $hqId)->select('user_id')
-                                    )
-                                )
-                                ->when(! $canManage, fn ($query) => $query->whereKey(auth()->id()))
-                                ->orderBy('name')
+                            ->options(fn (Get $get): array => app(FieldCoverageService::class)
+                                ->representatives(auth()->user(), (int) $get('hq_filter') ?: null)
                                 ->pluck('name', 'id')
                                 ->all())
                             ->live()

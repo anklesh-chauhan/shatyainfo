@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Services\PositionService;
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class Patch extends BaseModel
@@ -39,6 +41,31 @@ class Patch extends BaseModel
             ->withPivot(['sequence_no', 'distance_km'])
             ->orderByPivot('sequence_no')
             ->withTimestamps();
+    }
+
+    public function customerPinCodes(): Collection
+    {
+        return $this->city_pin_code_id
+            ? CityPinCode::query()->whereKey($this->city_pin_code_id)->pluck('pin_code')
+            : $this->territory?->cityPinCodes()->pluck('pin_code') ?? collect();
+    }
+
+    public function eligibleCustomers(Builder $query): Builder
+    {
+        $pins = $this->customerPinCodes();
+
+        return $query->whereHas('addresses', fn (Builder $addresses): Builder => $addresses->whereIn('pin_code', $pins))
+            ->whereHas('typeMaster', fn (Builder $types): Builder => $types->where('name', 'Customer')
+                ->orWhereHas('parent', fn (Builder $parent): Builder => $parent->where('name', 'Customer')));
+    }
+
+    public function legacyApprovalState(): ?string
+    {
+        if ($this->approval_status === 'pending' && $this->approval === null && ! ApprovalSetting::supportsModule(self::class)) {
+            return 'draft';
+        }
+
+        return $this->approval_status;
     }
 
     protected static function booted(): void

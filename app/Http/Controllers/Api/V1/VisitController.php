@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\ListVisitsRequest;
 use App\Http\Requests\Api\V1\OpenDirectVisitRequest;
 use App\Http\Requests\Api\V1\StoreVisitPhotoRequest;
 use App\Http\Requests\Api\V1\VisitCheckInRequest;
 use App\Http\Requests\Api\V1\VisitCheckOutRequest;
+use App\Http\Requests\Api\V1\VisitRegisterLifecycleRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Resources\Api\V1\VisitResource;
 use App\Models\Visit;
 use App\Services\Field\FieldVisitService;
 use App\Services\Field\FieldVisitWorkspaceService;
+use App\Services\Field\VisitRegisterService;
 use App\Services\Visit\VisitEnforcementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,12 +27,33 @@ class VisitController extends Controller
         private VisitEnforcementService $enforcement,
     ) {}
 
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(ListVisitsRequest $request, VisitRegisterService $register): AnonymousResourceCollection|JsonResponse
     {
+        if ($request->boolean('register')) {
+            return response()->json($register->list($request->user(), $request->validated()));
+        }
+
         return VisitResource::collection(Visit::query()
             ->where('employee_id', $request->user()->id)
             ->with('visitables.visitable')
             ->orderByDesc('visit_date')->orderByDesc('id')->paginate(25));
+    }
+
+    public function registerDetail(ListVisitsRequest $request, int $visit, VisitRegisterService $register): JsonResponse
+    {
+        return response()->json(['data' => $register->detail($request->user(), $visit, $request->validated('scope') === 'team')]);
+    }
+
+    public function registerAction(VisitRegisterLifecycleRequest $request, VisitRegisterService $register): JsonResponse
+    {
+        $updated = $register->apply(
+            $request->user(),
+            array_map('intval', $request->validated('ids')),
+            $request->validated('scope') === 'team',
+            $request->validated('action'),
+        );
+
+        return response()->json(['data' => ['updated' => $updated]]);
     }
 
     public function openDirect(OpenDirectVisitRequest $request): VisitResource

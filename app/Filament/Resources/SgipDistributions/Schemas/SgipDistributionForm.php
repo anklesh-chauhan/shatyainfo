@@ -2,169 +2,62 @@
 
 namespace App\Filament\Resources\SgipDistributions\Schemas;
 
-use App\Enums\MarketingCampaignStatus;
-use App\Enums\SampleIssueStatus;
 use App\Enums\SgipStockSource;
-use App\Models\AccountMaster;
-use App\Models\ItemMaster;
-use App\Models\MarketingCampaign;
-use App\Models\SampleIssue;
-use App\Models\Territory;
-use App\Models\User;
+use App\Models\SgipDistribution;
 use App\Models\VisitPreference;
+use App\Services\Marketing\SgipRegister;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Auth;
 
 class SgipDistributionForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Section::make('Visit Details')
-                    ->columns(4)
-                    ->schema([
-                        Select::make('user_id')
-                            ->label('Sales Employee')
-                            ->relationship('user', 'id')
-                            ->getOptionLabelFromRecordUsing(
-                                fn (?User $user) => $user
-                                        ? ($user->employee?->full_name ?? $user->email)
-                                        : '—'
-                            )
-                            ->default(Auth::id())
-                            ->disabled()
-                            ->dehydrated(),
+        return $schema->components([
+            Hidden::make('revision'),
+            Section::make('Distribution Details')->columns(3)->schema([
+                self::selection('account_master_id', 'Doctor', 'doctors', 'doctor')->required()
+                    ->disabled(fn (?SgipDistribution $record): bool => $record?->visit_id !== null)->dehydrated(),
+                DatePicker::make('visit_date')->default(today())->required()
+                    ->disabled(fn (?SgipDistribution $record): bool => $record?->visit_id !== null)->dehydrated(),
+                TextInput::make('approval_status')->disabled()->default('draft'),
+                self::selection('sample_issue_id', 'Sample Issue Stock', 'issues', 'sampleIssue')
+                    ->visible(fn (): bool => VisitPreference::current()->sgip_stock_source === SgipStockSource::SampleIssue),
+                self::selection('territory_id', 'Territory', 'territories', 'territory')
+                    ->requiredWith('marketing_campaign_id')
+                    ->disabled(fn (?SgipDistribution $record): bool => $record?->visit_id !== null)->dehydrated(),
+                self::selection('marketing_campaign_id', 'Marketing Campaign', 'campaigns', 'marketingCampaign')->live(),
+            ])->disabled(fn (?SgipDistribution $record): bool => $record !== null && ! $record->isEditable())->columnSpanFull(),
+            Section::make('Samples / Gifts / Inputs')->schema([
+                Repeater::make('items')->defaultItems(0)->maxItems(100)->columns(3)->schema([
+                    Select::make('item_master_id')->label('Item')->searchable()->required()
+                        ->options(fn (?SgipDistribution $record): array => app(SgipRegister::class)->catalog(auth()->user(), 'items', $record)
+                            ->orderBy('item_name')->pluck('item_name', 'id')->union(
+                                $record?->loadMissing('items.item')->items->pluck('item.item_name', 'item_master_id') ?? []
+                            )->all()),
+                    TextInput::make('quantity')->numeric()->integer()->minValue(1)->maxValue(1000000)->required(),
+                    TextInput::make('unit_value')->numeric()->minValue(0)->maxValue(999999.99)->rule('decimal:0,2')->required(),
+                ]),
+            ])->disabled(fn (?SgipDistribution $record): bool => $record !== null && ! $record->isEditable())->columnSpanFull(),
+        ]);
+    }
 
-                        Select::make('account_master_id')
-                            ->options(
-                                AccountMaster::query()
-                                    ->whereHas('typeMaster', fn ($q) => $q->where('name', 'Retail Customer'))
-                                    ->pluck('name', 'id')
-                                    ->toArray()
-                            )
-                            ->searchable()
-                            ->getOptionLabelUsing(
-                                fn ($value) => AccountMaster::find($value)?->name
-                            )
-                            ->required(),
-                        DatePicker::make('visit_date')
-                            ->native(false)
-                            ->required(),
+    private static function selection(string $field, string $label, string $type, string $relation): Select
+    {
+        return Select::make($field)->label($label)->searchable()->options(function (?SgipDistribution $record) use ($type, $relation): array {
+            $column = $type === 'issues' ? 'document_number' : 'name';
+            $options = app(SgipRegister::class)->catalog(auth()->user(), $type, $record)->orderBy($column)->pluck($column, 'id');
+            $current = $record?->{$relation};
+            if ($current !== null) {
+                $options->put($current->id, $current->{$column});
+            }
 
-                        TextInput::make('approval_status')
-                            ->disabled()
-                            ->dehydrated()
-                            ->default('draft'),
-
-                        Select::make('sample_issue_id')
-                            ->label('Sample Issue Stock')
-                            ->options(fn (): array => SampleIssue::query()
-                                ->where('status', SampleIssueStatus::Posted)
-                                ->with('sampleRequest.employee')
-                                ->orderByDesc('issue_date')
-                                ->get()
-                                ->mapWithKeys(fn (SampleIssue $issue): array => [
-                                    $issue->id => $issue->document_number.' - '
-                                        .($issue->sampleRequest?->employee?->full_name ?? 'Representative'),
-                                ])
-                                ->all())
-                            ->searchable()
-                            ->required(fn (): bool => VisitPreference::current()->sgip_stock_source === SgipStockSource::SampleIssue)
-                            ->visible(fn (): bool => VisitPreference::current()->sgip_stock_source === SgipStockSource::SampleIssue),
-
-                        Select::make('territory_id')
-                            ->label('Territory')
-                            ->options(fn (): array => Territory::query()->orderBy('name')->pluck('name', 'id')->all())
-                            ->searchable()
-                            ->required(fn (Get $get): bool => filled($get('marketing_campaign_id'))),
-
-                        Select::make('marketing_campaign_id')
-                            ->label('Marketing Campaign')
-                            ->options(fn (): array => MarketingCampaign::query()
-                                ->where('status', MarketingCampaignStatus::Active)
-                                ->orderByDesc('start_date')
-                                ->pluck('name', 'id')
-                                ->all())
-                            ->searchable()
-                            ->live(),
-                    ])->columnSpanFull(),
-
-                /* ===============================
-                | ITEMS
-                =============================== */
-                Section::make('Samples / Gifts / Inputs')
-                    ->schema([
-                        Repeater::make('items')
-                            ->relationship()
-                            ->addable()
-                            ->deletable()
-                            ->columns(5)
-                            ->schema([
-                                Select::make('item_master_id')
-                                    ->label('Item')
-                                    ->options(
-                                        ItemMaster::query()
-                                            ->whereNotNull('item_type')
-                                            ->pluck('item_name', 'id')
-                                    )
-                                    ->columnSpan(2)
-                                    ->searchable()
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($state, Set $set) {
-
-                                        if (! $state) {
-                                            return;
-                                        }
-
-                                        $item = ItemMaster::find($state);
-
-                                        if (! $item) {
-                                            return;
-                                        }
-
-                                        // ✅ Fetch selling price
-                                        $set('unit_value', $item->selling_price ?? 0);
-                                    }),
-
-                                TextInput::make('quantity')
-                                    ->numeric()
-                                    ->minValue(1)
-                                    ->required()
-                                    ->reactive()
-                                    ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        if (! $state) {
-                                            return;
-                                        }
-
-                                        $set('total_value', $state * ($get('unit_value') ?? 0));
-                                    }),
-
-                                TextInput::make('unit_value')
-                                    ->numeric()
-                                    ->reactive()
-                                    ->required(),
-
-                                TextInput::make('total_value')
-                                    ->disabled()
-                                    ->dehydrated(false)
-                                    ->reactive()
-                                    ->afterStateHydrated(
-                                        fn ($set, Get $get) => $set(
-                                            'total_value',
-                                            ($get('quantity') ?? 0) * ($get('unit_value') ?? 0)
-                                        )
-                                    ),
-                            ]),
-                    ])->columnSpanFull(),
-            ]);
+            return $options->all();
+        });
     }
 }

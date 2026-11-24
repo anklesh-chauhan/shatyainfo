@@ -42,6 +42,11 @@ class Employee extends BaseModel
 
     protected $appends = ['full_name'];
 
+    public function getDocumentNumber(): string
+    {
+        return (string) $this->employee_id;
+    }
+
     public function attendance()
     {
         return $this->hasMany(EmployeeAttendance::class);

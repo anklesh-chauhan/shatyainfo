@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\InventoryAdjustments\Pages;
 
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\InventoryAdjustments\InventoryAdjustmentResource;
+use App\Services\Inventory\StockAdjustmentRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Throwable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditInventoryAdjustment extends EditRecord
 {
@@ -17,55 +18,76 @@ class EditInventoryAdjustment extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ApprovalAction::make(),
-            Action::make('post')
-                ->label('Post Adjustment')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => ! $this->record->isPosted() && $this->record->canProceedAfterApproval())
-                ->action(function (): void {
-                    try {
-                        $this->record->post();
-
-                        Notification::make()
-                            ->title('Adjustment posted')
-                            ->body('Stock has been updated successfully.')
-                            ->success()
-                            ->send();
-
-                        $this->refreshFormData(['status', 'posted_at', 'posted_by']);
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Unable to post adjustment')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            DeleteAction::make()
-                ->visible(fn (): bool => $this->record->isEditable()),
+            $this->adjustmentAction('submit', 'Send for Approval', 'primary'),
+            $this->adjustmentAction('post', 'Post Adjustment', 'success'),
+            $this->adjustmentAction('delete', 'Delete', 'danger'),
         ];
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        if (! $this->record->isEditable()) {
-            Notification::make()
-                ->title('Adjustment is locked')
-                ->body('Posted adjustments cannot be edited.')
-                ->danger()
-                ->send();
-
-            $this->halt();
-        }
+        $data['revision'] = app(StockAdjustmentRegister::class)->revision($this->record);
 
         return $data;
     }
 
-    protected function canEdit(): bool
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return ! $this->record->isPosted();
+        try {
+            return $this->record = app(StockAdjustmentRegister::class)->save(auth()->user(), $record->id, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
+    }
+
+    protected function afterSave(): void
+    {
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return $this->record->isEditable() ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function adjustmentAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(StockAdjustmentRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    app(StockAdjustmentRegister::class)->act(
+                        auth()->user(), $this->record->id, $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if ($action === 'delete') {
+                    $this->redirect(InventoryAdjustmentResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('Stock adjustment updated')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
+        }
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }

@@ -220,9 +220,9 @@ it('rejects organizational units outside the selected division on the position f
     $other = OrganizationalUnit::create(['name' => 'East Division', 'code' => 'EAST', 'type_master_id' => TypeMaster::where('typeable_type', OrganizationalUnit::class)->where('name', 'Division')->sole()->id]);
     Livewire::test(EditPosition::class, ['record' => $position->getRouteKey()])
         ->assertSuccessful()
-        ->fillForm(['division_ou_id' => $other->id, 'organizationalUnits' => [$position->organizational_unit_id]])
+        ->fillForm(['division_ou_id' => $other->id, 'org_unit_ids' => [$position->organizational_unit_id]])
         ->call('save')
-        ->assertHasFormErrors(['organizationalUnits']);
+        ->assertHasFormErrors(['org_unit_ids']);
     $position->update(['division_ou_id' => $other->id]);
     expect($position->organizational_unit_id)->toBeNull()->and($position->division_ou_id)->toBe($other->id);
 });

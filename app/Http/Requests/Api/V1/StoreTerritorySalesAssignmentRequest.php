@@ -29,4 +29,14 @@ class StoreTerritorySalesAssignmentRequest extends FormRequest
             'reason' => ['required', 'string', 'max:2000'],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'territory_id.required' => 'Choose a territory.',
+            'user_id.required' => 'Choose a representative.',
+            'effective_from.date_format' => 'Enter an effective date in YYYY-MM-DD format.',
+            'reason.required' => 'Enter an assignment reason.',
+        ];
+    }
 }

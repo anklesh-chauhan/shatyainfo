@@ -14,7 +14,9 @@ class MonthlyTourPlanResource extends JsonResource
     public function toArray(Request $request): array
     {
         $service = app(FieldMtpService::class);
-        $teamView = $request->query('scope') === 'team';
+        $teamView = $request->attributes->getBoolean('team_plan');
+        $canEditPersonal = ! $teamView && $service->canEdit($request->user(), $this->resource);
+        $canSubmitTeam = $teamView && $service->canSubmitFromAdmin($request->user(), $this->resource);
         $purposes = VisitPurpose::query()->whereIn('id', $this->details->pluck('visit_purpose_ids')->flatten()->filter())->pluck('name', 'id');
         $jointUsers = User::query()->whereIn('id', $this->details->pluck('joint_with')->flatten()->filter())->pluck('name', 'id');
 
@@ -24,7 +26,11 @@ class MonthlyTourPlanResource extends JsonResource
             'employee_name' => $this->user?->name, 'approval_status' => $service->status($this->resource),
             'manager_remarks' => $this->manager_remarks,
             'revision' => $service->revision($this->resource),
-            'can_edit' => ! $teamView && $service->canEdit($request->user(), $this->resource),
+            'can_edit' => $canEditPersonal,
+            'can_edit_team' => $teamView && $service->canEditDraft($request->user(), $this->resource),
+            'can_submit_team' => $canSubmitTeam,
+            'can_submit_from_register' => $canEditPersonal || $canSubmitTeam,
+            'can_delete' => $service->canDeleteFromRegister($request->user(), $this->resource, $teamView),
             'can_decide' => ! $teamView && $service->canDecide($request->user(), $this->resource),
             'details' => $this->details->map(fn ($d) => [
                 'date' => $d->date->toDateString(), 'territory_id' => $d->territory_id,

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\HasApprovalWorkflow;
 use App\Traits\LocksWithApprovalDocument;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesDocumentItem extends BaseModel
 {
@@ -53,13 +54,13 @@ class SalesDocumentItem extends BaseModel
         return $this->belongsTo(ItemMaster::class);
     }
 
-    public function deliveryChallanLines()
+    public function deliveryChallanLines(): HasMany
     {
         return $this->hasMany(DeliveryChallanLine::class);
     }
 
     public function remainingQuantity(): float
     {
-        return max(0, (float) $this->quantity - (float) $this->quantity_delivered);
+        return max(0, round((float) $this->quantity - (float) $this->quantity_delivered, 3));
     }
 }

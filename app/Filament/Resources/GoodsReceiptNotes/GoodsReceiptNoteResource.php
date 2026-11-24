@@ -9,9 +9,6 @@ use App\Filament\Resources\GoodsReceiptNotes\Pages\ListGoodsReceiptNotes;
 use App\Filament\Resources\GoodsReceiptNotes\Schemas\GoodsReceiptNoteForm;
 use App\Filament\Resources\GoodsReceiptNotes\Tables\GoodsReceiptNotesTable;
 use App\Models\GoodsReceiptNote;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -28,6 +25,11 @@ class GoodsReceiptNoteResource extends BaseResource
 
     protected static ?int $navigationSort = 40;
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && auth()->user()->can('View:GoodsReceiptNote');
+    }
+
     public static function form(Schema $schema): Schema
     {
         return GoodsReceiptNoteForm::configure($schema);
@@ -35,15 +37,7 @@ class GoodsReceiptNoteResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return GoodsReceiptNotesTable::configure($table)
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+        return GoodsReceiptNotesTable::configure($table);
     }
 
     public static function getPages(): array

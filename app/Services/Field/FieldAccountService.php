@@ -3,6 +3,8 @@
 namespace App\Services\Field;
 
 use App\Models\AccountMaster;
+use App\Models\AccountReportingMaster;
+use App\Models\AccountStatus;
 use App\Models\Address;
 use App\Models\CityPinCode;
 use App\Models\Company;
@@ -16,6 +18,7 @@ use App\Services\PositionService;
 use App\Services\Reports\ReportVisibility;
 use App\Services\TerritoryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,10 +58,11 @@ class FieldAccountService
     private function detailRelations(): array
     {
         return [
-            'typeMaster',
-            'specialty', 'therapyArea', 'divisionProfiles.ratingType', 'divisionProfiles.potentialUnit', 'callTargets', 'assignmentHistory',
+            'typeMaster', 'owner:id,name',
+            'specialty', 'therapyArea', 'accountStatus', 'divisionProfiles.division', 'divisionProfiles.ratingType', 'divisionProfiles.potentialUnit',
+            'callTargets', 'assignmentHistory.owner', 'assignmentHistory.territory', 'approval',
             'territory',
-            'contactDetails',
+            'contactDetails.approval',
             'patches',
             'addresses.typeMaster',
             'addresses.areaTown',
@@ -84,13 +88,27 @@ class FieldAccountService
         ?int $territoryId = null,
         ?int $patchId = null,
         int $perPage = 50,
+        array $register = [],
     ): LengthAwarePaginator {
         abort_unless($user->can('viewAny', AccountMaster::class), 403);
 
-        $query = AccountMaster::query()
+        $query = $this->visibleAccounts($user)
             ->with(['typeMaster', 'territory', 'contactDetails'])
-            ->applyVisibility('AccountMaster', $user)
-            ->orderBy('name');
+            ->orderBy('name')->orderBy('id');
+
+        if ($register !== []) {
+            $query->with(['specialty:id,name', 'therapyArea:id,name', 'accountStatus:id,name', 'approval']);
+            match ($register['trash'] ?? 'active') {
+                'only' => $query->onlyTrashed(),
+                'with' => $query->withTrashed(),
+                default => $query,
+            };
+            foreach (['specialty_id', 'therapy_area_id', 'account_status_id'] as $filter) {
+                if (isset($register[$filter])) {
+                    $query->where($filter, $register[$filter]);
+                }
+            }
+        }
 
         if (filled($search)) {
             $query->where(function ($builder) use ($search): void {
@@ -99,6 +117,7 @@ class FieldAccountService
                     ->orWhereLike('account_code', '%'.$search.'%')
                     ->orWhereLike('phone_number', '%'.$search.'%')
                     ->orWhereLike('email', '%'.$search.'%')
+                    ->orWhereLike('external_reference', '%'.$search.'%')
                     ->orWhereLike('alias', '%'.$search.'%');
             });
         }
@@ -118,13 +137,13 @@ class FieldAccountService
         return $query->paginate(max(1, min($perPage, 100)));
     }
 
-    public function findVisible(User $user, int $accountId): AccountMaster
+    public function findVisible(User $user, int $accountId, bool $withTrash = false): AccountMaster
     {
         abort_unless($user->can('viewAny', AccountMaster::class), 403);
 
-        $account = AccountMaster::query()
+        $account = $this->visibleAccounts($user)
+            ->withTrashed($withTrash)
             ->with($this->detailRelations())
-            ->applyVisibility('AccountMaster', $user)
             ->find($accountId);
 
         if (! $account) {
@@ -134,6 +153,143 @@ class FieldAccountService
         abort_unless($user->can('view', $account), 403);
 
         return $account;
+    }
+
+    private function visibleAccounts(User $actor): Builder
+    {
+        return AccountMaster::query()->applyVisibility('AccountMaster', $actor);
+    }
+
+    public function registerOptions(User $actor): array
+    {
+        abort_unless($actor->can('viewAny', AccountMaster::class), 403);
+        $visible = $this->visibleAccounts($actor)->withTrashed();
+
+        return [
+            'types' => TypeMaster::query()->ofType(AccountMaster::class)->orderBy('name')->get(['id', 'name']),
+            'territories' => Territory::query()->whereIn('id', (clone $visible)->select('territory_id'))->orderBy('name')->get(['id', 'name']),
+            'patches' => Patch::query()->whereHas('companies', fn (Builder $accounts): Builder => $accounts
+                ->withTrashed()->whereIn('account_masters.id', (clone $visible)->select('account_masters.id')))->orderBy('name')->get(['id', 'name']),
+            'specialties' => AccountReportingMaster::query()->where('kind', 'specialty')->orderBy('name')->get(['id', 'name']),
+            'therapy_areas' => AccountReportingMaster::query()->where('kind', 'therapy_area')->orderBy('name')->get(['id', 'name']),
+            'statuses' => AccountStatus::query()->orderBy('name')->get(['id', 'name']),
+        ];
+    }
+
+    public function lifecycleActions(User $actor, AccountMaster $account): array
+    {
+        if ($actor->cannot('view', $account) || $this->isLocked($actor, $account)) {
+            return [];
+        }
+
+        return array_values(array_filter($account->trashed() ? ['restore', 'forceDelete'] : ['delete'],
+            fn (string $action): bool => $actor->can($action, $account)));
+    }
+
+    private function isLocked(User $actor, AccountMaster $account): bool
+    {
+        return $account->approval_status === 'pending' || $account->approval?->approval_status === 'pending'
+            || ($account->approval_status === 'approved' && $actor->cannot('overrideApproval', $account));
+    }
+
+    public function canEdit(User $actor, AccountMaster $account): bool
+    {
+        return ! $account->trashed() && $actor->can('update', $account) && ! $this->isLocked($actor, $account);
+    }
+
+    public function ownerOptions(User $actor, string $search): LengthAwarePaginator
+    {
+        abort_unless($actor->can('viewAny', AccountMaster::class) && FieldTeamOnboardingService::canManage($actor), 403);
+
+        return User::query()->when(filled($search), fn (Builder $query): Builder => $query->whereLike('name', '%'.$search.'%'))
+            ->orderBy('name')->orderBy('id')->paginate(25, ['id', 'name']);
+    }
+
+    private function assignedOwner(User $actor, array $data, int $default): int
+    {
+        if (! isset($data['assign_owner_id'])) {
+            return $default;
+        }
+
+        abort_unless(FieldTeamOnboardingService::canManage($actor) && $actor->can('viewAny', AccountMaster::class), 403);
+        $ownerId = (int) $data['assign_owner_id'];
+        if (! User::query()->whereKey($ownerId)->exists()) {
+            throw ValidationException::withMessages(['assign_owner_id' => 'Choose a user in this company.']);
+        }
+
+        return $ownerId;
+    }
+
+    public function applyLifecycle(User $actor, string $action, array $ids): int
+    {
+        abort_unless($actor->can('viewAny', AccountMaster::class), 403);
+        if (count($ids) > 1 && $action !== 'delete') {
+            abort_unless($actor->can($action.'Any', AccountMaster::class), 403);
+        }
+
+        return $actor->getConnection()->transaction(function () use ($actor, $action, $ids): int {
+            $accounts = $this->visibleAccounts($actor)->withTrashed()->whereKey($ids)->orderBy('id')->with('approval')->lockForUpdate()->get();
+            abort_unless($accounts->count() === count($ids), 404);
+            foreach ($accounts as $account) {
+                abort_unless($actor->can('view', $account) && $actor->can($action, $account), 403);
+                abort_unless($account->trashed() === ($action !== 'delete'), 409, 'The account changed. Refresh the register.');
+                abort_if($this->isLocked($actor, $account), 422, 'An account is locked by approval.');
+                if ($action === 'forceDelete') {
+                    $this->assertNoAccountHistory($account);
+                }
+            }
+            foreach ($accounts as $account) {
+                $changed = match ($action) {
+                    'delete' => $account->delete(),
+                    'restore' => $account->restore(),
+                    'forceDelete' => $account->forceDelete(),
+                };
+                abort_unless($changed, 409, 'The account could not be updated.');
+            }
+
+            return $accounts->count();
+        }, attempts: 3);
+    }
+
+    private function assertNoAccountHistory(AccountMaster $account): void
+    {
+        $message = 'Accounts with linked records or history must stay in trash.';
+        abort_if($account->assignmentHistory()->skip(1)->take(1)->get(['id'])->isNotEmpty(), 422, $message);
+        abort_if($account->approvals()->withTrashed()->exists() || $account->visitables()->exists()
+            || $account->addresses()->withTrashed()->exists() || $account->bankDetail()->withTrashed()->exists(), 422, $message);
+
+        $references = [
+            'account_masters' => ['parent_id', 'institution_account_id', 'supplier_account_id'],
+            'account_master_contact_details' => ['account_master_id'],
+            'account_master_address_details' => ['account_master_id'],
+            'account_master_g_s_t_details' => ['account_master_id'],
+            'account_master_credit_details' => ['account_master_id'],
+            'account_master_statutory_details' => ['account_master_id'],
+            'account_call_targets' => ['account_master_id'],
+            'account_division_profiles' => ['account_master_id'],
+            'account_master_patch' => ['account_master_id'],
+            'item_master_account_masters' => ['account_master_id'],
+            'companies' => ['account_master_id'],
+            'leads' => ['account_master_id'],
+            'deals' => ['account_master_id'],
+            'quotes' => ['account_master_id'],
+            'sales_orders' => ['account_master_id'],
+            'sales_invoices' => ['account_master_id'],
+            'delivery_challans' => ['customer_id'],
+            'purchase_orders' => ['supplier_id'],
+            'goods_receipt_notes' => ['supplier_id'],
+            'customer_prices' => ['customer_id'],
+            'sgip_distributions' => ['account_master_id'],
+            'flexible_plan_entries' => ['account_master_id'],
+            'travel_segments' => ['from_account_id', 'to_account_id'],
+            'secondary_sales_statements' => ['stockist_id'],
+            'secondary_ocr_sources' => ['stockist_id'],
+            'rcpa_observations' => ['chemist_id'],
+            'contact_details' => ['account_master_id'],
+        ];
+        foreach ($references as $table => $columns) {
+            abort_if($account->getConnection()->table($table)->whereAny($columns, '=', $account->id)->exists(), 422, $message);
+        }
     }
 
     /**
@@ -155,7 +311,7 @@ class FieldAccountService
                 'rcpa_tier' => $data['rcpa_tier'] ?? null,
                 'accept_secondary_statements' => $data['accept_secondary_statements'] ?? false,
                 'type_master_id' => $data['type_master_id'],
-                'owner_id' => $user->id,
+                'owner_id' => $this->assignedOwner($user, $data, $user->id),
                 'phone_number' => $data['phone_number'] ?? null,
                 'email' => $data['email'] ?? null,
                 'secondary_email' => $data['secondary_email'] ?? null,
@@ -220,9 +376,12 @@ class FieldAccountService
             $this->assertTypeMaster((int) $data['type_master_id']);
         }
 
-        $this->assertAssignableRelations($user, $data, $account);
-
-        return DB::transaction(function () use ($account, $data): AccountMaster {
+        return DB::transaction(function () use ($user, $account, $data): AccountMaster {
+            $account = $this->lockWritable($user, $account);
+            $this->assertAssignableRelations($user, $data, $account);
+            if (isset($data['assign_owner_id'])) {
+                $account->owner_id = $this->assignedOwner($user, $data, $account->owner_id ?? $user->id);
+            }
             $account->fill(collect($data)->only([
                 'geo_latitude', 'geo_longitude', 'geo_radius_meters',
                 'rcpa_tier',
@@ -262,6 +421,96 @@ class FieldAccountService
 
             return $account->fresh($this->detailRelations());
         });
+    }
+
+    private function lockWritable(User $actor, AccountMaster $account): AccountMaster
+    {
+        $record = $this->visibleAccounts($actor)->with('approval')->lockForUpdate()->findOrFail($account->id);
+        abort_unless($actor->can('update', $record), 403);
+        abort_if($this->isLocked($actor, $record), 422, 'This account is locked by approval.');
+
+        return $record;
+    }
+
+    public function changeContact(User $actor, AccountMaster $account, string $action, ?int $id = null, array $data = []): AccountMaster
+    {
+        return $account->getConnection()->transaction(function () use ($actor, $account, $action, $id, $data): AccountMaster {
+            $account = $this->lockWritable($actor, $account);
+            if ($action === 'create') {
+                abort_unless($actor->can('create', ContactDetail::class), 403);
+                $contact = ContactDetail::query()->create([
+                    ...$data,
+                    'company_id' => Company::query()->where('account_master_id', $account->id)->value('id'),
+                ]);
+                $account->contactDetails()->attach($contact);
+            } elseif ($action === 'detach') {
+                abort_unless($account->contactDetails()->detach($id) > 0, 404);
+            } else {
+                abort_unless($actor->can('viewAny', ContactDetail::class), 403);
+                $contact = ContactDetail::query()->applyVisibility('ContactDetail', $actor)->lockForUpdate()->findOrFail($id);
+                abort_unless($actor->can('view', $contact), 403);
+                if ($action === 'attach') {
+                    $account->contactDetails()->syncWithoutDetaching([$contact->id]);
+                } else {
+                    abort_unless($account->contactDetails()->whereKey($contact->id)->exists(), 404);
+                    app(FieldContactService::class)->assertCanWrite($actor, $contact, 'update');
+                    $contact->update($data);
+                }
+            }
+
+            return $account->load($this->detailRelations());
+        }, attempts: 3);
+    }
+
+    public function applyRelatedAction(User $actor, AccountMaster $account, string $group, string $action, array $ids): int
+    {
+        abort_if($action === 'detach' && ! in_array($group, ['contacts', 'addresses'], true), 422);
+
+        return $account->getConnection()->transaction(function () use ($actor, $account, $group, $action, $ids): int {
+            $account = $this->lockWritable($actor, $account);
+            $relation = match ($group) {
+                'contacts' => $account->contactDetails(),
+                'addresses' => $account->addresses(),
+                'bank' => $account->bankDetail(),
+                'credit' => $account->creditDetail(),
+                'gst' => $account->gstDetail(),
+                'statutory' => $account->statutoryDetail(),
+            };
+            $records = $relation->whereKey($ids)->orderBy($relation->getRelated()->getQualifiedKeyName())->lockForUpdate()->get();
+            abort_unless($records->count() === count($ids), 404);
+            if ($group === 'addresses') {
+                abort_if($account->gstDetail()->withTrashed()->whereIn('address_id', $ids)->exists(), 422, 'Remove the GST address reference before removing the address.');
+            }
+            foreach ($records as $record) {
+                if ($record instanceof ContactDetail && $action === 'delete') {
+                    $this->assertContactDeletable($actor, $account, $record);
+                }
+                abort_if($action === 'delete' && ($record->approval_status === 'pending'
+                    || ($record->approval_status === 'approved' && $actor->cannot('OverrideApproval:'.class_basename($record)))), 422, 'A related record is locked by approval.');
+            }
+            foreach ($records as $record) {
+                if ($action === 'delete') {
+                    abort_unless($record->delete(), 409);
+                } elseif ($group === 'addresses') {
+                    $record->addressable()->dissociate();
+                    abort_unless($record->save(), 409);
+                }
+            }
+            if ($group === 'contacts') {
+                $account->contactDetails()->detach($ids);
+            }
+
+            return $records->count();
+        }, attempts: 3);
+    }
+
+    private function assertContactDeletable(User $actor, AccountMaster $account, ContactDetail $contact): void
+    {
+        abort_unless($actor->can(['ViewAny:ContactDetail', 'View:ContactDetail', 'Delete:ContactDetail']), 403);
+        abort_unless(ContactDetail::query()->applyVisibility('ContactDetail', $actor)->whereKey($contact->id)->exists(), 404);
+        app(FieldContactService::class)->assertCanWrite($actor, $contact, 'delete');
+        abort_if($contact->company_id || $contact->addresses()->withTrashed()->exists(), 422, 'This contact has other links. Unlink it from this account instead.');
+        app(FieldContactService::class)->assertNoSharedLinks($contact, $account->id);
     }
 
     /** @param array<string, mixed> $data */
@@ -383,7 +632,7 @@ class FieldAccountService
     {
         abort_unless($user->can('update', $account), 403);
 
-        return DB::transaction(fn (): Address => $this->createAddressForAccount($account, $data)
+        return DB::transaction(fn (): Address => $this->createAddressForAccount($this->lockWritable($user, $account), $data)
             ->load(['typeMaster', 'areaTown', 'city', 'state', 'country']));
     }
 
@@ -395,8 +644,10 @@ class FieldAccountService
         abort_unless($user->can('update', $account), 403);
         $this->assertAddressBelongsToAccount($account, $address);
 
-        return DB::transaction(function () use ($account, $address, $data): Address {
-            $payload = $this->normalizeAddressPayload($data, existing: $address);
+        return DB::transaction(function () use ($user, $account, $address, $data): Address {
+            $account = $this->lockWritable($user, $account);
+            $address = $account->addresses()->lockForUpdate()->findOrFail($address->id);
+            $payload = app(FieldAddressPayload::class)->normalize($data, existing: $address);
             $address->fill($payload)->save();
             $this->afterAddressSaved($account, $address);
 
@@ -409,7 +660,9 @@ class FieldAccountService
         abort_unless($user->can('update', $account), 403);
         $this->assertAddressBelongsToAccount($account, $address);
 
-        $address->delete();
+        DB::transaction(function () use ($user, $account, $address): void {
+            $this->lockWritable($user, $account)->addresses()->lockForUpdate()->findOrFail($address->id)->delete();
+        });
     }
 
     private function assertTypeMaster(int $typeMasterId): void
@@ -422,20 +675,6 @@ class FieldAccountService
         if (! $exists) {
             throw ValidationException::withMessages([
                 'type_master_id' => 'Invalid account type.',
-            ]);
-        }
-    }
-
-    private function assertAddressTypeMaster(int $typeMasterId): void
-    {
-        $exists = TypeMaster::query()
-            ->where('typeable_type', Address::class)
-            ->whereKey($typeMasterId)
-            ->exists();
-
-        if (! $exists) {
-            throw ValidationException::withMessages([
-                'type_master_id' => 'Invalid address type.',
             ]);
         }
     }
@@ -476,69 +715,12 @@ class FieldAccountService
      */
     private function createAddressForAccount(AccountMaster $account, array $data): Address
     {
-        $payload = $this->normalizeAddressPayload($data);
+        $payload = app(FieldAddressPayload::class)->normalize($data);
 
         $address = $account->addresses()->create($payload);
         $this->afterAddressSaved($account, $address);
 
         return $address;
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private function normalizeAddressPayload(array $data, ?Address $existing = null): array
-    {
-        if (isset($data['type_master_id'])) {
-            $this->assertAddressTypeMaster((int) $data['type_master_id']);
-        } elseif ($existing === null) {
-            throw ValidationException::withMessages([
-                'type_master_id' => 'Address type is required.',
-            ]);
-        }
-
-        $areaTownId = $data['area_town_id'] ?? $existing?->area_town_id;
-        $pinCode = $data['pin_code'] ?? $existing?->pin_code;
-
-        if ($areaTownId === null) {
-            throw ValidationException::withMessages([
-                'area_town_id' => 'Area/town is required.',
-            ]);
-        }
-
-        $areaTown = CityPinCode::query()->find($areaTownId);
-
-        if (! $areaTown) {
-            throw ValidationException::withMessages([
-                'area_town_id' => 'Invalid area/town.',
-            ]);
-        }
-
-        if (filled($pinCode) && (string) $areaTown->pin_code !== (string) $pinCode) {
-            throw ValidationException::withMessages([
-                'area_town_id' => 'Area/town does not match the pin code.',
-            ]);
-        }
-
-        $street = $data['street'] ?? $existing?->street;
-        if (blank($street)) {
-            throw ValidationException::withMessages([
-                'street' => 'Street is required.',
-            ]);
-        }
-
-        return [
-            'type_master_id' => $data['type_master_id'] ?? $existing?->type_master_id,
-            'street' => $street,
-            'pin_code' => $pinCode ?? $areaTown->pin_code,
-            'area_town_id' => $areaTown->id,
-            'city_id' => $data['city_id'] ?? $areaTown->city_id,
-            'state_id' => $data['state_id'] ?? $areaTown->state_id,
-            'country_id' => $data['country_id'] ?? $areaTown->country_id,
-            'is_primary' => (bool) ($data['is_primary'] ?? $existing?->is_primary ?? false),
-            'sort' => $data['sort'] ?? $existing?->sort ?? 1,
-        ];
     }
 
     private function afterAddressSaved(AccountMaster $account, Address $address): void

@@ -13,7 +13,8 @@ class FlexiblePlanController extends Controller
     public function index(ListFlexiblePlansRequest $request, FieldFlexiblePlanningService $service): JsonResponse
     {
         return response()->json(['data' => $service->week($request->user(), $request->validated('start', today()->startOfWeek()->toDateString()),
-            $request->filled('user_id') ? (int) $request->validated('user_id') : null)]);
+            $request->filled('user_id') ? (int) $request->validated('user_id') : null,
+            $request->boolean('include_team'))]);
     }
 
     public function store(SaveFlexiblePlanRequest $request, FieldFlexiblePlanningService $service): JsonResponse

@@ -3,13 +3,12 @@
 namespace App\Filament\Resources\PurchaseOrders\Schemas;
 
 use App\Enums\PurchaseOrderStatus;
-use App\Models\AccountMaster;
-use App\Models\ItemMaster;
-use App\Models\LocationMaster;
 use App\Models\NumberSeries;
 use App\Models\PaymentTerm;
 use App\Models\PurchaseOrder;
+use App\Services\Inventory\PurchaseOrderRegister;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -25,7 +24,9 @@ class PurchaseOrderForm
     {
         return $schema
             ->components([
+                Hidden::make('revision'),
                 Section::make('Order Details')
+                    ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isEditable())
                     ->columns(3)
                     ->columnSpanFull()
                     ->schema([
@@ -33,7 +34,7 @@ class PurchaseOrderForm
                             ->label('PO Number')
                             ->default(fn (): string => NumberSeries::getNextNumber(PurchaseOrder::class))
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         DatePicker::make('order_date')
                             ->label('Order Date')
@@ -46,17 +47,12 @@ class PurchaseOrderForm
                         Select::make('status')
                             ->options(PurchaseOrderStatus::class)
                             ->default(PurchaseOrderStatus::Draft)
-                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isEditable())
-                            ->dehydrated(),
+                            ->disabled()
+                            ->dehydrated(false),
 
                         Select::make('supplier_id')
                             ->label('Supplier')
-                            ->options(fn (): array => AccountMaster::query()
-                                ->whereHas('typeMaster', fn ($query) => $query->where('name', 'Vendor')
-                                    ->orWhereHas('parent', fn ($parentQuery) => $parentQuery->where('name', 'Vendor')))
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->all())
+                            ->options(fn (): array => app(PurchaseOrderRegister::class)->catalog(auth()->user(), 'suppliers')->orderBy('name')->pluck('name', 'id')->all())
                             ->searchable()
                             ->required(),
 
@@ -94,23 +90,21 @@ class PurchaseOrderForm
                             ->disabled()
                             ->dehydrated(false),
 
-                        Textarea::make('notes')
+                        Textarea::make('notes')->maxLength(5000)
                             ->columnSpanFull(),
                     ])->columnSpanFull(),
 
                 Section::make('Line Items')
+                    ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isEditable())
                     ->schema([
                         Repeater::make('lines')
-                            ->relationship()
+                            ->default([])
                             ->columns(6)
                             ->schema([
+                                Hidden::make('id'),
                                 Select::make('item_master_id')
                                     ->label('Item')
-                                    ->options(fn (): array => ItemMaster::query()
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all())
+                                    ->options(fn (): array => app(PurchaseOrderRegister::class)->catalog(auth()->user(), 'items')->orderBy('item_name')->pluck('item_name', 'id')->all())
                                     ->searchable()
                                     ->required()
                                     ->columnSpan(2)
@@ -120,7 +114,7 @@ class PurchaseOrderForm
                                             return;
                                         }
 
-                                        $item = ItemMaster::query()->find($state);
+                                        $item = app(PurchaseOrderRegister::class)->catalog(auth()->user(), 'items')->find($state);
 
                                         if ($item === null) {
                                             return;
@@ -154,6 +148,7 @@ class PurchaseOrderForm
 
                                 TextInput::make('tax_rate')
                                     ->label('Tax %')
+                                    ->minValue(0)->maxValue(100)
                                     ->numeric()
                                     ->default(0)
                                     ->live(onBlur: true)
@@ -163,7 +158,7 @@ class PurchaseOrderForm
                                     ->label('Line Total')
                                     ->numeric()
                                     ->disabled()
-                                    ->dehydrated(),
+                                    ->dehydrated(false),
 
                                 Textarea::make('description')
                                     ->columnSpanFull()
@@ -184,29 +179,6 @@ class PurchaseOrderForm
 
     protected static function locationOptions(): array
     {
-        $locations = LocationMaster::query()
-            ->where('is_active', true)
-            ->whereNull('parent_id')
-            ->with('subLocations')
-            ->orderBy('name')
-            ->get();
-
-        $options = [];
-        self::buildLocationOptions($locations, $options);
-
-        return $options;
-    }
-
-    protected static function buildLocationOptions($locations, array &$options, string $prefix = ''): void
-    {
-        foreach ($locations as $location) {
-            $options[$location->id] = $prefix.$location->name.' ['.$location->location_code.']';
-
-            $activeSubLocations = $location->subLocations->where('is_active', true);
-
-            if ($activeSubLocations->isNotEmpty()) {
-                self::buildLocationOptions($activeSubLocations, $options, $prefix.'— ');
-            }
-        }
+        return app(PurchaseOrderRegister::class)->catalog(auth()->user(), 'locations')->orderBy('name')->pluck('name', 'id')->all();
     }
 }

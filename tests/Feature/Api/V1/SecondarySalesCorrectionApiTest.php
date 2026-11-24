@@ -115,6 +115,8 @@ it('reverses an approved statement after review, releasing its groups for a late
     $this->postJson('/api/v1/secondary-sales/corrections/'.$correctionId.'/review', ['decision' => 'approved', 'note' => 'Unassigned reviewer'])->assertNotFound();
     Sanctum::actingAs($this->rsm);
     $this->getJson('/api/v1/secondary-sales/corrections')->assertSuccessful()->assertJsonPath('data.0.can_review', true);
+    $this->getJson('/api/v1/secondary-sales/corrections/'.$correctionId.'/source')->assertNotFound();
+    $this->getJson('/api/v1/secondary-sales/corrections/'.$correctionId.'/evidence/rows')->assertNotFound();
     $this->postJson('/api/v1/secondary-sales/corrections/'.$correctionId.'/review', ['decision' => 'approved', 'note' => 'Confirmed with stockist ledger'])->assertSuccessful();
     expect($original->fresh()->status)->toBe('reversed')->and(ledgerNet($this))->toBe(0)
         ->and(DB::table('secondary_sales_groups')->count())->toBe(0)->and(DB::table('secondary_sales_adjustments')->count())->toBe(0);
@@ -152,4 +154,66 @@ it('renders the corrections queue in the ERP for requester and reviewer', functi
     }
     $this->actingAs($this->other);
     Livewire::test(ManageSecondarySalesCorrections::class)->assertSuccessful()->assertCanNotSeeTableRecords(SecondarySalesCorrection::query()->get());
+});
+
+it('registers corrections and scopes their private replacement evidence to authorized correction participants', function () {
+    $path = '/api/v1/secondary-sales/corrections';
+    $original = approvedStatement($this);
+    $corrected = $this->rows;
+    $corrected[0][6] = '1250.00';
+    $csv = correctionCsv($corrected);
+    $created = $this->post('/api/v1/secondary-sales/'.$original->id.'/corrections', [
+        'kind' => 'replacement', 'reason' => 'Stockist confirmed a corrected value', 'reviewer_id' => $this->other->id,
+        'file' => UploadedFile::fake()->createWithContent('corrected.csv', $csv),
+    ], ['Accept' => 'application/json'])->assertCreated();
+    $correctionId = $created->json('data.id');
+    $replacementId = $created->json('data.replacement_statement_id');
+    $url = $path.'/'.$correctionId;
+
+    $this->getJson($url)->assertOk()->assertJsonPath('data.can_review', false);
+    $this->getJson($url.'/evidence/rows')->assertOk()->assertJsonCount(2, 'data');
+    Sanctum::actingAs($this->rsm);
+    $this->getJson($path)->assertOk()->assertJsonCount(0, 'data');
+    foreach (['', '/source', '/evidence/rows'] as $suffix) {
+        $this->getJson($url.$suffix)->assertNotFound();
+    }
+
+    Sanctum::actingAs($this->other);
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g05-02', 'screen_key' => 'sales-corrections']);
+    $this->getJson('/api/v1/secondary-sales/'.$original->id.'?register=1')->assertNotFound();
+    $this->getJson($path)->assertOk()->assertJsonPath('data.0.can_review', true);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.can_review', true)
+        ->assertJsonPath('data.statement.stockist.name', 'Stockist Beta')
+        ->assertJsonPath('data.original_summary.net_paise', 90000)
+        ->assertJsonPath('data.replacement_summary.net_paise', 125000)
+        ->assertJsonPath('data.replacement.id', $replacementId)
+        ->assertJsonPath('data.replacement.source_extension', 'csv')
+        ->assertJsonPath('data.replacement.adjustments_count', 1)
+        ->assertJsonMissingPath('data.replacement.source_path');
+    $lineId = $this->getJson($url.'/evidence/adjustments')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.secondary_sales_statement_id', $replacementId)
+        ->assertJsonPath('data.0.physical_reference', 'PHYS-9')->json('data.0.id');
+    $this->getJson($url.'/evidence/balances?page=2')->assertOk()->assertJsonPath('current_page', 2)->assertJsonCount(0, 'data');
+    $this->getJson($url.'/evidence/rows?page=0')->assertUnprocessable();
+    $this->getJson($url.'/evidence/unknown')->assertNotFound();
+    $file = $this->get($url.'/source')->assertOk()->assertDownload();
+    expect($file->headers->get('cache-control'))->toContain('private', 'no-store')
+        ->and($file->streamedContent())->toBe($csv);
+
+    $this->other->revokePermissionTo('Review:SecondarySales');
+    $this->getJson($path)->assertForbidden();
+    foreach (['', '/source', '/evidence/rows'] as $suffix) {
+        $this->getJson($url.$suffix)->assertForbidden();
+    }
+    $this->postJson($url.'/review', ['decision' => 'approved', 'note' => 'Revoked'])->assertForbidden();
+    $this->other->givePermissionTo('Review:SecondarySales');
+    $this->postJson($url.'/review', ['decision' => 'approved', 'note' => 'Confirmed with stockist', 'physically_verified_line_ids' => [$lineId]])
+        ->assertOk();
+    $this->getJson($url)->assertOk()->assertJsonPath('data.can_review', false)
+        ->assertJsonPath('data.statement.status', 'reversed')->assertJsonPath('data.replacement.status', 'approved')
+        ->assertJsonPath('data.review_note', 'Confirmed with stockist')
+        ->assertJsonPath('data.replacement_summary.net_paise', 115000)
+        ->assertJsonCount(2, 'data.released_groups')->assertJsonCount(1, 'data.released_adjustments');
+    expect(ledgerNet($this))->toBe(115000);
 });

@@ -9,6 +9,7 @@ use App\Models\RcpaCompetitor;
 use App\Models\SalesInvoice;
 use App\Models\SecondarySalesStatement;
 use App\Models\TerritorySalesAssignment;
+use App\Models\TerritorySalesTarget;
 use App\Services\Field\FieldRcpaService;
 use App\Services\Field\SalesPerformanceService;
 use Carbon\CarbonImmutable;
@@ -128,6 +129,47 @@ it('configures explicit calendar or fiscal periods, protects started targets and
     $viewer->givePermissionTo('View:SalesTargets');
     Sanctum::actingAs($viewer);
     $this->getJson('/api/v1/sales-targets/'.$this->target->id.'/achievement')->assertNotFound();
+});
+
+it('exposes management only in current scope and rejects stale or started target revisions', function () {
+    $path = '/api/v1/sales-targets';
+    $futureMonth = $this->month->addMonth();
+    $data = ['territory_id' => $this->territory->id, 'period_type' => 'quarterly', 'starts_on' => $futureMonth->toDateString(),
+        'target_value_lakhs' => '4.0000001', 'target_quantity' => '999.125', 'note' => 'Quarter plan'];
+    $headers = ['Idempotency-Key' => (string) Str::uuid()];
+    $this->postJson($path, [...$data, 'starts_on' => $futureMonth->addDay()->toDateString()])->assertUnprocessable();
+    $id = $this->postJson($path, $data, $headers)->assertCreated()
+        ->assertJsonPath('data.target_value_paise', 40000001)->assertJsonPath('data.revision', 0)
+        ->assertJsonPath('data.ends_on', $futureMonth->addMonths(3)->subDay()->toDateString())->json('data.id');
+    $this->postJson($path, $data, $headers)->assertCreated()->assertHeader('Idempotency-Replayed', 'true')->assertJsonPath('data.id', $id);
+    $this->postJson($path, [...$data, 'starts_on' => $futureMonth->addMonths(2)->toDateString()])->assertConflict();
+    $this->getJson($path)->assertOk()->assertJsonPath('register.can_create', true)
+        ->assertJsonPath('data.0.can_revise', true)->assertJsonPath('data.1.can_revise', false);
+    $changes = ['revision' => 0, 'target_value_lakhs' => '5', 'target_quantity' => '1200', 'note' => 'Updated plan'];
+    $this->patchJson($path.'/'.$id, [...$changes, 'period_type' => 'annual'])->assertUnprocessable();
+    $this->patchJson($path.'/'.$id, $changes)->assertOk()->assertJsonPath('data.revision', 1)
+        ->assertJsonPath('data.target_value_paise', 50000000);
+    $this->patchJson($path.'/'.$id, $changes)->assertConflict();
+    $this->patchJson($path.'/'.$this->target->id, $changes)->assertConflict();
+    $record = TerritorySalesTarget::findOrFail($id);
+    expect($record->revisions)->toHaveCount(1)
+        ->and($record->revisions[0]['changed_by'])->toBe($this->manager->id);
+
+    $former = grantPagePermissions(reportingUser('Historical Manager'), 'Manage:SalesTargets');
+    TerritorySalesAssignment::query()->create(['territory_id' => $this->territory->id, 'user_id' => $former->id, 'employee_id' => $former->employee->id,
+        'effective_from' => $futureMonth->toDateString(), 'effective_to' => $futureMonth->endOfMonth()->toDateString(),
+        'created_by' => $this->manager->id, 'reason' => 'Future assignment']);
+    Sanctum::actingAs($former);
+    $this->getJson($path)->assertOk()->assertJsonPath('register.can_create', false)
+        ->assertJsonPath('data.0.id', $id)->assertJsonPath('data.0.can_revise', false);
+    $this->patchJson($path.'/'.$id, [...$changes, 'revision' => 1])->assertNotFound();
+
+    $resourceOnly = grantPagePermissions(reportingUser('Resource Policy Only'), 'ViewAny:TerritorySalesTarget', 'Update:TerritorySalesTarget');
+    Sanctum::actingAs($resourceOnly);
+    $this->getJson($path)->assertForbidden();
+    $this->patchJson($path.'/'.$id, $changes)->assertForbidden();
+    $this->postJson($path, $data, $headers)->assertForbidden();
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g04-09']);
 });
 
 it('renders target planning, assignment history and the achievement dashboard', function () {

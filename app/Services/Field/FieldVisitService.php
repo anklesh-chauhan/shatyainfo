@@ -288,15 +288,15 @@ class FieldVisitService
      */
     public function storePhoto(User $user, Visit $visit, UploadedFile $photo, array $data): Media
     {
-        $this->assertOwned($user, $visit);
-
         $tag = $data['tag'];
-        $this->ensureImageTag($tag);
 
         $latitude = isset($data['latitude']) ? (float) $data['latitude'] : null;
         $longitude = isset($data['longitude']) ? (float) $data['longitude'] : null;
 
-        return DB::transaction(function () use ($visit, $photo, $tag, $latitude, $longitude, $data): Media {
+        return DB::transaction(function () use ($user, $visit, $photo, $tag, $latitude, $longitude, $data): Media {
+            $visit = Visit::query()->lockForUpdate()->findOrFail($visit->id);
+            $this->assertOwned($user, $visit);
+            $this->ensureImageTag($tag);
             $path = $photo->store('visits/photos', 'public');
 
             $media = $visit->media()->create([

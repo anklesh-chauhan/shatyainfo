@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SampleRequestStatus;
 use Database\Factories\SampleRequestFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -64,23 +65,22 @@ class SampleRequest extends BaseModel
 
     public function isEditable(): bool
     {
-        return in_array($this->status, [
-            SampleRequestStatus::Draft,
-            SampleRequestStatus::Submitted,
-        ], true);
+        return ! $this->trashed() && $this->status === SampleRequestStatus::Draft;
+    }
+
+    public function scopeApplyOwnVisibility(Builder $query, mixed $user): Builder
+    {
+        return $query->whereHas('employee', fn (Builder $employee) => $employee->where('login_id', $user->id));
     }
 
     public function refreshIssueStatus(): void
     {
-        $this->loadMissing('lines');
-
-        $approved = (float) $this->lines->sum('quantity_approved');
-        $issued = (float) $this->lines->sum('quantity_issued');
+        $this->load('lines');
 
         $status = match (true) {
-            $approved > 0 && $issued >= $approved => SampleRequestStatus::Fulfilled,
-            $issued > 0 => SampleRequestStatus::PartiallyIssued,
-            default => SampleRequestStatus::Approved,
+            ! $this->lines->contains(fn (SampleRequestLine $line): bool => (float) $line->quantity_issued > 0) => SampleRequestStatus::Approved,
+            $this->lines->contains(fn (SampleRequestLine $line): bool => $line->remainingApprovedQuantity() > 0) => SampleRequestStatus::PartiallyIssued,
+            default => SampleRequestStatus::Fulfilled,
         };
 
         $this->forceFill(['status' => $status])->save();

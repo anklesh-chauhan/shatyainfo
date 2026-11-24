@@ -8,22 +8,54 @@ use App\Filament\Clusters\HR\LeaveManagementCluster;
 use App\Filament\Clusters\Reports\ReportsCluster;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\FieldCoverage;
+use App\Filament\Pages\FieldTeamOnboarding;
 use App\Filament\Pages\FlexiblePlanning;
 use App\Filament\Pages\MyApprovals;
 use App\Filament\Pages\PunchIn;
+use App\Filament\Pages\Reports\OverdueFollowUps;
 use App\Filament\Pages\SalesAssistant;
 use App\Filament\Pages\TodaysTour;
 use App\Filament\Resources\AccountMasters\AccountMasterResource;
 use App\Filament\Resources\Approvals\ApprovalResource;
+use App\Filament\Resources\Companies\CompanyResource;
+use App\Filament\Resources\ContactDetails\ContactDetailResource;
+use App\Filament\Resources\CustomerPrices\CustomerPriceResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\DeliveryChallans\DeliveryChallanResource;
 use App\Filament\Resources\EDetailingMaterials\EDetailingMaterialResource;
+use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\FollowUps\FollowUpResource;
+use App\Filament\Resources\GoodsReceiptNotes\GoodsReceiptNoteResource;
+use App\Filament\Resources\InventoryAdjustments\InventoryAdjustmentResource;
+use App\Filament\Resources\InventoryMovements\InventoryMovementResource;
+use App\Filament\Resources\InventoryStocks\InventoryStockResource;
+use App\Filament\Resources\InventoryTransfers\InventoryTransferResource;
+use App\Filament\Resources\ItemMasters\ItemMasterResource;
+use App\Filament\Resources\LeadActivities\LeadActivityResource;
 use App\Filament\Resources\Leads\LeadResource;
+use App\Filament\Resources\LocationMasters\LocationMasterResource;
+use App\Filament\Resources\MarketingCampaigns\MarketingCampaignResource;
+use App\Filament\Resources\Patches\PatchResource;
+use App\Filament\Resources\Positions\PositionResource;
+use App\Filament\Resources\PromotionalSchemes\PromotionalSchemeResource;
+use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
+use App\Filament\Resources\Quotes\QuoteResource;
 use App\Filament\Resources\RcpaObservations\RcpaObservationResource;
 use App\Filament\Resources\SalesDcrExpenses\SalesDcrExpenseResource;
 use App\Filament\Resources\SalesDcrs\SalesDcrResource;
+use App\Filament\Resources\SalesInvoices\SalesInvoiceResource;
+use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Filament\Resources\SalesTourPlans\SalesTourPlanResource;
+use App\Filament\Resources\SampleIssues\SampleIssueResource;
+use App\Filament\Resources\SampleRequests\SampleRequestResource;
+use App\Filament\Resources\SecondaryOcrSources\SecondaryOcrSourceResource;
+use App\Filament\Resources\SecondarySalesCorrections\SecondarySalesCorrectionResource;
+use App\Filament\Resources\SecondarySalesStatements\SecondarySalesStatementResource;
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
+use App\Filament\Resources\Territories\TerritoryResource;
+use App\Filament\Resources\TerritorySalesAssignments\TerritorySalesAssignmentResource;
 use App\Filament\Resources\TerritorySalesTargets\TerritorySalesTargetResource;
+use App\Filament\Resources\TravelSegments\TravelSegmentResource;
 use App\Filament\Resources\Visits\VisitResource;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -111,6 +143,38 @@ class MobileNavigationRegistry
             $bindings[] = ['key' => 'g01-01', 'group' => 'workspace', 'screen_key' => 'dashboard', 'source' => Dashboard::class];
             $bindings[] = ['key' => 'g01-04', 'group' => 'workspace', 'screen_key' => 'my-approvals', 'source' => MyApprovals::class];
             $bindings[] = ['key' => 'g01-05', 'group' => 'workspace', 'screen_key' => 'approval-register', 'source' => ApprovalResource::class];
+            $bindings[] = ['key' => 'g02-05', 'group' => 'field', 'screen_key' => 'travel-segments', 'source' => TravelSegmentResource::class];
+            $bindings[] = ['key' => 'g03-02', 'group' => 'customers', 'screen_key' => 'contacts', 'source' => ContactDetailResource::class];
+            $bindings[] = ['key' => 'g03-03', 'group' => 'customers', 'screen_key' => 'companies', 'source' => CompanyResource::class];
+            $bindings[] = ['key' => 'g03-04', 'group' => 'customers', 'screen_key' => 'territories', 'source' => TerritoryResource::class];
+            $bindings[] = ['key' => 'g03-05', 'group' => 'customers', 'screen_key' => 'patches', 'source' => PatchResource::class];
+            $bindings[] = ['key' => 'g03-06', 'group' => 'customers', 'screen_key' => 'field-team-assignments', 'source' => FieldTeamOnboarding::class];
+            $bindings[] = ['key' => 'g03-07', 'group' => 'customers', 'screen_key' => 'territory-sales-assignments', 'source' => TerritorySalesAssignmentResource::class];
+            $bindings[] = ['key' => 'g04-02', 'group' => 'sales', 'screen_key' => 'follow-ups', 'source' => FollowUpResource::class];
+            $bindings[] = ['key' => 'g04-03', 'group' => 'sales', 'screen_key' => 'lead-activities', 'source' => LeadActivityResource::class];
+            $bindings[] = ['key' => 'g04-05', 'group' => 'sales', 'screen_key' => 'quotes', 'source' => QuoteResource::class];
+            $bindings[] = ['key' => 'g04-06', 'group' => 'sales', 'screen_key' => 'sales-orders', 'source' => SalesOrderResource::class];
+            $bindings[] = ['key' => 'g04-07', 'group' => 'sales', 'screen_key' => 'sales-invoices', 'source' => SalesInvoiceResource::class];
+            $bindings[] = ['key' => 'g04-08', 'group' => 'sales', 'screen_key' => 'customer-prices', 'source' => CustomerPriceResource::class];
+            $bindings[] = ['key' => 'g05-01', 'group' => 'secondary', 'screen_key' => 'sales-statements', 'source' => SecondarySalesStatementResource::class];
+            $bindings[] = ['key' => 'g05-02', 'group' => 'secondary', 'screen_key' => 'sales-corrections', 'source' => SecondarySalesCorrectionResource::class];
+            $bindings[] = ['key' => 'g05-03', 'group' => 'secondary', 'screen_key' => 'ocr-sources', 'source' => SecondaryOcrSourceResource::class];
+            $bindings[] = ['key' => 'g06-01', 'group' => 'marketing', 'screen_key' => 'marketing-campaigns', 'source' => MarketingCampaignResource::class];
+            $bindings[] = ['key' => 'g06-02', 'group' => 'marketing', 'screen_key' => 'promotional-schemes', 'source' => PromotionalSchemeResource::class];
+            $bindings[] = ['key' => 'g06-05', 'group' => 'marketing', 'screen_key' => 'sample-requests', 'source' => SampleRequestResource::class];
+            $bindings[] = ['key' => 'g06-06', 'group' => 'marketing', 'screen_key' => 'sample-issues', 'source' => SampleIssueResource::class];
+            $bindings[] = ['key' => 'g07-01', 'group' => 'inventory', 'screen_key' => 'item-masters', 'source' => ItemMasterResource::class];
+            $bindings[] = ['key' => 'g07-02', 'group' => 'inventory', 'screen_key' => 'stock-on-hand', 'source' => InventoryStockResource::class];
+            $bindings[] = ['key' => 'g07-03', 'group' => 'inventory', 'screen_key' => 'purchase-orders', 'source' => PurchaseOrderResource::class];
+            $bindings[] = ['key' => 'g07-04', 'group' => 'inventory', 'screen_key' => 'goods-receipt-notes', 'source' => GoodsReceiptNoteResource::class];
+            $bindings[] = ['key' => 'g07-05', 'group' => 'inventory', 'screen_key' => 'delivery-challans', 'source' => DeliveryChallanResource::class];
+            $bindings[] = ['key' => 'g07-06', 'group' => 'inventory', 'screen_key' => 'inventory-transfers', 'source' => InventoryTransferResource::class];
+            $bindings[] = ['key' => 'g09-12', 'group' => 'reports', 'screen_key' => 'overdue-follow-ups', 'source' => OverdueFollowUps::class];
+            $bindings[] = ['key' => 'g08-02', 'group' => 'hr', 'screen_key' => 'positions', 'source' => PositionResource::class];
+            $bindings[] = ['key' => 'g08-01', 'group' => 'hr', 'screen_key' => 'employees', 'source' => EmployeeResource::class];
+            $bindings[] = ['key' => 'g07-09', 'group' => 'inventory', 'screen_key' => 'location-masters', 'source' => LocationMasterResource::class];
+            $bindings[] = ['key' => 'g07-08', 'group' => 'inventory', 'screen_key' => 'stock-ledger', 'source' => InventoryMovementResource::class];
+            $bindings[] = ['key' => 'g07-07', 'group' => 'inventory', 'screen_key' => 'inventory-adjustments', 'source' => InventoryAdjustmentResource::class];
         }
 
         $entries = array_map(function (array $binding) use ($adminOrder): array {
@@ -209,6 +273,7 @@ class MobileNavigationRegistry
         return match ($itemKey) {
             'g01-02' => 'punch',
             'g02-03' => 'visit-register',
+            'g02-04' => 'dcr-register',
             'g02-06' => 'expense-register',
             'g06-03' => 'e-detailing-library',
             'g06-07' => 'sgip-register',

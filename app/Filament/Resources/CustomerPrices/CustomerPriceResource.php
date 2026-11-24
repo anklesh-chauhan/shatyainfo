@@ -13,6 +13,7 @@ use App\Traits\HasSafeGlobalSearch;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class CustomerPriceResource extends BaseResource
 {
@@ -36,6 +37,11 @@ class CustomerPriceResource extends BaseResource
         'item.item_code',
         'item.sku',
     ];
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->withinVisibleCustomers()->with(['approval', 'item.parent']);
+    }
 
     public static function form(Schema $schema): Schema
     {

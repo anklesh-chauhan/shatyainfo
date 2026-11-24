@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\SampleRequest;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class SampleRequestPolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:SampleRequest');
@@ -35,6 +35,11 @@ class SampleRequestPolicy
     public function delete(AuthUser $authUser, SampleRequest $sampleRequest): bool
     {
         return $authUser->can('Delete:SampleRequest');
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:SampleRequest');
     }
 
     public function restore(AuthUser $authUser, SampleRequest $sampleRequest): bool
@@ -86,5 +91,4 @@ class SampleRequestPolicy
     {
         return $authUser->can('OverrideApproval:SampleRequest');
     }
-
 }

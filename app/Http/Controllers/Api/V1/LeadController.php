@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DeleteLeadsRequest;
 use App\Http\Requests\Api\V1\StoreLeadNoteRequest;
 use App\Http\Requests\Api\V1\StoreLeadRequest;
 use App\Http\Requests\Api\V1\UpdateLeadRequest;
 use App\Http\Resources\Api\V1\DealResource;
-use App\Http\Resources\Api\V1\LeadActivityResource;
 use App\Http\Resources\Api\V1\LeadItemResource;
 use App\Http\Resources\Api\V1\LeadNoteResource;
 use App\Http\Resources\Api\V1\LeadResource;
@@ -44,13 +44,6 @@ class LeadController extends Controller
     public function show(Request $request, int $lead): LeadResource
     {
         return new LeadResource($this->leads->findVisible($request->user(), $lead));
-    }
-
-    public function activities(Request $request, int $lead): AnonymousResourceCollection
-    {
-        return LeadActivityResource::collection(
-            $this->leads->activities($request->user(), $lead, (int) $request->query('per_page', 50)),
-        );
     }
 
     public function notes(Request $request, int $lead): AnonymousResourceCollection
@@ -109,5 +102,17 @@ class LeadController extends Controller
         return new LeadResource(
             $this->leads->update($request->user(), $record, $request->validated()),
         );
+    }
+
+    public function destroy(Request $request, int $lead): JsonResponse
+    {
+        return response()->json(['data' => ['deleted' => $this->leads->delete($request->user(), [$lead])]]);
+    }
+
+    public function bulkDelete(DeleteLeadsRequest $request): JsonResponse
+    {
+        $ids = array_map('intval', $request->validated('ids'));
+
+        return response()->json(['data' => ['deleted' => $this->leads->delete($request->user(), $ids)]]);
     }
 }

@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\DecideMyApprovalRequest;
 use App\Models\ApprovalStep;
+use App\Models\SalesDcr;
 use App\Services\Approval\ApprovalService;
+use App\Services\Field\DcrRegisterService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,13 +24,21 @@ class MyApprovalController extends Controller
             ->latest('id')->paginate(25)->through($this->summary(...)));
     }
 
-    public function show(Request $request, int $step): JsonResponse
+    public function show(Request $request, int $step, DcrRegisterService $dcrs): JsonResponse
     {
         abort_unless($request->user()->canAccessBusinessPage('View:MyApprovals'), 403);
         $record = $this->assignedSteps($request)->currentFor($request->user()->id)
             ->with('approval.requestedBy:id,name')->findOrFail($step);
 
-        return response()->json(['data' => $this->summary($record)]);
+        $data = $this->summary($record);
+        if ($record->approval->approvable_type === (new SalesDcr)->getMorphClass()) {
+            $scope = $dcrs->readableScope($request->user(), (int) $record->approval->approvable_id);
+            if ($scope !== null) {
+                $data['dcr_scope'] = $scope;
+            }
+        }
+
+        return response()->json(['data' => $data]);
     }
 
     public function decide(DecideMyApprovalRequest $request, int $step, ApprovalService $approvals): JsonResponse

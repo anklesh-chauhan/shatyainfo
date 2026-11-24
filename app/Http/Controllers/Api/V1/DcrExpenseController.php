@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DcrExpenseLifecycleRequest;
+use App\Http\Requests\Api\V1\ListRegisterExpensesRequest;
+use App\Http\Requests\Api\V1\SaveRegisterExpenseRequest;
 use App\Http\Requests\Api\V1\StoreDcrExpenseReceiptRequest;
 use App\Http\Requests\Api\V1\StoreDcrExpenseRequest;
 use App\Http\Requests\Api\V1\UpdateDcrExpenseRequest;
 use App\Http\Resources\Api\V1\SalesDcrExpenseResource;
 use App\Models\SalesDcrExpense;
+use App\Services\Expense\ExpenseCalculationService;
+use App\Services\Field\DcrExpenseRegister;
 use App\Services\Field\FieldDcrService;
 use App\Services\Field\FieldExpenseService;
 use Illuminate\Http\JsonResponse;
@@ -23,12 +28,51 @@ class DcrExpenseController extends Controller
         private FieldExpenseService $expenseService,
     ) {}
 
-    public function register(Request $request): AnonymousResourceCollection
+    public function register(ListRegisterExpensesRequest $request, DcrExpenseRegister $register): AnonymousResourceCollection|JsonResponse
     {
+        if ($request->boolean('register')) {
+            return response()->json($register->index($request->user(), $request->validated()));
+        }
+
         return SalesDcrExpenseResource::collection(SalesDcrExpense::query()
             ->whereHas('salesDcr', fn ($reports) => $reports->where('user_id', $request->user()->id))
             ->with(['expenseType', 'salesDcr:id,dcr_date'])
             ->latest('id')->paginate(25));
+    }
+
+    public function registerDetail(ListRegisterExpensesRequest $request, int $expense, DcrExpenseRegister $register): JsonResponse
+    {
+        return response()->json(['data' => $register->detail($request->user(), $expense, $request->validated('scope') === 'team')]);
+    }
+
+    public function registerOptions(ListRegisterExpensesRequest $request, DcrExpenseRegister $register): JsonResponse
+    {
+        return response()->json($register->options($request->user(), $request->validated()));
+    }
+
+    public function registerStore(SaveRegisterExpenseRequest $request, DcrExpenseRegister $register): JsonResponse
+    {
+        return response()->json(['data' => $register->save($request->user(), $request->validated())], 201);
+    }
+
+    public function registerUpdate(SaveRegisterExpenseRequest $request, int $expense, DcrExpenseRegister $register): JsonResponse
+    {
+        return response()->json(['data' => $register->save($request->user(), $request->validated(), $expense)]);
+    }
+
+    public function registerLifecycle(DcrExpenseLifecycleRequest $request, DcrExpenseRegister $register): JsonResponse
+    {
+        $updated = $register->lifecycle($request->user(), $request->validated('scope') === 'team',
+            $request->validated('action'), array_map('intval', $request->validated('ids')));
+
+        return response()->json(['data' => ['updated' => $updated]]);
+    }
+
+    public function registerRecalculate(ListRegisterExpensesRequest $request, DcrExpenseRegister $register, ExpenseCalculationService $calculation): JsonResponse
+    {
+        $register->recalculate($request->user(), $request->integer('sales_dcr_id'), $request->validated('scope') === 'team', $calculation);
+
+        return response()->json(['data' => ['calculated' => true]]);
     }
 
     public function index(Request $request, int $dcr): AnonymousResourceCollection

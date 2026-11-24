@@ -3,44 +3,21 @@
 namespace App\Filament\Resources\Employees\Pages;
 
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Services\HR\EmployeeRegister;
 use Filament\Resources\Pages\CreateRecord;
-use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 class CreateEmployee extends CreateRecord
 {
     protected static string $resource = EmployeeResource::class;
 
-    /**
-     * Temporarily holds employment detail data before record creation.
-     *
-     * @var array
-     */
-    protected array $employmentDetailData = [];
-
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function handleRecordCreation(array $data): Model
     {
-        // Extract employment_detail data and remove it from the main data array
-        $employmentDetailData = $data['employment_detail'] ?? [];
-        unset($data['employment_detail']);
-
-        // Store employment_detail data in a temporary property for afterCreate
-        $this->employmentDetailData = $employmentDetailData;
-
-        return $data;
-    }
-
-    protected function afterCreate(): void
-    {
-        // Create the employmentDetail record if data exists
-        if (!empty($this->employmentDetailData)) {
-            $this->record->employmentDetail()->create($this->employmentDetailData);
+        try {
+            return app(EmployeeRegister::class)->save(auth()->user(), null, EmployeeResource::adminInput($data));
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
         }
-
-        // Send success notification
-        Notification::make()
-            ->success()
-            ->title('Employee created')
-            ->body('The employee has been created successfully.')
-            ->send();
     }
 }

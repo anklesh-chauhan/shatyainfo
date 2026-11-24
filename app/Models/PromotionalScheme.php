@@ -6,6 +6,7 @@ use App\Enums\PromotionalSchemeAppliesTo;
 use App\Enums\PromotionalSchemeStatus;
 use App\Enums\PromotionalSchemeType;
 use Database\Factories\PromotionalSchemeFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -47,6 +48,16 @@ class PromotionalScheme extends BaseModel
     public function campaigns(): HasMany
     {
         return $this->hasMany(MarketingCampaign::class);
+    }
+
+    public function scopeApplyTerritoryVisibility(Builder $query, array $territoryIds): Builder
+    {
+        return $query->where(function (Builder $target) use ($territoryIds): void {
+            $target->where(fn (Builder $territory): Builder => $territory->where('applies_to', PromotionalSchemeAppliesTo::Territory)
+                ->whereIn('applies_to_id', $territoryIds))
+                ->orWhere(fn (Builder $customer): Builder => $customer->where('applies_to', PromotionalSchemeAppliesTo::Customer)
+                    ->whereIn('applies_to_id', AccountMaster::query()->whereIn('territory_id', $territoryIds)->select('id')));
+        });
     }
 
     public function isActive(): bool

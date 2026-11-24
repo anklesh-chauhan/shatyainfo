@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\DeliveryChallan;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class DeliveryChallanPolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:DeliveryChallan');
@@ -35,6 +35,11 @@ class DeliveryChallanPolicy
     public function delete(AuthUser $authUser, DeliveryChallan $deliveryChallan): bool
     {
         return $authUser->can('Delete:DeliveryChallan');
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:DeliveryChallan');
     }
 
     public function restore(AuthUser $authUser, DeliveryChallan $deliveryChallan): bool
@@ -86,5 +91,4 @@ class DeliveryChallanPolicy
     {
         return $authUser->can('OverrideApproval:DeliveryChallan');
     }
-
 }

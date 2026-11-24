@@ -14,6 +14,7 @@ class MonthlyTourPlanActionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'scope' => $this->is('*/submit') ? ['sometimes', 'in:personal,team'] : ['prohibited'],
             'revision' => ['required', 'string', 'size:64'],
             'comments' => [$this->is('*/reject') ? 'required' : 'nullable', 'string', 'max:2000'],
         ];

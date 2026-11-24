@@ -2,15 +2,22 @@
 
 namespace App\Filament\Resources\InventoryStocks\Tables;
 
+use App\Services\Inventory\StockRegister;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InventoryStocksTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with([
+                'item' => fn (BelongsTo $item) => $item->withTrashed(),
+                'location' => fn (BelongsTo $location) => $location->withTrashed(),
+            ]))
             ->columns([
                 TextColumn::make('item.item_code')
                     ->label('Code')
@@ -48,16 +55,17 @@ class InventoryStocksTable
             ])
             ->filters([
                 SelectFilter::make('item_master_id')
-                    ->relationship('item', 'item_name')
+                    ->options(fn (): array => app(StockRegister::class)->catalog(auth()->user(), 'items')->orderBy('item_name')->pluck('item_name', 'id')->all())
                     ->label('Item')
                     ->searchable()
                     ->preload(),
                 SelectFilter::make('location_master_id')
-                    ->relationship('location', 'name')
+                    ->options(fn (): array => app(StockRegister::class)->catalog(auth()->user(), 'locations')->orderBy('name')->pluck('name', 'id')->all())
                     ->label('Location')
                     ->searchable()
                     ->preload(),
             ])
+            ->recordActions([])->toolbarActions([])
             ->defaultSort('last_movement_at', 'desc');
     }
 }

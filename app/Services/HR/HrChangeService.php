@@ -106,6 +106,9 @@ class HrChangeService
             throw ValidationException::withMessages(['approval' => 'The HR record changed since submission. Reject this request and submit the current values again.']);
         }
         self::authorizedUpdate(function () use ($target, $request): void {
+            if ($target instanceof Employee) {
+                $target->provisionLoginOnSave = false;
+            }
             $target->fill($request->proposed_values);
             if ($target instanceof EmpSalary) {
                 $target->gross_salary = collect(['basic_salary', 'hra', 'conveyance', 'special_allowance', 'medical_allowance', 'other_allowances'])->sum(fn (string $field): float => (float) $target->{$field});

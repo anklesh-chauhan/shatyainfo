@@ -7,7 +7,7 @@ use App\Models\SgipDistribution;
 use App\Models\SgipDistributionItem;
 use App\Models\User;
 use App\Models\Visit;
-use App\Services\SGIPComplianceService;
+use App\Services\Marketing\SgipRegister;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -51,8 +51,10 @@ class FieldSgipService
         }
 
         return DB::transaction(function () use ($user, $visit, $account, $employeeId, $data): SgipDistribution {
+            Visit::query()->whereKey($visit->id)->lockForUpdate()->firstOrFail();
+            $existing = SgipDistribution::query()->withTrashed()->where('visit_id', $visit->id)->lockForUpdate()->first();
+            abort_if($existing?->trashed(), 409, 'This distribution was deleted. Restore it in the register before editing.');
             if (array_key_exists('expected_updated_at', $data)) {
-                $existing = SgipDistribution::query()->where('visit_id', $visit->id)->lockForUpdate()->first();
                 $expected = $data['expected_updated_at'];
                 $matches = $existing
                     ? ($expected !== null && $existing->updated_at->equalTo(CarbonImmutable::parse($expected)))
@@ -72,7 +74,7 @@ class FieldSgipService
                 ],
             );
 
-            if ($distribution->approval_status !== 'draft') {
+            if (! $distribution->isEditable()) {
                 throw ValidationException::withMessages([
                     'sgip' => 'Only draft SGIP distributions can be updated.',
                 ]);
@@ -113,7 +115,7 @@ class FieldSgipService
     {
         $visit = $this->visitService->findOwned($user, $visit->id);
 
-        return $user->getConnection()->transaction(function () use ($user, $visit): SgipDistribution {
+        return $user->getConnection()->transaction(function () use ($visit): SgipDistribution {
             $distribution = $visit->sgipDistribution()->with('items')->lockForUpdate()->first();
 
             if (! $distribution) {
@@ -134,10 +136,7 @@ class FieldSgipService
                 ]);
             }
 
-            SGIPComplianceService::validate($distribution, true);
-            app(FieldSgipStockService::class)->assignSourceAndValidate($user, $distribution);
-            $distribution->approval_status = 'submitted';
-            $distribution->save();
+            app(SgipRegister::class)->submitDistribution($distribution);
 
             return $distribution->fresh(['items.item', 'doctor', 'territory']);
         });

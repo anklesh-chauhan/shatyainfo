@@ -45,6 +45,8 @@ class LeadResource extends JsonResource
             'can_update' => $user !== null
                 ? app(FieldLeadService::class)->canUpdate($user, $this->resource)
                 : false,
+            'can_delete' => $user !== null
+                && app(FieldLeadService::class)->canDelete($user, $this->resource),
             'can_convert' => $user !== null
                 ? app(FieldLeadService::class)->canConvert($user, $this->resource)
                 : false,

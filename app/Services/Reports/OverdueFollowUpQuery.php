@@ -7,6 +7,21 @@ use Illuminate\Database\Eloquent\Builder;
 
 class OverdueFollowUpQuery
 {
+    public function period(Builder $query, ?string $from, ?string $until): Builder
+    {
+        foreach (['>=' => $from, '<=' => $until] as $operator => $date) {
+            if ($date !== null && $date !== '') {
+                $query->where(function (Builder $due) use ($operator, $date): void {
+                    $due->whereDate('next_follow_up_date', $operator, $date)
+                        ->orWhere(fn (Builder $original): Builder => $original
+                            ->whereNull('next_follow_up_date')->whereDate('follow_up_date', $operator, $date));
+                });
+            }
+        }
+
+        return $query;
+    }
+
     /**
      * @var list<string>
      */

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\PurchaseOrder;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class PurchaseOrderPolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:PurchaseOrder');
@@ -40,6 +40,11 @@ class PurchaseOrderPolicy
     public function restore(AuthUser $authUser, PurchaseOrder $purchaseOrder): bool
     {
         return $authUser->can('Restore:PurchaseOrder');
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:PurchaseOrder');
     }
 
     public function forceDelete(AuthUser $authUser, PurchaseOrder $purchaseOrder): bool
@@ -86,5 +91,4 @@ class PurchaseOrderPolicy
     {
         return $authUser->can('OverrideApproval:PurchaseOrder');
     }
-
 }

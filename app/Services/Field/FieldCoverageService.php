@@ -4,14 +4,17 @@ namespace App\Services\Field;
 
 use App\Models\AccountMaster;
 use App\Models\FieldUserHq;
+use App\Models\LocationMaster;
+use App\Models\Patch;
 use App\Models\User;
 use App\Models\Visit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class FieldCoverageService
 {
-    public function forMonth(User $actor, int $userId, string $month): array
+    public function forMonth(User $actor, int $userId, string $month, ?int $hqId = null): array
     {
         abort_unless($actor->can('ViewAny:AccountMaster'), 403);
         abort_unless(
@@ -26,11 +29,19 @@ class FieldCoverageService
         if ($start->isFuture()) {
             throw ValidationException::withMessages(['month' => 'Coverage is available for this month and earlier months.']);
         }
+        abort_unless($actor->id === $userId || User::query()->whereKey($userId)->exists(), 404);
+        $hq = FieldUserHq::query()->with('location')->where('user_id', $userId)->first();
+        if ($hqId !== null && (int) $hq?->location?->id !== $hqId) {
+            throw ValidationException::withMessages(['hq_id' => 'Choose a representative currently assigned to this HQ.']);
+        }
+
         $through = $end->copy()->min(now());
         $accounts = AccountMaster::withTrashed()->whereHas('assignmentHistory', fn ($q) => $q
             ->where('owner_id', $userId)->where('effective_from', '<=', $end)
             ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>', $start)))
-            ->with(['assignmentHistory' => fn ($q) => $q->where('owner_id', $userId),
+            ->with(['assignmentHistory' => fn ($q) => $q->where('owner_id', $userId)
+                ->where('effective_from', '<=', $end)
+                ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>', $start)),
                 'callTargets' => fn ($q) => $q->where('effective_from', '<=', $end->toDateString())
                     ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $start->toDateString()))])->orderBy('name')->get();
         $visits = Visit::query()->where('employee_id', $userId)->whereBetween('visit_date', [$start->toDateString(), $through->toDateString()])
@@ -40,6 +51,7 @@ class FieldCoverageService
         foreach ($accounts as $account) {
             $days = [];
             $elapsed = [];
+            $patchIds = [];
             foreach ($account->assignmentHistory as $assignment) {
                 $from = $assignment->effective_from->copy()->max($start);
                 $until = ($assignment->effective_to?->copy()->subMicrosecond() ?? $end->copy())->min($end);
@@ -48,6 +60,9 @@ class FieldCoverageService
                 }
                 if ($from->gt($until)) {
                     continue;
+                }
+                foreach ($assignment->patch_ids as $patchId) {
+                    $patchIds[(int) $patchId] = true;
                 }
                 for ($day = $from->copy()->startOfDay(); $day->lte($until); $day->addDay()) {
                     $days[$day->toDateString()] = true;
@@ -85,6 +100,7 @@ class FieldCoverageService
             }
             $rows[] = [
                 'account_id' => $account->id, 'name' => $account->name,
+                'patch_ids' => array_keys($patchIds),
                 'assigned_days' => count($days), 'target_calls' => $required,
                 'expected_to_date' => $dueToDate, 'completed_calls' => $completed,
                 'pending_calls' => $pending, 'last_visit_date' => $last,
@@ -97,7 +113,8 @@ class FieldCoverageService
         $covered = $eligible->filter(fn ($row) => $row['completed_calls'] > 0)->count();
         $targetCalls = $eligible->sum('target_calls');
         $achievedCalls = $eligible->sum(fn ($row) => min($row['completed_calls'], $row['target_calls']));
-        $hq = FieldUserHq::query()->with('location')->where('user_id', $userId)->first();
+        $patchIds = collect($rows)->pluck('patch_ids')->flatten()->unique();
+        $patchNames = Patch::withTrashed()->whereKey($patchIds->all())->pluck('name', 'id');
 
         return [
             'month' => $month, 'user_id' => $userId, 'as_of' => $through->toDateString(),
@@ -110,7 +127,41 @@ class FieldCoverageService
             'joint_participations' => Visit::query()->where('employee_id', '!=', $userId)->whereBetween('visit_date', [$start->toDateString(), $through->toDateString()])
                 ->where('visit_status', 'completed')->whereHas('salesDcr', fn ($q) => $q->where('approval_status', 'approved'))
                 ->whereHas('jointUsers', fn ($q) => $q->where('users.id', $userId))->count(),
+            'patches' => $patchIds->map(fn (int $id): array => ['id' => $id, 'name' => $patchNames->get($id) ?? 'Patch #'.$id])->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values()->all(),
             'customers' => $rows,
+        ];
+    }
+
+    public function hqs(User $actor): Builder
+    {
+        abort_unless($actor->can('ViewAny:AccountMaster'), 403);
+
+        return LocationMaster::query()->whereIn('id', FieldUserHq::query()
+            ->when(! FieldTeamOnboardingService::canManage($actor), fn (Builder $hqs): Builder => $hqs->where('user_id', $actor->id))
+            ->select('location_master_id'))->orderBy('name')->orderBy('id');
+    }
+
+    public function representatives(User $actor, ?int $hqId = null): Builder
+    {
+        abort_unless($actor->can('ViewAny:AccountMaster'), 403);
+
+        return User::query()
+            ->when($hqId, fn (Builder $users): Builder => $users->whereIn('id', FieldUserHq::query()->where('location_master_id', $hqId)->select('user_id')))
+            ->when(! FieldTeamOnboardingService::canManage($actor), fn (Builder $users): Builder => $users->whereKey($actor->id))
+            ->orderBy('name')->orderBy('id');
+    }
+
+    public function teamReview(User $actor): ?array
+    {
+        if (! FieldTeamOnboardingService::canManage($actor)) {
+            return null;
+        }
+
+        return [
+            'hqs' => $this->hqs($actor)->get(['id', 'name']),
+            'representatives' => $this->representatives($actor)->select(['id', 'name'])
+                ->addSelect(['hq_id' => FieldUserHq::query()->whereColumn('user_id', 'users.id')->select('location_master_id')])
+                ->get()->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'hq_id' => $user->hq_id]),
         ];
     }
 }

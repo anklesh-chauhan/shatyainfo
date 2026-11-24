@@ -9,9 +9,7 @@ use App\Filament\Resources\InventoryAdjustments\Pages\ListInventoryAdjustments;
 use App\Filament\Resources\InventoryAdjustments\Schemas\InventoryAdjustmentForm;
 use App\Filament\Resources\InventoryAdjustments\Tables\InventoryAdjustmentsTable;
 use App\Models\InventoryAdjustment;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
+use App\Services\Inventory\StockAdjustmentRegister;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -28,6 +26,11 @@ class InventoryAdjustmentResource extends BaseResource
 
     protected static ?int $navigationSort = 70;
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && app(StockAdjustmentRegister::class)->canRead(auth()->user());
+    }
+
     public static function form(Schema $schema): Schema
     {
         return InventoryAdjustmentForm::configure($schema);
@@ -35,15 +38,7 @@ class InventoryAdjustmentResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return InventoryAdjustmentsTable::configure($table)
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+        return InventoryAdjustmentsTable::configure($table);
     }
 
     public static function getPages(): array

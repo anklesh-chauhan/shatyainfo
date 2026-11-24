@@ -4,7 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Models\AccountMaster;
 use App\Models\FieldUserHq;
-use App\Models\LocationMaster;
 use App\Models\User;
 use App\Services\CompanyLaunchService;
 use App\Services\Field\FieldTeamOnboardingService;
@@ -70,13 +69,8 @@ class FieldTeamOnboarding extends Page implements HasForms
                         ->helperText(fn (): ?string => app(CompanyLaunchService::class)->requiresTerritoryLinkedHq()
                             ? 'Only active HQs linked to the MR’s position territories are listed. Add territory links in Location Masters before assigning an HQ.'
                             : (app(CompanyLaunchService::class)->requiresHq() ? null : 'Optional for Direct DCR. Leave blank to keep any existing HQ assignment.'))
-                        ->createOptionForm(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq() ? [] : [TextInput::make('name')->required()->maxLength(255), TextInput::make('location_code')->required()->maxLength(50)->unique('location_masters', 'location_code')])
-                        ->createOptionUsing(function (array $data): int {
-                            abort_if(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq(), 422, 'Create the HQ and its territory links in Location Masters first.');
-                            abort_unless(static::canAccess() && auth()->user()->can('create', LocationMaster::class), 403);
-
-                            return LocationMaster::query()->create([...$data, 'is_active' => true])->id;
-                        }),
+                        ->createOptionForm(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq() ? [] : [TextInput::make('name')->required()->maxLength(255)])
+                        ->createOptionUsing(fn (array $data): int => app(FieldTeamOnboardingService::class)->createHq(auth()->user(), $data['name'])->id),
                     Select::make('account_ids')->label('Customers to assign or transfer')->multiple()->searchable()
                         ->getSearchResultsUsing(fn (string $search): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereLike('name', '%'.$search.'%')->limit(100)->pluck('name', 'id')->all())
                         ->getOptionLabelsUsing(fn (array $values): array => AccountMaster::query()->applyVisibility('AccountMaster')->whereIn('id', $values)->pluck('name', 'id')->all())

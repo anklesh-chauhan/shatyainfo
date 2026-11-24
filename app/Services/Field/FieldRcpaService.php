@@ -11,33 +11,49 @@ use App\Models\RcpaObservation;
 use App\Models\SalesDcr;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class FieldRcpaService
 {
-    /**
-     * Create a new class instance.
-     */
+    public function canUseFieldData(User $user): bool
+    {
+        return $user->can('Capture:Rcpa') || $user->can('View:Rcpa');
+    }
+
     public function options(User $user): array
     {
-        abort_unless($user->can('Capture:Rcpa') || $user->can('View:Rcpa'), 403);
-        $chemists = AccountMaster::query()->applyVisibility('AccountMaster')->whereIn('rcpa_tier', ['A', 'B'])->orderBy('name')->get();
-        $last = RcpaObservation::query()->whereIn('chemist_id', $chemists->pluck('id'))->whereDate('observed_on', '<=', today())
-            ->select('chemist_id')->selectRaw('MAX(observed_on) as last_observed_on')->groupBy('chemist_id')->pluck('last_observed_on', 'chemist_id');
-
-        return ['data_flag' => 'ESTIMATED_FIELD',
-            'chemists' => $chemists->map(function ($chemist) use ($last): array {
-                $date = $last[$chemist->id] ?? null;
-                $due = $date ? CarbonImmutable::parse($date)->addDays($chemist->rcpa_tier === 'A' ? 7 : 14)->toDateString() : null;
-
-                return ['id' => $chemist->id, 'name' => $chemist->name, 'tier' => $chemist->rcpa_tier,
-                    'territory_id' => $chemist->territory_id, 'last_observed_on' => $date, 'next_due_on' => $due,
-                    'is_due' => $due === null || $due <= today()->toDateString()];
-            })->values(),
+        return [
+            'data_flag' => 'ESTIMATED_FIELD',
+            'can_capture' => $user->can('Capture:Rcpa'),
+            'chemists' => $this->dueChemists($user)->get()->map($this->chemistDueStatus(...))->values(),
             'segments' => AccountReportingMaster::query()->where('kind', 'therapy_area')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'competitors' => RcpaCompetitor::query()->where('is_active', true)->orderBy('therapy_area_id')->orderBy('rank')->get(['id', 'therapy_area_id', 'rank', 'name']),
-            'items' => ItemMaster::query()->orderBy('item_name')->get(['id', 'item_code', 'item_name'])];
+            'items' => ItemMaster::query()->orderBy('item_name')->get(['id', 'item_code', 'item_name']),
+        ];
+    }
+
+    public function dueChemists(User $user, string $search = ''): Builder
+    {
+        abort_unless($this->canUseFieldData($user), 403);
+        $lastObservation = RcpaObservation::query()->selectRaw('MAX(observed_on)')
+            ->whereColumn('chemist_id', 'account_masters.id')->where('observed_on', '<=', today()->toDateString());
+
+        return AccountMaster::query()->applyVisibility('AccountMaster', $user)->whereIn('rcpa_tier', ['A', 'B'])
+            ->when($search !== '', fn (Builder $query): Builder => $query->whereLike('name', '%'.$search.'%'))
+            ->select(['id', 'name', 'rcpa_tier', 'territory_id'])
+            ->addSelect(['last_observed_on' => $lastObservation])->orderBy('name')->orderBy('id');
+    }
+
+    public function chemistDueStatus(AccountMaster $chemist): array
+    {
+        $date = $chemist->last_observed_on;
+        $due = $date ? CarbonImmutable::parse($date)->addDays($chemist->rcpa_tier === 'A' ? 7 : 14)->toDateString() : null;
+
+        return ['id' => $chemist->id, 'name' => $chemist->name, 'tier' => $chemist->rcpa_tier,
+            'territory_id' => $chemist->territory_id, 'last_observed_on' => $date, 'next_due_on' => $due,
+            'is_due' => $due === null || $due <= today()->toDateString()];
     }
 
     public function assertVisitedChemistsCurrent(SalesDcr $dcr): void

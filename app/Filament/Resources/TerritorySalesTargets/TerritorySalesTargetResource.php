@@ -33,20 +33,20 @@ class TerritorySalesTargetResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return parent::canViewAny()
-            || (bool) (auth()->user()?->can('View:SalesTargets') || auth()->user()?->can('Manage:SalesTargets'));
+        return SalesPerformanceService::canViewTerritories(auth()->user());
     }
 
     public static function canCreate(): bool
     {
-        return parent::canCreate()
-            || (auth()->user()?->can('Manage:SalesTargets') ?? false);
+        return auth()->user()?->can('Manage:SalesTargets') ?? false;
     }
 
     public static function canEdit(Model $record): bool
     {
-        return (parent::canEdit($record) || (auth()->user()?->can('Manage:SalesTargets') ?? false))
-            && $record->starts_on->gt(today());
+        $actor = auth()->user();
+
+        return ($actor?->can('Manage:SalesTargets') ?? false) && $record->starts_on->gt(today())
+            && app(SalesPerformanceService::class)->territories($actor)->whereKey($record->territory_id)->exists();
     }
 
     public static function canDelete(Model $record): bool

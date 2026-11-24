@@ -3,8 +3,6 @@
 namespace App\Filament\Resources\Patches\RelationManagers;
 
 use App\Models\AccountMaster;
-use App\Models\CityPinCode;
-use App\Models\Territory;
 use Filament\Actions\Action;
 use Filament\Actions\AttachAction;
 use Filament\Actions\DetachAction;
@@ -103,23 +101,13 @@ class CompaniesRelationManager extends RelationManager
                             return;
                         }
 
-                        $pinCodes = $patch->city_pin_code_id
-                            ? CityPinCode::whereKey($patch->city_pin_code_id)->pluck('pin_code')
-                            : ($patch->territory?->cityPinCodes?->pluck('pin_code') ?? collect());
-
-                        if ($pinCodes->isEmpty()) {
+                        if ($patch->customerPinCodes()->isEmpty()) {
                             Notification::make()->title('No pin codes found')->warning()->send();
 
                             return;
                         }
 
-                        $companyIds = AccountMaster::query()
-                            ->whereHas('addresses', fn (Builder $query): Builder => $query->whereIn('pin_code', $pinCodes))
-                            ->whereHas('typeMaster', fn (Builder $query): Builder => $query
-                                ->where('name', 'Customer')
-                                ->orWhereHas('parent', fn (Builder $query): Builder => $query->where('name', 'Customer'))
-                            )
-                            ->pluck('id');
+                        $companyIds = $patch->eligibleCustomers(AccountMaster::query())->pluck('id');
 
                         $patch->companies()->syncWithoutDetaching($companyIds);
 
@@ -170,25 +158,6 @@ class CompaniesRelationManager extends RelationManager
 
     protected function eligibleCustomersQuery(Builder $query): Builder
     {
-        $patch = $this->ownerRecord;
-
-        if (! $patch?->territory_id) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        $pinCodes = $patch->city_pin_code_id
-            ? CityPinCode::whereKey($patch->city_pin_code_id)->pluck('pin_code')
-            : (Territory::with('cityPinCodes')->find($patch->territory_id)?->cityPinCodes?->pluck('pin_code') ?? collect());
-
-        if ($pinCodes->isEmpty()) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        return $query
-            ->whereHas('addresses', fn (Builder $query): Builder => $query->whereIn('pin_code', $pinCodes))
-            ->whereHas('typeMaster', fn (Builder $query): Builder => $query
-                ->where('name', 'Customer')
-                ->orWhereHas('parent', fn (Builder $query): Builder => $query->where('name', 'Customer'))
-            );
+        return $this->ownerRecord?->eligibleCustomers($query) ?? $query->whereRaw('1 = 0');
     }
 }

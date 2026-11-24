@@ -17,7 +17,6 @@ use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
@@ -45,8 +44,36 @@ it('retains scans privately without an engine and maps reviewed OCR text through
     $upload()->assertCreated()->assertJsonPath('data.id', $id);
     $source = SecondaryOcrSource::findOrFail($id);
     Storage::disk('local')->assertExists($source->source_path);
-    Sanctum::actingAs(reportingUser('OtherOCRUser'));
-    $this->getJson('/api/v1/secondary-ocr/'.$id)->assertNotFound();
+    $root = '/api/v1/secondary-ocr';
+    $path = $root.'/'.$id;
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g05-03', 'screen_key' => 'ocr-sources']);
+    $this->getJson($root.'?register=1')->assertOk()->assertJsonPath('register.can_upload', true)
+        ->assertJsonPath('data.0.stockist.name', 'OCR Stockist')->assertJsonMissingPath('data.0.extracted_text');
+    $this->getJson($path.'?register=1')->assertOk()->assertJsonPath('data.can_retry', true)
+        ->assertJsonPath('data.can_map', true)->assertJsonMissingPath('data.source_path')
+        ->assertJsonMissingPath('data.extraction_token')->assertJsonMissingPath('data.tokens');
+    $this->postJson($path.'/retry')->assertUnprocessable();
+    expect($source->fresh()->status)->toBe('awaiting_provider');
+
+    Sanctum::actingAs($this->rsm);
+    $this->getJson($root.'?register=1')->assertOk()->assertJsonPath('register.can_upload', false);
+    $this->getJson($path.'?register=1')->assertOk()->assertJsonPath('data.can_retry', false)->assertJsonPath('data.can_map', false);
+    $download = $this->get($path.'/file')->assertOk()->assertDownload();
+    expect($download->streamedContent())->toBe($png)->and($download->headers->get('cache-control'))->toContain('private', 'no-store');
+    $this->postJson($path.'/retry')->assertForbidden();
+    $this->rsm->revokePermissionTo('Review:SecondarySales');
+    $this->getJson($path.'?register=1')->assertForbidden();
+    $this->getJson($path.'/file')->assertForbidden();
+
+    $outside = reportingUser('OtherOCRUser');
+    $outside->givePermissionTo('Review:SecondarySales');
+    Sanctum::actingAs($outside);
+    $this->getJson($root.'?register=1')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($path.'?register=1')->assertNotFound();
+    $this->getJson($path.'/file')->assertNotFound();
+    $this->postJson($path.'/retry')->assertNotFound();
+    $this->rsm->givePermissionTo('Review:SecondarySales');
     Sanctum::actingAs($this->rep);
     Storage::disk('local')->put('fake-tesseract.exe', 'test executable placeholder');
     config(['services.secondary_ocr.tesseract_binary' => Storage::disk('local')->path('fake-tesseract.exe')]);
@@ -61,6 +88,10 @@ it('retains scans privately without an engine and maps reviewed OCR text through
         'file' => UploadedFile::fake()->createWithContent('mapped.csv', $csv)], ['Accept' => 'application/json'])
         ->assertCreated()->assertJsonPath('data.status', 'pending_review');
     expect($source->fresh()->status)->toBe('converted')->and($source->fresh()->secondary_sales_statement_id)->not->toBeNull();
+    $this->getJson($path.'?register=1')->assertOk()->assertJsonPath('data.can_map', false)->assertJsonPath('data.can_retry', false)
+        ->assertJsonPath('data.statement.status', 'pending_review')->assertJsonPath('data.extracted_text', 'Invoice 123')
+        ->assertJsonPath('data.mapping_note', 'Checked all quantities and identifiers against the original scan');
+    $this->postJson($path.'/retry')->assertConflict();
     app(SecondaryOcrService::class)->extract($id);
     Process::assertRanTimes(fn () => true, 1);
 });
@@ -80,9 +111,13 @@ it('recovers abandoned OCR workers without allowing obsolete attempts to overwri
     config(['services.secondary_ocr.tesseract_binary' => Storage::disk('local')->path('fake-tesseract.exe')]);
     $oldToken = $source->extraction_token;
     $source->update(['status' => 'extracting', 'extraction_started_at' => now()]);
-    expect(fn () => $service->retry($this->rep, $source))->toThrow(HttpException::class);
+    $path = '/api/v1/secondary-ocr/'.$source->id;
+    $this->getJson($path.'?register=1')->assertOk()->assertJsonPath('data.can_retry', false);
+    $this->postJson($path.'/retry')->assertConflict();
     $this->travel(16)->minutes();
-    $service->retry($this->rep, $source->fresh());
+    $this->getJson($path.'?register=1')->assertOk()->assertJsonPath('data.can_retry', true);
+    $this->postJson($path.'/retry')->assertOk()->assertJsonPath('data.status', 'queued')->assertJsonPath('data.can_retry', false);
+    $this->postJson($path.'/retry')->assertConflict();
     $nextToken = $source->fresh()->extraction_token;
     expect($nextToken)->not->toBe($oldToken)->and($source->fresh()->status)->toBe('queued');
     Queue::assertPushed(ExtractSecondaryStatement::class, fn ($job) => $job->sourceId === $source->id && $job->extractionToken === $nextToken);

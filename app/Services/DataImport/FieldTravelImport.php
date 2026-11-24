@@ -36,9 +36,12 @@ class FieldTravelImport
         return self::$running;
     }
 
-    public function read(string $path, bool $historical = false): array
+    public function read(string $path, bool $historical = false, bool $includeAllSheets = false): array
     {
         $allowed = $historical ? ['Travel Segments'] : ['Patches', 'Patch Customers', 'Standard Fares'];
+        if ($includeAllSheets) {
+            $allowed = array_keys(FieldTravelTemplate::COLUMNS);
+        }
         $reader = new Reader;
         $rows = [];
         $count = 0;
@@ -86,7 +89,7 @@ class FieldTravelImport
         return $rows;
     }
 
-    public function preview(array $sheets): array
+    public function preview(array $sheets, ?callable $authorizePlan = null): array
     {
         $this->locations = [];
         $plans = [];
@@ -137,6 +140,12 @@ class FieldTravelImport
                     if ($action === 'Update' && $record->getOriginal('approval_status') === 'approved') {
                         $this->invalid('Approved records cannot be updated by import.');
                     }
+                    if ($authorizePlan !== null) {
+                        $parent = $sheet === 'Patch Customers'
+                            ? ($patches[strtoupper($row['patch_code'])] ?? Patch::findOrFail($plan['attributes']['patch_id']))
+                            : null;
+                        $authorizePlan($sheet, $record, $parent, $action);
+                    }
                     $plans[] = [
                         'sheet' => $sheet, 'row' => $entry['row'], 'key' => $plan['key'],
                         'action' => $action, 'class' => $record::class, 'id' => $existing ? $record->getKey() : null,
@@ -161,11 +170,11 @@ class FieldTravelImport
         return ['plans' => $plans, 'locations' => $locations, 'errors' => $errors, 'fingerprint' => hash('sha256', serialize([$plans, $locations]))];
     }
 
-    public function import(array $sheets, string $fingerprint, ?callable $progress = null): array
+    public function import(array $sheets, string $fingerprint, ?callable $progress = null, ?callable $authorizePlan = null): array
     {
-        return DB::transaction(function () use ($sheets, $fingerprint, $progress): array {
+        return DB::transaction(function () use ($sheets, $fingerprint, $progress, $authorizePlan): array {
             Organization::query()->lockForUpdate()->first();
-            $preview = $this->preview($sheets);
+            $preview = $this->preview($sheets, $authorizePlan);
             if ($preview['errors'] !== []) {
                 $this->invalid(implode("\n", $preview['errors']));
             }

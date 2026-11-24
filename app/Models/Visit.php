@@ -21,6 +21,21 @@ class Visit extends BaseModel
         return $this->hasMany(VisitGeoAssessment::class);
     }
 
+    public function fieldEvents(): HasMany
+    {
+        return $this->hasMany(FieldVisitEvent::class);
+    }
+
+    public function resolvedRecoveries(): HasMany
+    {
+        return $this->hasMany(FieldSyncRecovery::class, 'resolved_visit_id');
+    }
+
+    public function gpsPoints(): HasMany
+    {
+        return $this->hasMany(FieldGpsPoint::class);
+    }
+
     use HasFactory;
 
     /*

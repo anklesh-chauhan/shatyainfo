@@ -3,12 +3,11 @@
 namespace App\Filament\Resources\MarketingCampaigns\Schemas;
 
 use App\Enums\MarketingCampaignStatus;
-use App\Models\ItemMaster;
 use App\Models\MarketingCampaign;
 use App\Models\NumberSeries;
-use App\Models\PromotionalScheme;
-use App\Models\Territory;
+use App\Services\Marketing\MarketingCampaignRegister;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -22,6 +21,7 @@ class MarketingCampaignForm
     {
         return $schema
             ->components([
+                Hidden::make('revision'),
                 Section::make('Campaign Details')
                     ->columns(3)
                     ->schema([
@@ -29,7 +29,7 @@ class MarketingCampaignForm
                             ->label('Campaign Number')
                             ->default(fn (): string => NumberSeries::getNextNumber(MarketingCampaign::class))
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         TextInput::make('name')
                             ->required()
@@ -42,10 +42,7 @@ class MarketingCampaignForm
 
                         Select::make('promotional_scheme_id')
                             ->label('Linked Promotional Scheme')
-                            ->options(fn (): array => PromotionalScheme::query()
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->all())
+                            ->options(fn (): array => self::options('schemes', 'name'))
                             ->searchable(),
 
                         DatePicker::make('start_date')
@@ -67,17 +64,11 @@ class MarketingCampaignForm
                     ->description('Sample and promotional items included in this campaign.')
                     ->schema([
                         Repeater::make('items')
-                            ->relationship()
                             ->columns(3)
                             ->schema([
                                 Select::make('item_master_id')
                                     ->label('Item')
-                                    ->options(fn (): array => ItemMaster::query()
-                                        ->whereNotNull('item_type')
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all())
+                                    ->options(fn (): array => self::options('items', 'item_name'))
                                     ->searchable()
                                     ->required()
                                     ->distinct(),
@@ -99,26 +90,17 @@ class MarketingCampaignForm
                 Section::make('Territory Distribution Quotas')
                     ->description('Campaign-level planning and quota tracking across territories.')
                     ->schema([
-                        Repeater::make('territoryQuotas')
-                            ->relationship()
+                        Repeater::make('territory_quotas')
                             ->columns(4)
                             ->schema([
                                 Select::make('territory_id')
-                                    ->options(fn (): array => Territory::query()
-                                        ->orderBy('name')
-                                        ->pluck('name', 'id')
-                                        ->all())
+                                    ->options(fn (): array => self::options('territories', 'name'))
                                     ->searchable()
                                     ->required(),
 
                                 Select::make('item_master_id')
                                     ->label('Item')
-                                    ->options(fn (): array => ItemMaster::query()
-                                        ->whereNotNull('item_type')
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all())
+                                    ->options(fn (): array => self::options('items', 'item_name'))
                                     ->searchable()
                                     ->required(),
 
@@ -132,11 +114,17 @@ class MarketingCampaignForm
                                     ->label('Used')
                                     ->numeric()
                                     ->disabled()
-                                    ->dehydrated()
+                                    ->dehydrated(false)
                                     ->default(0),
                             ])
                             ->columnSpanFull(),
                     ])->columnSpanFull(),
             ]);
+    }
+
+    private static function options(string $type, string $label): array
+    {
+        return app(MarketingCampaignRegister::class)->catalog(auth()->user(), $type)
+            ->orderBy($label)->pluck($label, 'id')->all();
     }
 }

@@ -6,20 +6,19 @@ use App\Models\AccountMaster;
 use App\Models\Patch;
 use App\Models\SalesDcr;
 use App\Models\SalesTourPlanDetail;
+use App\Models\User;
 use App\Models\Visit;
 use Illuminate\Validation\ValidationException;
 
 class TravelSegmentValidation
 {
-    public function validate(array $data): void
+    public function validate(array $data, ?User $actor = null): void
     {
-        $dcr = SalesDcr::query()->applyVisibility('SalesDcr')->find($data['sales_dcr_id'] ?? null);
+        $dcr = SalesDcr::query()->applyVisibility('SalesDcr', $actor)->find($data['sales_dcr_id'] ?? null);
         if (! $dcr) {
             $this->fail('sales_dcr_id', 'Choose an accessible daily call report.');
         }
-        if (in_array($dcr->approval_status, ['approved', 'pending', 'submitted'], true)) {
-            $this->fail('sales_dcr_id', 'Travel cannot be changed for a submitted or approved report.');
-        }
+        $this->assertEditableReport($dcr);
         if (! empty($data['visit_id']) && ! Visit::whereKey($data['visit_id'])->where('sales_dcr_id', $dcr->id)->exists()) {
             $this->fail('visit_id', 'The visit must belong to the selected report.');
         }
@@ -27,20 +26,27 @@ class TravelSegmentValidation
             $this->fail('sales_tour_plan_detail_id', 'The plan detail must match the report plan and date.');
         }
         foreach (['from_account_id', 'to_account_id'] as $field) {
-            if (! empty($data[$field]) && ! AccountMaster::query()->applyVisibility('AccountMaster')->whereKey($data[$field])->exists()) {
+            if (! empty($data[$field]) && ! AccountMaster::query()->applyVisibility('AccountMaster', $actor)->whereKey($data[$field])->exists()) {
                 $this->fail($field, 'Choose an accessible customer.');
             }
         }
         if (! empty($data['patch_id'])) {
             $patch = Patch::find($data['patch_id']);
-            if (! $patch || (int) $patch->territory_id !== (int) $dcr->territory_id) {
+            if (! $patch || $dcr->territory_id === null || (int) $patch->territory_id !== (int) $dcr->territory_id) {
                 $this->fail('patch_id', 'The patch must belong to the report territory.');
             }
             foreach (['from_account_id', 'to_account_id'] as $field) {
-                if (! empty($data[$field]) && ! $patch->companies()->where('account_masters.id', $data[$field])->exists()) {
+                if (! empty($data[$field]) && ! $patch->companies()->wherePivotNull('deleted_at')->where('account_masters.id', $data[$field])->exists()) {
                     $this->fail($field, 'The customer must be assigned to the selected patch.');
                 }
             }
+        }
+    }
+
+    public function assertEditableReport(SalesDcr $report): void
+    {
+        if (! in_array($report->approval_status, ['draft', 'rejected'], true) || $report->approvalDocumentIsLocked()) {
+            $this->fail('sales_dcr_id', 'Travel cannot be changed for a submitted or approved report.');
         }
     }
 

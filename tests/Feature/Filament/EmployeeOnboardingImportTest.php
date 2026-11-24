@@ -60,7 +60,7 @@ it('imports all employee setup from excel and reuses records on repeat upload', 
         }
         $employee = Employee::query()->first();
         expect($employee->employmentDetail->department->department_name)->toBe('Sales')
-            ->and($employee->positions()->first()->pivot->is_primary)->toBe(1)
+            ->and((bool) $employee->positions()->first()->pivot->is_primary)->toBeTrue()
             ->and($employee->employmentDetail->organizationalUnits()->count())->toBe(1)
             ->and($employee->login_id)->not->toBeNull();
         $login = User::findOrFail($employee->login_id);

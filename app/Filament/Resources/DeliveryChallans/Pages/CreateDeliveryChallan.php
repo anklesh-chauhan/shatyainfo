@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\DeliveryChallans\Pages;
 
 use App\Filament\Resources\DeliveryChallans\DeliveryChallanResource;
-use App\Models\SalesDocumentItem;
-use App\Models\SalesInvoice;
+use App\Services\Inventory\DeliveryChallanRegister;
+use App\Services\Inventory\InvoiceDeliveryHandoff;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
 
 class CreateDeliveryChallan extends CreateRecord
 {
@@ -14,37 +17,22 @@ class CreateDeliveryChallan extends CreateRecord
     public function mount(): void
     {
         parent::mount();
-
-        $salesInvoiceId = request()->query('sales_invoice_id');
-
-        if (! $salesInvoiceId) {
+        if (! request()->filled('sales_invoice_id')) {
             return;
         }
+        $handoff = app(InvoiceDeliveryHandoff::class);
+        $handoff->authorizeCreate(auth()->user());
+        $invoice = app(DeliveryChallanRegister::class)->orderData(auth()->user(), request()->integer('sales_invoice_id'));
+        abort_if($invoice['lines'] === [], 422, 'This invoice has no quantity available to dispatch.');
+        $this->data = [...$this->data, 'sales_invoice_id' => $invoice['id'], 'customer_id' => $invoice['customer_id'], 'lines' => collect($invoice['lines'])->map(fn (array $line): array => Arr::except($line, ['item']))->all()];
+    }
 
-        $invoice = SalesInvoice::query()
-            ->with(['items.itemMaster'])
-            ->find($salesInvoiceId);
-
-        if ($invoice === null) {
-            return;
+    protected function handleRecordCreation(array $data): Model
+    {
+        try {
+            return app(DeliveryChallanRegister::class)->save(auth()->user(), null, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
         }
-
-        $lines = $invoice->items
-            ->filter(fn (SalesDocumentItem $item): bool => $item->item_master_id !== null && $item->remainingQuantity() > 0)
-            ->map(fn (SalesDocumentItem $item): array => [
-                'sales_document_item_id' => $item->id,
-                'item_master_id' => $item->item_master_id,
-                'quantity_delivered' => $item->remainingQuantity(),
-                'unit_cost' => $item->unit_price ?? $item->itemMaster?->selling_price ?? 0,
-            ])
-            ->values()
-            ->all();
-
-        $this->form->fill([
-            'sales_invoice_id' => $invoice->id,
-            'customer_id' => $invoice->account_master_id,
-            'delivery_date' => now()->toDateString(),
-            'lines' => $lines,
-        ]);
     }
 }

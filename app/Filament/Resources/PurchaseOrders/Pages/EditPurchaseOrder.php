@@ -2,19 +2,16 @@
 
 namespace App\Filament\Resources\PurchaseOrders\Pages;
 
-use App\Enums\PurchaseOrderStatus;
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\GoodsReceiptNotes\GoodsReceiptNoteResource;
 use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
-use App\Models\ApprovalSetting;
-use App\Models\GoodsReceiptNote;
-use App\Models\GoodsReceiptNoteLine;
-use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
+use App\Services\Inventory\PurchaseOrderRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditPurchaseOrder extends EditRecord
 {
@@ -23,104 +20,89 @@ class EditPurchaseOrder extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('approve')
-                ->label('Approve PO')
-                ->icon('heroicon-o-check-badge')
-                ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => ! ApprovalSetting::moduleRequiresApproval(PurchaseOrder::class) && $this->record->isEditable()
-                    && $this->record->status !== PurchaseOrderStatus::Approved)
-                ->action(function (): void {
-                    $this->record->assertApprovalComplete();
-                    $this->record->forceFill([
-                        'status' => PurchaseOrderStatus::Approved,
-                        'approval_status' => 'approved',
-                    ])->save();
-
-                    Notification::make()
-                        ->title('Purchase order approved')
-                        ->success()
-                        ->send();
-                }),
-
-            Action::make('createGrn')
-                ->label('Create GRN')
-                ->icon('heroicon-o-truck')
-                ->color('success')
-                ->visible(fn (): bool => in_array($this->record->status, [
-                    PurchaseOrderStatus::Approved,
-                    PurchaseOrderStatus::PartiallyReceived,
-                ], true))
-                ->requiresConfirmation()
-                ->action(function (): void {
-                    $purchaseOrder = $this->record->loadMissing('lines.item');
-                    $purchaseOrder->assertApprovalComplete();
-
-                    $pendingLines = $purchaseOrder->lines->filter(
-                        fn ($line): bool => $line->remainingQuantity() > 0
-                    );
-
-                    if ($pendingLines->isEmpty()) {
-                        Notification::make()
-                            ->title('Nothing to receive')
-                            ->body('All PO lines are fully received.')
-                            ->warning()
-                            ->send();
-
-                        return;
-                    }
-
-                    $grn = DB::transaction(function () use ($purchaseOrder, $pendingLines): GoodsReceiptNote {
-                        $grn = GoodsReceiptNote::query()->create([
-                            'purchase_order_id' => $purchaseOrder->id,
-                            'supplier_id' => $purchaseOrder->supplier_id,
-                            'location_master_id' => $purchaseOrder->location_master_id,
-                            'receipt_date' => now()->toDateString(),
-                        ]);
-
-                        foreach ($pendingLines as $line) {
-                            GoodsReceiptNoteLine::query()->create([
-                                'goods_receipt_note_id' => $grn->id,
-                                'purchase_order_line_id' => $line->id,
-                                'item_master_id' => $line->item_master_id,
-                                'quantity_received' => $line->remainingQuantity(),
-                                'unit_cost' => $line->unit_price,
-                            ]);
-                        }
-
-                        return $grn;
-                    });
-
-                    $this->redirect(GoodsReceiptNoteResource::getUrl('edit', ['record' => $grn]));
-                }),
-
-            ApprovalAction::make(),
-            DeleteAction::make(),
+            $this->orderAction('submit', 'Send for Approval', 'primary'),
+            $this->orderAction('approve', 'Approve PO', 'success'),
+            $this->orderAction('create-grn', 'Create GRN', 'success'),
+            $this->orderAction('cancel', 'Cancel PO', 'warning'),
+            $this->orderAction('delete', 'Delete', 'danger'),
         ];
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        if (! $this->record->isEditable()) {
-            Notification::make()
-                ->title('Purchase order is locked')
-                ->body('Approved or received purchase orders cannot be edited.')
-                ->danger()
-                ->send();
-
-            $this->halt();
-        }
+        $this->record->load('lines');
+        $data['revision'] = app(PurchaseOrderRegister::class)->revision($this->record);
+        $data['lines'] = $this->record->lines->map(fn (PurchaseOrderLine $line): array => $line->only([
+            'id', 'item_master_id', 'quantity_ordered', 'quantity_received', 'unit_price', 'tax_rate', 'line_total', 'description',
+        ]))->all();
 
         return $data;
     }
 
-    protected function afterSave(): void
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        $this->record->recalculateTotals();
+        try {
+            return $this->record = app(PurchaseOrderRegister::class)->save(auth()->user(), $record->id, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
     }
 
-    protected function canEdit(): bool
+    protected function afterSave(): void
     {
-        return true;
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return $this->record->isEditable() ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function orderAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(PurchaseOrderRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    $receipt = app(PurchaseOrderRegister::class)->act(
+                        auth()->user(), [$this->record->id], $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if ($receipt !== null) {
+                    $this->redirect(auth()->user()->can('update', $receipt)
+                        ? GoodsReceiptNoteResource::getUrl('edit', ['record' => $receipt])
+                        : GoodsReceiptNoteResource::getUrl('index'));
+
+                    return;
+                }
+                if ($action === 'delete') {
+                    $this->redirect(PurchaseOrderResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('Purchase order updated')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
+        }
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }

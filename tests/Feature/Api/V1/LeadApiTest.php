@@ -2,6 +2,7 @@
 
 use App\Models\AccountMaster;
 use App\Models\Address;
+use App\Models\ApprovalFlow;
 use App\Models\ContactDetail;
 use App\Models\JobRole;
 use App\Models\Lead;
@@ -593,4 +594,74 @@ it('keeps an unchanged lead contact but rejects switching to a hidden one', func
     $this->patchJson('/api/v1/leads/'.$lead->id, ['contact_detail_id' => $visible->id])
         ->assertSuccessful()
         ->assertJsonPath('data.contact_detail_id', $visible->id);
+});
+
+function leadLifecycleRecord(User $owner, LeadStatus $status, string $description): Lead
+{
+    return Lead::query()->create([
+        'transaction_date' => today(),
+        'owner_id' => $owner->id,
+        'status_id' => $status->id,
+        'status_type' => LeadStatus::class,
+        'description' => $description,
+        'created_by' => $owner->id,
+    ]);
+}
+
+it('soft deletes a visible lead through the lifecycle action and keeps its history', function () {
+    $actor = reportingUser('Lead Lifecycle Owner');
+    $actor->givePermissionTo(leadApiPermissions());
+    $lead = leadLifecycleRecord($actor, reportingLeadStatus('Lifecycle Open'), 'Selected lead');
+    $note = $lead->leadNotes()->create(['note' => 'Keep this history', 'user_id' => $actor->id]);
+    Sanctum::actingAs($actor);
+    $url = '/api/v1/leads/'.$lead->id;
+
+    $this->getJson($url)->assertOk()->assertJsonPath('data.can_delete', false);
+    $this->deleteJson($url)->assertForbidden();
+    grantPagePermissions($actor, 'Delete:Lead');
+    $this->getJson($url)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->getJson('/api/v1/leads')->assertOk()->assertJsonPath('data.0.can_delete', true);
+    $this->deleteJson($url)->assertOk()->assertJsonPath('data.deleted', 1);
+
+    $this->assertSoftDeleted($lead);
+    $this->assertDatabaseHas('leads', ['id' => $lead->id, 'deleted_by' => $actor->id]);
+    $this->assertDatabaseHas('lead_notes', ['id' => $note->id, 'lead_id' => $lead->id, 'deleted_at' => null]);
+    $this->getJson($url)->assertNotFound();
+    $this->getJson($url.'/notes')->assertNotFound();
+    $this->getJson('/api/v1/leads')->assertOk()->assertJsonCount(0, 'data');
+    $this->deleteJson($url)->assertNotFound();
+});
+
+it('checks the full lead selection and requires an override for approved leads', function () {
+    $actor = reportingUser('Lead Bulk Owner');
+    $other = reportingUser('Lead Bulk Other');
+    $actor->givePermissionTo(leadApiPermissions(['Delete:Lead']));
+    $status = reportingLeadStatus('Bulk Lifecycle Open');
+    $first = leadLifecycleRecord($actor, $status, 'First permitted lead');
+    $approved = leadLifecycleRecord($actor, $status, 'Approved lead');
+    $flow = ApprovalFlow::query()->create(['module' => 'SalesTourPlan', 'active' => false]);
+    $approved->approval()->create([
+        'approval_flow_id' => $flow->id, 'requested_by' => $actor->id, 'module' => 'Lead',
+        'record_type' => Lead::class, 'record_id' => $approved->id, 'approval_status' => 'approved',
+    ]);
+    $hidden = leadLifecycleRecord($other, $status, 'Out of scope lead');
+    Sanctum::actingAs($actor);
+    $url = '/api/v1/leads/bulk-delete';
+
+    $this->deleteJson('/api/v1/leads/'.$hidden->id)->assertNotFound();
+    $this->postJson($url, ['ids' => [$first->id, $hidden->id]])->assertNotFound();
+    $this->postJson($url, ['ids' => [$first->id, $first->id]])->assertUnprocessable()->assertJsonValidationErrors('ids.1');
+    $this->getJson('/api/v1/leads/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', false);
+    $this->postJson($url, ['ids' => [$first->id, $approved->id]])->assertUnprocessable();
+    $this->assertNotSoftDeleted($first);
+    $this->assertNotSoftDeleted($approved);
+    $this->assertNotSoftDeleted($hidden);
+
+    grantPagePermissions($actor, 'OverrideApproval:Lead');
+    $this->getJson('/api/v1/leads/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->postJson($url, ['ids' => [$first->id, $approved->id]])->assertOk()->assertJsonPath('data.deleted', 2);
+    $this->assertSoftDeleted($first);
+    $this->assertSoftDeleted($approved);
+    $this->assertNotSoftDeleted($hidden);
+    $this->assertDatabaseHas('approval_overrides', ['model_type' => Lead::class, 'model_id' => $approved->id, 'user_id' => $actor->id]);
 });

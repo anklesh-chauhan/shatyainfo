@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\MarketingCampaignStatus;
 use Database\Factories\MarketingCampaignFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -57,6 +58,11 @@ class MarketingCampaign extends BaseModel
     public function sgipDistributions(): HasMany
     {
         return $this->hasMany(SgipDistribution::class);
+    }
+
+    public function scopeApplyTerritoryVisibility(Builder $query, array $territoryIds): Builder
+    {
+        return $query->whereHas('territoryQuotas', fn (Builder $quotas): Builder => $quotas->whereIn('territory_id', $territoryIds));
     }
 
     public function isActive(): bool

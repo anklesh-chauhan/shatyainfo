@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Traits\HasOperationalApproval;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SalesOrder extends SalesDocument
 {
@@ -18,19 +21,29 @@ class SalesOrder extends SalesDocument
         'other_ref',
     ];
 
-    public function accountMaster()
+    public function accountMaster(): BelongsTo
     {
         return $this->belongsTo(AccountMaster::class);
     }
 
-    public function quotes()
+    public function quotes(): BelongsToMany
     {
         return $this->belongsToMany(Quote::class, 'quote_sales_order_pivot');
     }
 
-    public function salesInvoices()
+    public function salesInvoices(): BelongsToMany
     {
         return $this->belongsToMany(SalesInvoice::class, 'sales_order_sales_invoice_pivot');
+    }
+
+    public function fieldOrderState(): HasOne
+    {
+        return $this->hasOne(FieldOrderState::class);
+    }
+
+    protected function resolveApprovalTerritoryId(): ?int
+    {
+        return $this->accountMaster?->territory_id;
     }
 
     protected $casts = [

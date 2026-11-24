@@ -21,9 +21,10 @@ class MarketingCampaignQuotaService
             return;
         }
 
-        $distribution->loadMissing(['items.item', 'marketingCampaign']);
-
-        $campaign = $distribution->marketingCampaign;
+        $distribution->loadMissing('items.item');
+        $campaign = $blockOnViolation
+            ? $distribution->marketingCampaign()->lockForUpdate()->first()
+            : $distribution->marketingCampaign;
 
         if ($campaign === null || ! $campaign->isActive()) {
             if ($blockOnViolation) {
@@ -45,7 +46,8 @@ class MarketingCampaignQuotaService
             return;
         }
 
-        foreach ($distribution->items as $line) {
+        foreach ($distribution->items->groupBy('item_master_id') as $lines) {
+            $line = $lines->first();
             if ($line->item?->item_type?->value !== 'sample') {
                 continue;
             }
@@ -67,7 +69,7 @@ class MarketingCampaignQuotaService
                 continue;
             }
 
-            $requested = (float) $line->quantity;
+            $requested = (float) $lines->sum('quantity');
             $remaining = $quota->remainingQuota();
 
             if ($requested > $remaining) {

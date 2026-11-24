@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DeleteFollowUpsRequest;
 use App\Http\Requests\Api\V1\StoreFollowUpRequest;
 use App\Http\Requests\Api\V1\UpdateFollowUpRequest;
 use App\Http\Resources\Api\V1\FollowUpResource;
@@ -54,5 +55,17 @@ class FollowUpController extends Controller
         return new FollowUpResource(
             $this->followUps->update($request->user(), $record, $request->validated()),
         );
+    }
+
+    public function destroy(Request $request, int $followUp): JsonResponse
+    {
+        return response()->json(['data' => ['deleted' => $this->followUps->delete($request->user(), [$followUp])]]);
+    }
+
+    public function bulkDelete(DeleteFollowUpsRequest $request): JsonResponse
+    {
+        $ids = array_map('intval', $request->validated('ids'));
+
+        return response()->json(['data' => ['deleted' => $this->followUps->delete($request->user(), $ids)]]);
     }
 }

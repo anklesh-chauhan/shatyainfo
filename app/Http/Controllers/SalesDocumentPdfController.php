@@ -17,7 +17,12 @@ class SalesDocumentPdfController extends Controller
 {
     public function preview(Request $request, string $type, int $id): Response
     {
-        $document = $this->authorizedDocument($request, $type, $id)->load(['items.itemMaster', 'contactDetail', 'taxDetails']);
+        return $this->previewDocument($this->authorizedDocument($request, $type, $id), $type);
+    }
+
+    public function previewDocument(Quote|SalesOrder|SalesInvoice $document, string $type): Response
+    {
+        $document->load(['items.itemMaster', 'contactDetail', 'taxDetails']);
 
         $organization = Organization::with('addresses')->first();
 
@@ -31,7 +36,7 @@ class SalesDocumentPdfController extends Controller
         $fontMetrics = new FontMetrics($canvas, $dompdf->getOptions());
 
         $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) use ($organization, $document) {
-            $text = "{$organization->name} - Document No {$document->document_number} - Page $pageNumber of $pageCount";
+            $text = ($organization?->name ?? '')." - Document No {$document->document_number} - Page $pageNumber of $pageCount";
             $font = $fontMetrics->getFont('Helvetica', 'normal');
             $size = 9;
 
@@ -50,7 +55,12 @@ class SalesDocumentPdfController extends Controller
 
     public function download(Request $request, string $type, int $id): Response
     {
-        $document = $this->authorizedDocument($request, $type, $id)->load(['items.itemMaster', 'contactDetail']);
+        return $this->downloadDocument($this->authorizedDocument($request, $type, $id), $type);
+    }
+
+    public function downloadDocument(Quote|SalesOrder|SalesInvoice $document, string $type): Response
+    {
+        $document->load(['items.itemMaster', 'contactDetail', 'taxDetails']);
 
         $organization = Organization::first();
 

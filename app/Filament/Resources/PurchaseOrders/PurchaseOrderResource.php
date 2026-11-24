@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\PurchaseOrders;
 
-use App\Filament\Actions\ApprovalAction;
-use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\PurchaseOrders\Pages\CreatePurchaseOrder;
 use App\Filament\Resources\PurchaseOrders\Pages\EditPurchaseOrder;
@@ -11,9 +9,6 @@ use App\Filament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use App\Filament\Resources\PurchaseOrders\Schemas\PurchaseOrderForm;
 use App\Filament\Resources\PurchaseOrders\Tables\PurchaseOrdersTable;
 use App\Models\PurchaseOrder;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -30,6 +25,11 @@ class PurchaseOrderResource extends BaseResource
 
     protected static ?int $navigationSort = 30;
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && auth()->user()->can('View:PurchaseOrder');
+    }
+
     public static function form(Schema $schema): Schema
     {
         return PurchaseOrderForm::configure($schema);
@@ -37,17 +37,7 @@ class PurchaseOrderResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return PurchaseOrdersTable::configure($table)
-            ->recordActions([
-                EditAction::make(),
-                ApprovalAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    BulkApprovalAction::make(),
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+        return PurchaseOrdersTable::configure($table);
     }
 
     public static function getPages(): array

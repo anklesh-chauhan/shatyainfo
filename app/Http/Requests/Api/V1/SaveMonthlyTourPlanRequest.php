@@ -16,6 +16,10 @@ class SaveMonthlyTourPlanRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'scope' => ['sometimes', 'in:personal,team'],
+            'user_id' => $this->isMethod('POST')
+                ? ['required_if:scope,team', 'prohibited_unless:scope,team', 'integer', 'min:1']
+                : ['prohibited'],
             'month' => ['required', 'date_format:Y-m', function (string $attribute, mixed $value, Closure $fail): void {
                 if (! $this->isMethod('POST') || ! is_string($value)) {
                     return;

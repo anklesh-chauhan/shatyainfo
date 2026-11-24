@@ -28,6 +28,7 @@ class EDetailingController extends Controller
                 'file_size' => $material->file_size, 'content_version' => $material->content_version,
             ]),
             'presentations' => $record?->eDetailingPresentations()->latest('presented_at')->get() ?? [],
+            'can_manage' => $visit === null && Gate::allows('viewAny', EDetailingMaterial::class),
             'can_record' => $record !== null && $request->user()->can('Update:Visit') && $record->start_time !== null && $record->end_time === null && $record->visit_status === 'started',
         ]);
     }
@@ -57,6 +58,17 @@ class EDetailingController extends Controller
         return $this->fileResponse($record);
     }
 
+    public function managementFile(Request $request, int $material): BinaryFileResponse
+    {
+        Gate::authorize('viewAny', EDetailingMaterial::class);
+        $record = EDetailingMaterial::query()->findOrFail($material);
+        Gate::authorize('view', $record);
+        abort_unless($record->is_active || Gate::allows('update', $record), 404);
+        abort_unless(hash_equals($record->content_version, (string) $request->query('version')), 409, 'This material changed. Refresh the library.');
+
+        return $this->fileResponse($record);
+    }
+
     private function fileResponse(EDetailingMaterial $material): BinaryFileResponse
     {
         $disk = Storage::disk('local');
@@ -68,7 +80,7 @@ class EDetailingController extends Controller
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
             'Content-Disposition' => 'inline',
-        ]);
+        ])->setPrivate();
     }
 
     public function store(StoreEDetailingPresentationRequest $request, int $visit): JsonResponse

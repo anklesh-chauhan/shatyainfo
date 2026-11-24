@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Database\Factories\SampleRequestLineFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SampleRequestLine extends BaseModel
 {
-    /** @use HasFactory<\Database\Factories\SampleRequestLineFactory> */
+    /** @use HasFactory<SampleRequestLineFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -40,6 +41,6 @@ class SampleRequestLine extends BaseModel
 
     public function remainingApprovedQuantity(): float
     {
-        return max(0, (float) $this->quantity_approved - (float) $this->quantity_issued);
+        return max(0, round((float) $this->quantity_approved - (float) $this->quantity_issued, 3));
     }
 }

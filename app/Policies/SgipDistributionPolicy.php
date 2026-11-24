@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\SgipDistribution;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class SgipDistributionPolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:SgipDistribution');
@@ -34,17 +34,24 @@ class SgipDistributionPolicy
 
     public function delete(AuthUser $authUser, SgipDistribution $sgipDistribution): bool
     {
-        return $authUser->can('Delete:SgipDistribution');
+        return $authUser->can('Delete:SgipDistribution') && $sgipDistribution->isEditable();
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:SgipDistribution');
     }
 
     public function restore(AuthUser $authUser, SgipDistribution $sgipDistribution): bool
     {
-        return $authUser->can('Restore:SgipDistribution');
+        return $authUser->can('Restore:SgipDistribution') && $sgipDistribution->trashed()
+            && $sgipDistribution->approval_status === 'draft' && ! $sgipDistribution->isInventoryPosted() && $sgipDistribution->inventory_reserved_at === null;
     }
 
     public function forceDelete(AuthUser $authUser, SgipDistribution $sgipDistribution): bool
     {
-        return $authUser->can('ForceDelete:SgipDistribution');
+        return $authUser->can('ForceDelete:SgipDistribution') && $sgipDistribution->trashed()
+            && $sgipDistribution->approval_status === 'draft' && ! $sgipDistribution->isInventoryPosted() && $sgipDistribution->inventory_reserved_at === null;
     }
 
     public function forceDeleteAny(AuthUser $authUser): bool
@@ -86,5 +93,4 @@ class SgipDistributionPolicy
     {
         return $authUser->can('OverrideApproval:SgipDistribution');
     }
-
 }

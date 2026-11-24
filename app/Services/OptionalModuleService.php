@@ -25,7 +25,7 @@ class OptionalModuleService
         'inventory' => ['InventoryStock', 'InventoryMovement', 'InventoryTransfer', 'InventoryAdjustment', 'SampleRequest', 'SampleIssue', 'SgipDistribution'],
         'expenses' => ['SalesDcrExpense'],
         'hr' => ['DailyAttendance', 'EmployeeAttendance', 'LeaveApplication', 'LeaveCancellation', 'LeaveBalance', 'LeaveAdjustment'],
-        'crm' => ['Lead', 'LeadActivity', 'Deal', 'Quote', 'SalesOrder', 'SalesInvoice'],
+        'crm' => ['Lead', 'LeadActivity', 'Deal', 'Quote', 'SalesOrder', 'SalesInvoice', 'CustomerPrice'],
     ];
 
     public function navigationEnabled(string $resource): bool

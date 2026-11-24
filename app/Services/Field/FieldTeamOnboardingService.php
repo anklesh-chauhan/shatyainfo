@@ -28,16 +28,37 @@ class FieldTeamOnboardingService
                     fn (Builder $employees): Builder => $employees->where('login_id', $userId)->whereNotNull('login_id')));
     }
 
+    public function assignmentRules(): array
+    {
+        return [
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'location_master_id' => [app(CompanyLaunchService::class)->requiresHq() ? 'required' : 'nullable', 'integer', 'exists:location_masters,id'],
+            'account_ids' => ['present', 'array', 'list', 'max:500'],
+            'account_ids.*' => ['required', 'integer', 'distinct'],
+            'calls_per_month' => ['required', 'integer', 'between:0,1000'],
+        ];
+    }
+
+    public function canCreateHq(User $actor): bool
+    {
+        return self::canManage($actor)
+            && ! app(CompanyLaunchService::class)->requiresTerritoryLinkedHq()
+            && $actor->can('create', LocationMaster::class);
+    }
+
+    public function createHq(User $actor, string $name): LocationMaster
+    {
+        abort_unless(self::canManage($actor), 403);
+        abort_if(app(CompanyLaunchService::class)->requiresTerritoryLinkedHq(), 422, 'Create the HQ and its territory links in Location Masters first.');
+        abort_unless($actor->can('create', LocationMaster::class), 403);
+
+        return LocationMaster::query()->create(['name' => $name, 'is_active' => true]);
+    }
+
     public function save(User $actor, array $input): array
     {
         abort_unless(self::canManage($actor), 403);
-        $data = Validator::make($input, [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
-            'location_master_id' => [app(CompanyLaunchService::class)->requiresHq() ? 'required' : 'nullable', 'integer', 'exists:location_masters,id'],
-            'account_ids' => ['present', 'array', 'max:500'],
-            'account_ids.*' => ['integer', 'distinct'],
-            'calls_per_month' => ['required', 'integer', 'between:0,1000'],
-        ])->validate();
+        $data = Validator::make($input, $this->assignmentRules())->validate();
 
         return $actor->getConnection()->transaction(function () use ($actor, $data): array {
             User::query()->whereKey($data['user_id'])->lockForUpdate()->firstOrFail();
@@ -48,7 +69,7 @@ class FieldTeamOnboardingService
                         : 'Select an active HQ.']);
                 }
             }
-            $accounts = AccountMaster::query()->applyVisibility('AccountMaster')->whereIn('id', $data['account_ids'])->orderBy('id')->lockForUpdate()->get();
+            $accounts = AccountMaster::query()->applyVisibility('AccountMaster', $actor)->whereIn('id', $data['account_ids'])->orderBy('id')->lockForUpdate()->get();
             abort_unless($accounts->count() === count($data['account_ids']), 404, 'Select customers available in your visibility.');
             foreach ($accounts as $account) {
                 abort_unless($actor->can('update', $account), 403);

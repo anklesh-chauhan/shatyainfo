@@ -38,7 +38,7 @@ class FieldTravelTemplate
         ];
     }
 
-    public function write(string $path, bool $historical = false): void
+    public function write(string $path, bool $historical = false, bool $patchesOnly = false): void
     {
         $writer = new Writer;
         $writer->openToFile($path);
@@ -47,7 +47,7 @@ class FieldTravelTemplate
         try {
             $first = true;
             foreach (self::COLUMNS as $sheet => $columns) {
-                if (($sheet === 'Travel Segments') !== $historical) {
+                if (($sheet === 'Travel Segments') !== $historical || ($patchesOnly && $sheet === 'Standard Fares')) {
                     continue;
                 }
                 if (! $first) {
@@ -60,7 +60,12 @@ class FieldTravelTemplate
             }
             $writer->addNewSheetAndMakeItCurrent()->setName('Instructions')->setColumnWidth(28, 1);
             $writer->getCurrentSheet()->setColumnWidth(110, 2);
-            foreach ($this->instructions() as $instruction) {
+            $instructions = $patchesOnly ? [
+                ['Prepare', 'Set up territories, city and PIN links, and customer accounts before importing. Use up to 5,000 data rows in a workbook up to 10 MB. Keep sheet names and headers unchanged.'],
+                ...array_slice($this->instructions(), 2, 3),
+                ['Locations', 'Use a city and PIN already linked to the selected territory.'],
+            ] : $this->instructions();
+            foreach ($instructions as $instruction) {
                 $writer->addRow(Row::fromValues($instruction, (new Style)->setShouldWrapText())->setHeight(65));
             }
             $writer->addNewSheetAndMakeItCurrent()->setName('Examples')->setColumnWidthForRange(25, 1, 14);
@@ -71,7 +76,7 @@ class FieldTravelTemplate
                 'Travel Segments' => ['LEGACY-0001', 'EMP-001', '2026-01-15', 'PATCH-01', '', '', 'Ahmedabad', 'Navrangpura', '380009', 'Ahmedabad', 'Paldi', '380007', '', '12'],
             ];
             foreach ($examples as $sheet => $example) {
-                if (($sheet === 'Travel Segments') !== $historical) {
+                if (($sheet === 'Travel Segments') !== $historical || ($patchesOnly && $sheet === 'Standard Fares')) {
                     continue;
                 }
                 $writer->addRow(Row::fromValues([$sheet.' — fictitious example; replace with your records'], $heading));

@@ -2,14 +2,20 @@
 
 namespace App\Filament\Resources\PromotionalSchemes\Tables;
 
+use App\Services\Marketing\PromotionalSchemeRegister;
+use Closure;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Enumerable;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class PromotionalSchemesTable
 {
@@ -56,10 +62,28 @@ class PromotionalSchemesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    DeleteBulkAction::make()->using(self::changeRecords('delete')),
+                    ForceDeleteBulkAction::make()->using(self::changeRecords('force-delete')),
+                    RestoreBulkAction::make()->using(self::changeRecords('restore')),
                 ]),
             ]);
+    }
+
+    private static function changeRecords(string $operation): Closure
+    {
+        return function (BulkAction $action, Enumerable $records) use ($operation): void {
+            $ids = $records->pluck('id')->map(intval(...))->values()->all();
+            if ($ids === []) {
+                return;
+            }
+
+            try {
+                $count = app(PromotionalSchemeRegister::class)->changeRecords(auth()->user(), $ids, $operation);
+                $action->reportBulkProcessingSuccessfulRecordsCount($count);
+            } catch (HttpExceptionInterface $error) {
+                Notification::make()->danger()->title($error->getMessage() ?: 'Scheme action unavailable.')->send();
+                $action->halt();
+            }
+        };
     }
 }

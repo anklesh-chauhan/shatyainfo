@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ItemType;
 use App\Traits\HasApprovalWorkflow;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ItemMaster extends BaseModel
@@ -98,9 +99,10 @@ class ItemMaster extends BaseModel
         return $this->belongsTo(PackagingType::class, 'packaging_type_id');
     }
 
-    public function leads()
+    public function leads(): BelongsToMany
     {
-        return $this->belongsToMany(Lead::class, 'item_master_lead', 'item_master_id', 'lead_id');
+        return $this->belongsToMany(Lead::class, 'item_master_lead', 'item_master_id', 'lead_id')
+            ->withPivot(['quantity', 'price'])->withTimestamps();
     }
 
     public function locations()

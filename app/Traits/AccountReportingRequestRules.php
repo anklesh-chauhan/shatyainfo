@@ -9,6 +9,7 @@ trait AccountReportingRequestRules
     protected function accountReportingRules(): array
     {
         return [
+            'assign_owner_id' => ['sometimes', 'integer', 'min:1'],
             'rcpa_tier' => ['nullable', Rule::in(['A', 'B'])],
             'accept_secondary_statements' => ['sometimes', 'boolean'],
             'geo_latitude' => ['nullable', 'required_with:geo_longitude', 'numeric', 'between:-90,90'],

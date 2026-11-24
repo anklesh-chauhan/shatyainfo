@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-
-use App\Models\BaseModel;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\HasApprovalWorkflow;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class ContactDetail extends BaseModel
 {
-    use HasFactory, HasApprovalWorkflow;
+    use HasApprovalWorkflow, HasFactory;
 
     protected $fillable = [
         'company_id',
@@ -38,8 +36,7 @@ class ContactDetail extends BaseModel
         return $query->where(function ($query) use ($searchTerm) {
             $query->whereLike('first_name', "%{$searchTerm}%")
                 ->orWhereLike('last_name', "%{$searchTerm}%")
-                ->orWhereHas('company', fn ($query) =>
-                    $query->whereLike('name', "%{$searchTerm}%")
+                ->orWhereHas('company', fn ($query) => $query->whereLike('name', "%{$searchTerm}%")
                 );
         });
     }
@@ -91,6 +88,7 @@ class ContactDetail extends BaseModel
     public function getFullNameAttribute(): string
     {
         $name = trim("{$this->salutation} {$this->first_name} {$this->last_name}");
+
         return $name ?: 'N/A';
     }
 
@@ -102,9 +100,9 @@ class ContactDetail extends BaseModel
         $this->attributes['first_name'] = ucfirst(strtolower($value));
     }
 
-    public function setLastNameAttribute($value)
+    public function setLastNameAttribute(?string $value): void
     {
-        $this->attributes['last_name'] = ucfirst(strtolower($value));
+        $this->attributes['last_name'] = $value === null ? null : ucfirst(strtolower($value));
     }
 
     /**
@@ -113,8 +111,8 @@ class ContactDetail extends BaseModel
     public function scopeUpcomingBirthdays($query)
     {
         return $query->whereMonth('birthday', now()->month)
-                     ->whereDay('birthday', '>=', now()->day)
-                     ->orderBy('birthday');
+            ->whereDay('birthday', '>=', now()->day)
+            ->orderBy('birthday');
     }
 
     public function contactable()

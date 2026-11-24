@@ -9,6 +9,7 @@ use App\Models\SalesTourPlan;
 use App\Models\SalesTourPlanDetail;
 use App\Models\Territory;
 use App\Models\User;
+use App\Models\Visit;
 use App\Models\VisitPreference;
 use App\Models\VisitPurpose;
 use App\Models\VisitType;
@@ -17,9 +18,11 @@ use App\Services\JointUserService;
 use App\Services\PositionService;
 use App\Services\Travel\TravelSegmentService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class FieldMtpService
 {
@@ -61,6 +64,11 @@ class FieldMtpService
         return $this->visibleTeammatePlans($user)->with($this->relations());
     }
 
+    public function findTeam(User $user, int $id, bool $lock = false): SalesTourPlan
+    {
+        return $this->teamQuery($user)->when($lock, fn (Builder $query) => $query->lockForUpdate())->findOrFail($id);
+    }
+
     private function canReadTeamPlans(User $user): bool
     {
         return $user->can('viewAny', SalesTourPlan::class) && $user->can('View:SalesTourPlan');
@@ -93,7 +101,12 @@ class FieldMtpService
     public function canEdit(User $user, SalesTourPlan $plan): bool
     {
         return (int) $plan->user_id === (int) $user->id
-            && in_array($this->status($plan), ['draft', 'rejected'], true)
+            && $this->canEditDraft($user, $plan);
+    }
+
+    public function canEditDraft(User $user, SalesTourPlan $plan): bool
+    {
+        return in_array($this->status($plan), ['draft', 'rejected'], true)
             && Gate::forUser($user)->allows('update', $plan);
     }
 
@@ -123,6 +136,52 @@ class FieldMtpService
 
     public function options(User $user): array
     {
+        $options = $this->detailOptions($user);
+        $canCreate = Gate::forUser($user)->allows('create', SalesTourPlan::class);
+        $canReadTeam = $this->canReadTeamPlans($user);
+        $employees = $canReadTeam && $canCreate ? $this->delegatedOwners($user)->orderBy('name')->get(['id', 'name']) : [];
+
+        return [
+            ...$options,
+            'approval_required' => ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class),
+            'can_create' => $canCreate,
+            'can_view_team' => $canReadTeam && (count($employees) > 0 || $this->visibleTeammatePlans($user)->exists()),
+            'team_employees' => $employees,
+            'tour_plan_months' => VisitPreference::current()->allowedTourPlanMonths(),
+        ];
+    }
+
+    public function ownerOptions(User $user, int $ownerId): array
+    {
+        $owner = $this->delegatedOwner($user, $ownerId);
+
+        return [...$this->detailOptions($owner), 'employee_name' => $owner->name];
+    }
+
+    public function teamEditOptions(User $user, int $id): array
+    {
+        $plan = $this->findTeam($user, $id);
+        abort_unless($this->canEditDraft($user, $plan), 403, 'Only editable drafts can be changed.');
+
+        return $this->detailOptions($plan->user);
+    }
+
+    private function delegatedOwners(User $user): Builder
+    {
+        return User::query()->whereKeyNot($user->id)->whereHas('employee')
+            ->when(! $user->hasRole('Super Admin'), fn (Builder $query) => $query->whereIn('id', PositionService::getVisibleUserIdsFor($user)));
+    }
+
+    private function delegatedOwner(User $user, int $id): User
+    {
+        abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'] && $this->canReadTeamPlans($user), 403);
+        Gate::forUser($user)->authorize('create', SalesTourPlan::class);
+
+        return $this->delegatedOwners($user)->findOrFail($id);
+    }
+
+    private function detailOptions(User $user): array
+    {
         abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
 
         $territories = Territory::query()->orderBy('name');
@@ -132,10 +191,6 @@ class FieldMtpService
         $territories = $territories->get(['id', 'name']);
 
         return [
-            'approval_required' => ApprovalSetting::moduleRequiresApproval(SalesTourPlan::class),
-            'can_create' => Gate::forUser($user)->allows('create', SalesTourPlan::class),
-            'can_view_team' => $this->canReadTeamPlans($user) && $this->visibleTeammatePlans($user)->exists(),
-            'tour_plan_months' => VisitPreference::current()->allowedTourPlanMonths(),
             'territories' => $territories->toArray(),
             'patches' => Patch::query()->whereIn('territory_id', $territories->pluck('id'))->orderBy('name')->get(['id', 'name', 'territory_id'])->toArray(),
             'visit_types' => VisitType::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name'])->toArray(),
@@ -149,19 +204,22 @@ class FieldMtpService
         abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
 
         return $user->getConnection()->transaction(function () use ($user, $data, $id): SalesTourPlan {
-            $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $team = ($data['scope'] ?? null) === 'team';
             if ($id) {
-                $plan = $this->find($user, $id, true);
-                abort_unless($this->canEdit($user, $plan), 403, 'Only your editable drafts can be changed.');
+                $plan = $team ? $this->findTeam($user, $id, true) : $this->find($user, $id, true);
+                abort_unless($team ? $this->canEditDraft($user, $plan) : $this->canEdit($user, $plan), 403, 'Only editable drafts can be changed.');
                 $this->assertRevision($plan, $data['revision']);
                 abort_unless($plan->month->format('Y-m') === $data['month'], 422, 'The plan month cannot be changed.');
+                $owner = $plan->user;
             } else {
                 Gate::forUser($user)->authorize('create', SalesTourPlan::class);
-                abort_if(SalesTourPlan::query()->where('user_id', $user->id)->whereLike('month', $data['month'].'%')->exists(), 409, 'A plan already exists for this month. Open it instead.');
-                $plan = new SalesTourPlan(['user_id' => $user->id, 'approval_status' => 'draft']);
+                $owner = $team ? $this->delegatedOwner($user, (int) $data['user_id']) : $user;
+                User::query()->whereKey($owner->id)->lockForUpdate()->firstOrFail();
+                abort_if(SalesTourPlan::query()->where('user_id', $owner->id)->whereLike('month', $data['month'].'%')->lockForUpdate()->first(['id']), 409, 'A plan already exists for this employee and month. Open it instead.');
+                $plan = new SalesTourPlan(['user_id' => $owner->id, 'approval_status' => 'draft']);
                 $plan->setRawAttributes([...$plan->getAttributes(), 'month' => $data['month']]);
             }
-            $this->validateDetails($user, $data);
+            $this->validateDetails($owner, $data);
             $plan->save();
             $dates = array_column($data['details'], 'date');
             $removed = $plan->details()->whereNotIn('date', $dates)->get();
@@ -211,9 +269,9 @@ class FieldMtpService
             && $sameIds($detail->joint_with ?? [], $row['joint_with']);
     }
 
-    public function submit(User $user, int $id, string $revision): SalesTourPlan
+    public function submit(User $user, int $id, string $revision, bool $team = false): SalesTourPlan
     {
-        return $this->submitPlan($user, $id, $revision);
+        return $this->submitPlan($user, $id, $revision, $team);
     }
 
     public function canSubmitFromAdmin(User $user, SalesTourPlan $plan): bool
@@ -226,16 +284,72 @@ class FieldMtpService
                 || ($plan->approval_status === 'pending' && $plan->approval === null));
     }
 
+    public function canDeleteFromRegister(User $user, SalesTourPlan $plan, bool $team): bool
+    {
+        $gate = Gate::forUser($user);
+
+        return ($team || (int) $plan->user_id === (int) $user->id)
+            && $this->canReadTeamPlans($user)
+            && $gate->allows('delete', $plan)
+            && ! in_array($this->status($plan), ['pending', 'submitted'], true)
+            && ! in_array($plan->approval_status, ['pending', 'submitted'], true)
+            && ($plan->approval_status !== 'approved' || $gate->allows('overrideApproval', $plan))
+            && ! $plan->details->contains(fn (SalesTourPlanDetail $detail): bool => $detail->visits_count > 0);
+    }
+
+    public function deleteFromRegister(User $user, array $selection, bool $team): int
+    {
+        return $user->getConnection()->transaction(function () use ($user, $selection, $team): int {
+            $plans = [];
+
+            foreach (collect($selection)->sortBy('id') as $entry) {
+                $plan = $team ? $this->findTeam($user, $entry['id'], true) : $this->find($user, $entry['id'], true);
+                abort_unless($this->canDeleteFromRegister($user, $plan, $team), 403, 'This tour plan cannot be deleted.');
+                $this->assertRevision($plan, $entry['revision']);
+                abort_if(Visit::query()->where('sales_tour_plan_id', $plan->id)->exists(), 422, 'A plan with recorded visits cannot be deleted.');
+                $plans[] = $plan;
+            }
+
+            foreach ($plans as $plan) {
+                $plan->delete();
+            }
+
+            return count($plans);
+        });
+    }
+
+    public function submitFromRegister(User $user, array $selection, bool $team): array
+    {
+        if ($team) {
+            $this->teamQuery($user);
+        }
+        $submitted = 0;
+        $firstError = null;
+
+        foreach ($selection as $entry) {
+            try {
+                $this->submit($user, $entry['id'], $entry['revision'], $team);
+                $submitted++;
+            } catch (ValidationException|HttpExceptionInterface $exception) {
+                $firstError ??= $exception->getMessage() ?: 'A selected tour plan could not be submitted.';
+            } catch (ModelNotFoundException) {
+                $firstError ??= 'A selected tour plan is no longer available.';
+            }
+        }
+
+        return ['completed' => $submitted, 'skipped' => count($selection) - $submitted, 'error' => $firstError];
+    }
+
     public function submitFromAdmin(User $user, int $id): SalesTourPlan
     {
         return $this->submitPlan($user, $id, null);
     }
 
-    private function submitPlan(User $user, int $id, ?string $revision): SalesTourPlan
+    private function submitPlan(User $user, int $id, ?string $revision, bool $team = false): SalesTourPlan
     {
         $missingConfiguration = null;
 
-        $plan = $user->getConnection()->transaction(function () use ($user, $id, $revision, &$missingConfiguration): SalesTourPlan {
+        $plan = $user->getConnection()->transaction(function () use ($user, $id, $revision, $team, &$missingConfiguration): SalesTourPlan {
             if ($revision === null) {
                 abort_unless(app(FieldPlanningService::class)->capabilities()['supports_mtp'], 403, 'Monthly tour plans are unavailable for the selected reporting method.');
                 abort_unless(Gate::forUser($user)->allows('viewAny', SalesTourPlan::class), 403);
@@ -243,8 +357,8 @@ class FieldMtpService
                     ->with($this->relations())->lockForUpdate()->findOrFail($id);
                 abort_unless($this->canSubmitFromAdmin($user, $plan), 403, 'This tour plan cannot be submitted.');
             } else {
-                $plan = $this->find($user, $id, true);
-                abort_unless($this->canEdit($user, $plan), 403, 'Only your editable drafts can be submitted.');
+                $plan = $team ? $this->findTeam($user, $id, true) : $this->find($user, $id, true);
+                abort_unless($team ? $this->canSubmitFromAdmin($user, $plan) : $this->canEdit($user, $plan), 403, 'This tour plan cannot be submitted.');
                 $this->assertRevision($plan, $revision);
             }
 
@@ -314,7 +428,7 @@ class FieldMtpService
 
     private function validateDetails(User $user, array $data): void
     {
-        $options = $this->options($user);
+        $options = $this->detailOptions($user);
         foreach ($data['details'] as $index => $row) {
             $error = null;
             if (substr($row['date'], 0, 7) !== $data['month']) {

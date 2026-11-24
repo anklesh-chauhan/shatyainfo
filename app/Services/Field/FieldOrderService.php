@@ -89,6 +89,7 @@ class FieldOrderService
     public function assertEditable(SalesOrder $order): void
     {
         $order->assertApprovalDocumentEditable();
+        abort_if($order->salesInvoices()->withTrashed()->exists(), 409, 'This order has been converted to an invoice.');
         abort_unless($order->status === 'draft' && in_array($order->approval_status, [null, 'draft', 'rejected'], true), 409, 'Only editable order drafts can merge offline changes.');
         abort_if((float) $order->tax !== 0.0 || (float) $order->transaction_discount !== 0.0
             || (float) $order->discount_value !== 0.0 || (float) $order->round_off !== 0.0

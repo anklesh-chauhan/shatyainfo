@@ -2,10 +2,18 @@
 
 namespace App\Filament\Resources\InventoryAdjustments\Tables;
 
+use App\Enums\InventoryAdjustmentType;
 use App\Enums\InventoryDocumentStatus;
+use App\Models\InventoryAdjustment;
+use App\Services\Inventory\StockAdjustmentRegister;
+use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class InventoryAdjustmentsTable
 {
@@ -43,14 +51,30 @@ class InventoryAdjustmentsTable
                     ->toggleable(),
             ])
             ->filters([
+                SelectFilter::make('adjustment_type')->options(InventoryAdjustmentType::class),
                 SelectFilter::make('status')
                     ->options(InventoryDocumentStatus::class),
                 SelectFilter::make('item_master_id')
-                    ->relationship('item', 'item_name')
+                    ->options(fn (): array => app(StockAdjustmentRegister::class)->catalog(auth()->user(), 'items')->pluck('item_name', 'id')->all())
                     ->label('Item')
                     ->searchable()
                     ->preload(),
             ])
+            ->recordActions([EditAction::make()])
+            ->toolbarActions([BulkAction::make('delete')->label('Delete')->requiresConfirmation()->deselectRecordsAfterCompletion()
+                ->visible(fn (): bool => auth()->user()->can('deleteAny', InventoryAdjustment::class))
+                ->action(function (Collection $records): void {
+                    try {
+                        app(StockAdjustmentRegister::class)->deleteMany(auth()->user(), $records->modelKeys());
+                    } catch (HttpException $exception) {
+                        if ($exception->getStatusCode() !== 409) {
+                            throw $exception;
+                        } Notification::make()->title($exception->getMessage())->danger()->send();
+
+                        return;
+                    }
+                    Notification::make()->title('Adjustments deleted')->success()->send();
+                })])
             ->defaultSort('created_at', 'desc');
     }
 }

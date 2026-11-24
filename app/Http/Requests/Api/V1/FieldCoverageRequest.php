@@ -13,7 +13,12 @@ class FieldCoverageRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['month' => ['sometimes', 'date_format:Y-m']];
+        return [
+            'month' => ['sometimes', 'date_format:Y-m'],
+            'user_id' => ['sometimes', 'integer', 'min:1'],
+            'hq_id' => ['sometimes', 'integer', 'min:1'],
+            'include_team' => ['sometimes', 'boolean'],
+        ];
     }
 
     public function messages(): array

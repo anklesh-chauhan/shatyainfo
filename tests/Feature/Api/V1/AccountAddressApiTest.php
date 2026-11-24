@@ -93,6 +93,24 @@ it('creates an address on an account', function () {
     expect($doctor->addresses()->count())->toBe(1);
 });
 
+it('preserves linked addresses through trash and can unlink one without deleting it', function () {
+    $user = grantPagePermissions(fieldSalesUser('Address Register'), 'Delete:AccountMaster', 'Restore:AccountMaster');
+    Sanctum::actingAs($user);
+    $doctor = reportingDoctor($user, 'Address Register Doctor');
+    $location = fieldAddressLocation();
+    $url = '/api/v1/accounts';
+    $response = $this->postJson($url.'/'.$doctor->id.'/addresses', [
+        'type_master_id' => $location['addressType']->id, 'street' => '12 CG Road', 'area_town_id' => $location['pin']->id,
+    ])->assertSuccessful();
+    $addressId = $response->json('data.id');
+    $this->postJson($url.'/register-actions', ['action' => 'delete', 'ids' => [$doctor->id]])->assertOk();
+    $this->getJson($url.'/'.$doctor->id.'/addresses')->assertNotFound();
+    $this->postJson($url.'/register-actions', ['action' => 'restore', 'ids' => [$doctor->id]])->assertOk();
+    $this->getJson($url.'/'.$doctor->id.'/addresses')->assertOk()->assertJsonPath('data.0.id', $addressId);
+    $this->postJson($url.'/'.$doctor->id.'/related-actions', ['group' => 'addresses', 'action' => 'detach', 'ids' => [$addressId]])->assertOk();
+    expect(Address::query()->findOrFail($addressId)->addressable_id)->toBeNull();
+});
+
 it('shows account with addresses and related details', function () {
     $user = fieldSalesUser('AddrShow');
     $this->actingAs($user);

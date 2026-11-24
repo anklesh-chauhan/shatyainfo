@@ -176,6 +176,104 @@ it('validates dates territories and purpose relationships without partial writes
     expect(SalesTourPlan::count())->toBe(0);
 });
 
+it('creates for a visible employee and edits and submits their plan through the team register', function () {
+    $fixture = fieldMtpFixture();
+    $manager = $fixture['manager'];
+    $rep = $fixture['rep'];
+    $rep->employee->positions()->firstOrFail()->update([
+        'reports_to_position_id' => $manager->employee->positions()->firstOrFail()->id,
+    ]);
+    $repTerritory = reportingTerritory('Rep-only planning territory');
+    $rep->employee->positions()->firstOrFail()->territories()->attach($repTerritory->id);
+    $managerTerritory = reportingTerritory('Manager-only planning territory');
+    $manager->employee->positions()->firstOrFail()->territories()->attach($managerTerritory->id);
+    grantPagePermissions($manager, 'ViewAny:SalesTourPlan', 'View:SalesTourPlan', 'Create:SalesTourPlan', 'Update:SalesTourPlan');
+    Sanctum::actingAs($manager->fresh());
+    $base = '/api/v1/monthly-tour-plans';
+    $this->getJson($base.'/options')->assertJsonPath('data.can_view_team', true)
+        ->assertJsonCount(1, 'data.team_employees')->assertJsonPath('data.team_employees.0.id', $rep->id);
+    $this->getJson($base.'/options/employees/'.$rep->id)->assertOk()
+        ->assertJsonFragment(['id' => $repTerritory->id, 'name' => $repTerritory->name]);
+    $this->getJson($base.'/options/employees/'.$fixture['director']->id)->assertNotFound();
+
+    $body = [...$fixture['body'], 'scope' => 'team', 'user_id' => $rep->id];
+    $this->postJson($base, [...$body, 'user_id' => $fixture['director']->id])->assertNotFound();
+    $body['details'][0]['territory_id'] = $managerTerritory->id;
+    $body['details'][0]['patch_ids'] = [];
+    $this->postJson($base, $body)->assertUnprocessable();
+    $body['details'][0]['territory_id'] = $repTerritory->id;
+    $plan = $this->postJson($base, $body)->assertSuccessful()
+        ->assertJsonPath('data.can_edit_team', true)->assertJsonPath('data.can_edit', false)
+        ->assertJsonPath('data.can_submit_from_register', true)->json('data');
+    $this->assertDatabaseHas('sales_tour_plans', ['id' => $plan['id'], 'user_id' => $rep->id, 'created_by' => $manager->id]);
+    $this->postJson($base, $body)->assertConflict();
+
+    $path = $base.'/'.$plan['id'];
+    $this->getJson($path)->assertNotFound();
+    $this->getJson($path.'/team-options')->assertOk()
+        ->assertJsonFragment(['id' => $repTerritory->id, 'name' => $repTerritory->name]);
+    $body['revision'] = $plan['revision'];
+    $this->putJson($path, $body)->assertUnprocessable();
+    unset($body['user_id']);
+    $body['details'][0]['remarks'] = 'Manager edited';
+    $changed = $this->putJson($path, $body)->assertOk()->assertJsonPath('data.details.0.remarks', 'Manager edited')->json('data');
+    $this->putJson($path, $body)->assertConflict();
+    $this->postJson($path.'/submit', ['scope' => 'team', 'revision' => $plan['revision']])->assertConflict();
+
+    ApprovalSetting::query()->update(['enabled_modules' => []]);
+    $this->postJson($path.'/submit', ['scope' => 'team', 'revision' => $changed['revision']])->assertOk()
+        ->assertJsonPath('data.approval_status', 'approved')
+        ->assertJsonPath('data.can_edit_team', false)->assertJsonPath('data.can_submit_team', false);
+    $this->getJson($path.'/team-options')->assertForbidden();
+
+    $manager->revokePermissionTo('View:SalesTourPlan');
+    Sanctum::actingAs($manager->fresh());
+    $this->getJson($path.'?scope=team')->assertForbidden();
+    $this->putJson($path, $body)->assertForbidden();
+    $this->postJson($base, [...$body, 'user_id' => $rep->id])->assertForbidden();
+});
+
+it('checks each selected revision before deleting and reports skipped bulk submissions', function () {
+    $fixture = fieldMtpFixture();
+    $manager = $fixture['manager'];
+    $base = '/api/v1/monthly-tour-plans';
+    $first = $this->postJson($base, $fixture['body'])->assertSuccessful()->json('data');
+    $second = SalesTourPlan::forceCreate([
+        'user_id' => $fixture['director']->id, 'month' => '2026-10',
+        'approval_status' => 'draft', 'created_by' => $manager->id,
+    ]);
+    $second->details()->create(['date' => '2026-10-01', 'territory_id' => $fixture['territory']->id, 'remarks' => 'Second route']);
+
+    grantPagePermissions($manager, 'ViewAny:SalesTourPlan', 'View:SalesTourPlan', 'ViewOwnTerritory:SalesTourPlan', 'Update:SalesTourPlan');
+    Sanctum::actingAs($manager->fresh());
+    $secondRevision = $this->getJson($base.'/'.$second->id.'?scope=team')
+        ->assertJsonPath('data.can_delete', false)->json('data.revision');
+    $payload = ['scope' => 'team', 'action' => 'delete', 'plans' => [
+        ['id' => $first['id'], 'revision' => $first['revision']],
+        ['id' => $second->id, 'revision' => str_repeat('f', 64)],
+    ]];
+    $this->postJson($base.'/register-actions', $payload)->assertForbidden();
+
+    grantPagePermissions($manager, 'Delete:SalesTourPlan');
+    Sanctum::actingAs($manager->fresh());
+    $this->postJson($base.'/register-actions', $payload)->assertConflict();
+    $this->assertNotSoftDeleted('sales_tour_plans', ['id' => $first['id']]);
+    $payload['plans'][1]['revision'] = $secondRevision;
+    $this->postJson($base.'/register-actions', $payload)->assertOk()->assertJsonPath('data.completed', 2);
+    $this->assertSoftDeleted('sales_tour_plans', ['id' => $first['id']]);
+    $this->assertSoftDeleted('sales_tour_plans', ['id' => $second->id]);
+
+    ApprovalSetting::query()->update(['enabled_modules' => []]);
+    Sanctum::actingAs($fixture['rep']);
+    $replacement = $this->postJson($base, $fixture['body'])->assertSuccessful()->json('data');
+    $payload['action'] = 'submit';
+    $payload['plans'][0] = ['id' => $replacement['id'], 'revision' => $replacement['revision']];
+    Sanctum::actingAs($manager->fresh());
+    $this->postJson($base.'/register-actions', $payload)->assertOk()
+        ->assertJsonPath('data.completed', 1)->assertJsonPath('data.skipped', 1);
+    expect(SalesTourPlan::findOrFail($replacement['id'])->isApproved())->toBeTrue();
+});
+
 it('submits locks edits and requires sequential assigned approvals', function () {
     $f = fieldMtpFixture();
     $plan = $this->postJson('/api/v1/monthly-tour-plans', $f['body'])->json('data');

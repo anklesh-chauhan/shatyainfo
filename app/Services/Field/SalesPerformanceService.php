@@ -16,12 +16,17 @@ use Illuminate\Support\Facades\DB;
 
 class SalesPerformanceService
 {
+    public static function canViewTerritories(?User $user): bool
+    {
+        return $user !== null && ($user->can('View:SalesTargets') || $user->can('Manage:SalesTargets'));
+    }
+
     /**
      * Create a new class instance.
      */
     public function visibleTargets(User $user): Builder
     {
-        abort_unless($user->can('View:SalesTargets') || $user->can('Manage:SalesTargets'), 403);
+        abort_unless(self::canViewTerritories($user), 403);
         $query = TerritorySalesTarget::query()->with('territory:id,name');
         if ($this->allTerritories($user)) {
             return $query;
@@ -43,14 +48,14 @@ class SalesPerformanceService
     private function currentTerritoryIds(User $user): array
     {
         return array_unique([...TerritoryService::getUserTerritoryIds($user),
-            ...AccountMaster::query()->applyVisibility('AccountMaster')->whereNotNull('territory_id')->pluck('territory_id')->all(),
+            ...AccountMaster::query()->applyVisibility('AccountMaster', $user)->whereNotNull('territory_id')->pluck('territory_id')->all(),
             ...TerritorySalesAssignment::query()->where('user_id', $user->id)->whereDate('effective_from', '<=', today())
                 ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->pluck('territory_id')->all()]);
     }
 
     public function territories(User $user): Builder
     {
-        abort_unless($user->can('View:SalesTargets') || $user->can('Manage:SalesTargets'), 403);
+        abort_unless(self::canViewTerritories($user), 403);
         $query = Territory::query()->orderBy('name');
         if (! $this->allTerritories($user)) {
             $query->whereIn('id', $this->currentTerritoryIds($user));
@@ -72,6 +77,7 @@ class SalesPerformanceService
 
         return DB::transaction(function () use ($user, $data, $territory, $from, $to): TerritorySalesTarget {
             $territory->newQuery()->whereKey($territory->id)->lockForUpdate()->firstOrFail();
+            $this->territories($user)->findOrFail($territory->id);
             abort_if(TerritorySalesTarget::query()->where('territory_id', $territory->id)->where('period_type', $data['period_type'])
                 ->whereDate('starts_on', '<=', $to)->whereDate('ends_on', '>=', $from)->exists(), 409, 'This territory already has an overlapping target for that period type.');
 
@@ -95,10 +101,14 @@ class SalesPerformanceService
     public function reviseTarget(User $user, TerritorySalesTarget $target, array $data): TerritorySalesTarget
     {
         abort_unless($user->can('Manage:SalesTargets'), 403);
-        $this->territories($user)->findOrFail($target->territory_id);
 
-        return DB::transaction(function () use ($target, $data): TerritorySalesTarget {
+        return DB::transaction(function () use ($user, $target, $data): TerritorySalesTarget {
+            Territory::query()->whereKey($target->territory_id)->lockForUpdate()->firstOrFail();
+            $this->territories($user)->findOrFail($target->territory_id);
             $target = TerritorySalesTarget::query()->lockForUpdate()->findOrFail($target->id);
+            abort_unless($target->starts_on->gt(today()), 409, 'Targets are fixed after their period begins.');
+            abort_if(isset($data['revision']) && (int) $data['revision'] !== count($target->revisions ?? []), 409,
+                'This target has changed. Refresh before revising it.');
             $target->update($this->targetValues($data));
 
             return $target;
@@ -114,6 +124,7 @@ class SalesPerformanceService
 
         return DB::transaction(function () use ($territory, $owner, $from, $data, $user): TerritorySalesAssignment {
             $territory->newQuery()->whereKey($territory->id)->lockForUpdate()->firstOrFail();
+            $this->territories($user)->findOrFail($territory->id);
             $last = TerritorySalesAssignment::query()->where('territory_id', $territory->id)->latest('effective_from')->lockForUpdate()->first();
             if ($last) {
                 abort_if($from->lt(today()) || $from->lte($last->effective_from), 422, 'Append assignments chronologically from today onward. Historical ownership is preserved.');
@@ -265,6 +276,7 @@ class SalesPerformanceService
         return ['id' => $target->id, 'territory_id' => $target->territory_id, 'territory' => $target->territory,
             'period_type' => $target->period_type, 'starts_on' => $target->starts_on->toDateString(), 'ends_on' => $target->ends_on->toDateString(),
             'target_value_paise' => $target->target_value_paise, 'target_value_lakhs' => $target->target_value_paise / 10000000,
-            'target_quantity' => (float) $target->target_quantity, 'note' => $target->note];
+            'target_quantity' => (float) $target->target_quantity, 'note' => $target->note,
+            'revision' => count($target->revisions ?? [])];
     }
 }

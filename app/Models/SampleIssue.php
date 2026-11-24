@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SampleIssueStatus;
 use App\Services\Inventory\InventoryService;
+use Database\Factories\SampleIssueFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Auth;
 
 class SampleIssue extends BaseModel
 {
-    /** @use HasFactory<\Database\Factories\SampleIssueFactory> */
+    /** @use HasFactory<SampleIssueFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -67,7 +68,7 @@ class SampleIssue extends BaseModel
 
     public function isEditable(): bool
     {
-        return $this->status === SampleIssueStatus::Draft && ! $this->isPosted();
+        return ! $this->trashed() && $this->status === SampleIssueStatus::Draft && ! $this->isPosted();
     }
 
     public function post(): void
@@ -78,6 +79,13 @@ class SampleIssue extends BaseModel
     protected static function boot(): void
     {
         parent::boot();
+
+        static::updating(function (SampleIssue $sampleIssue): bool {
+            return $sampleIssue->getRawOriginal('posted_at') === null;
+        });
+
+        static::deleting(fn (SampleIssue $sampleIssue): bool => $sampleIssue->status === SampleIssueStatus::Draft && ! $sampleIssue->isPosted());
+        static::restoring(fn (SampleIssue $sampleIssue): bool => $sampleIssue->status === SampleIssueStatus::Draft && ! $sampleIssue->isPosted());
 
         static::creating(function (SampleIssue $sampleIssue): void {
             $sampleIssue->document_number ??= NumberSeries::getNextNumber(SampleIssue::class);

@@ -1,15 +1,133 @@
 <?php
 
 use App\Models\AccountMaster;
+use App\Models\AccountReportingMaster;
+use App\Models\ApprovalSetting;
+use App\Models\ContactDetail;
 use App\Models\JobRole;
 use App\Models\Position;
 use App\Models\TypeMaster;
 use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
+
+it('filters scoped register rows and keeps trash off the legacy list and detail', function () {
+    $actor = grantPagePermissions(fieldSalesUser('Account Register'), 'Delete:AccountMaster', 'Restore:AccountMaster');
+    $other = reportingUser('Hidden Register Owner');
+    $outside = reportingDoctor($other, 'Outside Account');
+    $territory = reportingTerritory('Visible Register Territory');
+    $patch = reportingPatch($territory, 'Visible Register Patch');
+    Sanctum::actingAs($actor);
+    $account = reportingDoctor($actor, 'Visible Account');
+    $contact = ContactDetail::query()->create(['first_name' => 'Linked']);
+    $account->contactDetails()->attach($contact);
+    $account->patches()->attach($patch);
+    $specialty = AccountReportingMaster::query()->create(['kind' => 'specialty', 'code' => 'acc_sp', 'name' => 'Cardiology', 'is_active' => true]);
+    $account->update(['specialty_id' => $specialty->id, 'territory_id' => $territory->id]);
+    $url = '/api/v1/accounts';
+    $this->getJson($url.'/register-options')->assertOk()
+        ->assertJsonPath('data.territories.0.id', $territory->id)->assertJsonPath('data.patches.0.id', $patch->id);
+    $this->getJson($url.'?register=1&specialty_id='.$specialty->id.'&patch_id='.$patch->id)
+        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.specialty_name', 'Cardiology')
+        ->assertJsonPath('data.0.actions', ['delete']);
+    $this->getJson($url.'/'.$outside->id.'?register=1')->assertNotFound();
+    $this->postJson($url.'/register-actions', ['action' => 'delete', 'ids' => [$account->id, $outside->id]])->assertNotFound();
+    expect($account->refresh()->trashed())->toBeFalse();
+    $this->postJson($url.'/register-actions', ['action' => 'delete', 'ids' => [$account->id]])->assertOk();
+    $this->getJson($url)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($url.'/'.$account->id)->assertNotFound();
+    $this->getJson($url.'?register=1&trash=only')->assertOk()->assertJsonPath('data.0.trashed', true);
+    $this->getJson($url.'/'.$account->id.'?register=1')->assertOk()->assertJsonPath('data.can_update', false)
+        ->assertJsonPath('data.contacts.0.id', $contact->id);
+    $this->postJson($url.'/register-actions', ['action' => 'restore', 'ids' => [$account->id]])->assertOk();
+    expect($account->refresh()->contactDetails()->sole()->id)->toBe($contact->id);
+});
+
+it('checks approval locks and protects account history from permanent deletion', function () {
+    $actor = grantPagePermissions(fieldSalesUser('Account Lifecycle'), 'Delete:AccountMaster', 'ForceDelete:AccountMaster');
+    Sanctum::actingAs($actor);
+    $locked = reportingDoctor($actor, 'Approved Account');
+    $empty = reportingDoctor($actor, 'Unused Account');
+    $linked = reportingDoctor($actor, 'Linked Account');
+    $linked->callTargets()->create(['calls_per_month' => 2, 'effective_from' => today()->startOfMonth()]);
+    AccountMaster::query()->whereKey($locked->id)->update(['approval_status' => 'approved']);
+    $url = '/api/v1/accounts/register-actions';
+    $this->postJson($url, ['action' => 'delete', 'ids' => [$empty->id, $locked->id]])->assertUnprocessable();
+    expect($empty->refresh()->trashed())->toBeFalse();
+    $this->postJson($url, ['action' => 'delete', 'ids' => [$empty->id, $linked->id]])->assertOk()->assertJsonPath('data.updated', 2);
+    $this->postJson($url, ['action' => 'forceDelete', 'ids' => [$linked->id]])->assertUnprocessable();
+    $this->postJson($url, ['action' => 'forceDelete', 'ids' => [$empty->id]])->assertOk();
+    expect(AccountMaster::withTrashed()->find($empty->id))->toBeNull()
+        ->and(ApprovalSetting::supportsModule(AccountMaster::class))->toBeFalse();
+});
+
+it('edits call targets and maintains scoped contact links on the account', function () {
+    $actor = grantPagePermissions(fieldSalesUser('Account Relationships'), 'ViewAny:ContactDetail', 'View:ContactDetail', 'Create:ContactDetail', 'Update:ContactDetail');
+    Sanctum::actingAs($actor);
+    $account = reportingDoctor($actor, 'Account Relationships');
+    $other = reportingDoctor($actor, 'Other Account Relationships');
+    $url = '/api/v1/accounts/'.$account->id;
+    $target = ['calls_per_month' => 4, 'effective_from' => '2026-11-01'];
+    $saved = $this->patchJson($url, ['call_targets' => [$target]])->assertOk()->assertJsonPath('data.call_targets.0.calls_per_month', 4);
+    $this->patchJson('/api/v1/accounts/'.$other->id, ['call_targets' => [[...$target, 'id' => $saved->json('data.call_targets.0.id')]]])
+        ->assertUnprocessable()->assertJsonValidationErrors('call_targets');
+    $contact = ['first_name' => 'Linked', 'mobile_number' => '9876543210', 'email' => 'linked@example.test'];
+    $response = $this->postJson($url.'/contacts', $contact)->assertSuccessful();
+    $id = $response->json('data.contacts.0.id');
+    $this->getJson($url.'?register=1')->assertOk()->assertJsonPath('data.contact_actions.attach', true)->assertJsonPath('data.contacts.0.can_edit', true);
+    $this->patchJson('/api/v1/accounts/'.$other->id.'/contacts/'.$id, $contact)->assertNotFound();
+    $this->patchJson($url.'/contacts/'.$id, [...$contact, 'first_name' => 'Updated'])->assertOk()->assertJsonPath('data.contacts.0.first_name', 'Updated');
+    $this->deleteJson($url.'/contacts/'.$id)->assertOk()->assertJsonCount(0, 'data.contacts');
+    $this->putJson($url.'/contacts/'.$id)->assertOk()->assertJsonCount(1, 'data.contacts');
+    $this->putJson($url.'/contacts/'.$id)->assertOk()->assertJsonCount(1, 'data.contacts');
+    $this->putJson('/api/v1/accounts/'.$other->id.'/contacts/'.$id)->assertOk();
+    $actor->givePermissionTo(Permission::findOrCreate('Delete:ContactDetail', 'web'));
+    Sanctum::actingAs($actor->fresh());
+    $this->postJson($url.'/related-actions', ['group' => 'contacts', 'action' => 'delete', 'ids' => [$id]])->assertUnprocessable();
+    $this->postJson($url.'/related-actions', ['group' => 'contacts', 'action' => 'detach', 'ids' => [$id]])->assertOk();
+    expect($other->contactDetails()->whereKey($id)->exists())->toBeTrue();
+});
+
+it('removes only records belonging to the selected account in a related batch', function () {
+    $actor = fieldSalesUser('Account Financial Records');
+    Sanctum::actingAs($actor);
+    $account = reportingDoctor($actor, 'First Bank Account');
+    $other = reportingDoctor($actor, 'Second Bank Account');
+    $first = $account->bankDetail()->create(['bank_name' => 'Local', 'bank_account_number' => '110001']);
+    $second = $other->bankDetail()->create(['bank_name' => 'Local', 'bank_account_number' => '110002']);
+    $url = '/api/v1/accounts/'.$account->id.'/related-actions';
+    $this->postJson($url, ['group' => 'bank', 'action' => 'delete', 'ids' => [$first->id, $second->id]])->assertNotFound();
+    expect($first->refresh()->trashed())->toBeFalse();
+    $this->postJson($url, ['group' => 'bank', 'action' => 'delete', 'ids' => [$first->id]])->assertOk();
+    expect($first->refresh()->trashed())->toBeTrue()->and($second->refresh()->trashed())->toBeFalse();
+});
+
+it('lets field team managers assign owners and keeps ordinary account writes owner-scoped', function () {
+    $rep = fieldSalesUser('Account Ownership Rep');
+    $owner = reportingUser('Assigned Account Owner');
+    $type = reportingDoctor($rep, 'Account Type Seed')->type_master_id;
+    Sanctum::actingAs($rep);
+    $url = '/api/v1/accounts';
+    $payload = ['name' => 'Assigned Account', 'type_master_id' => $type, 'assign_owner_id' => $owner->id];
+    $this->getJson($url.'/owner-options')->assertForbidden();
+    $this->postJson($url, $payload)->assertForbidden();
+    $manager = grantPagePermissions($rep, 'Manage:FieldTeam')->fresh();
+    Sanctum::actingAs($manager);
+    $this->getJson($url.'/owner-options?search=Assigned+Account')->assertOk()
+        ->assertJsonPath('data', [['id' => $owner->id, 'label' => $owner->name]]);
+    $created = $this->postJson($url, $payload)->assertSuccessful()->assertJsonPath('data.owner_id', $owner->id);
+    $id = $created->json('data.id');
+    $this->getJson($url.'/'.$id.'?register=1')->assertOk()->assertJsonPath('data.can_assign_owner', true);
+    $this->travel(1)->seconds();
+    $this->patchJson($url.'/'.$id, ['assign_owner_id' => $manager->id])->assertOk()
+        ->assertJsonPath('data.owner_id', $manager->id)
+        ->assertJsonCount(2, 'data.assignment_history');
+    $this->patchJson($url.'/'.$id, ['owner_id' => $owner->id])->assertOk()->assertJsonPath('data.owner_id', $manager->id);
+});
 
 it('lists visible account masters for sales users', function () {
     $user = fieldSalesUser('AccountList');

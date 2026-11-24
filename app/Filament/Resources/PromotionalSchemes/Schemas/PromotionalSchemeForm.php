@@ -6,10 +6,9 @@ use App\Enums\PromotionalBenefitType;
 use App\Enums\PromotionalSchemeAppliesTo;
 use App\Enums\PromotionalSchemeStatus;
 use App\Enums\PromotionalSchemeType;
-use App\Models\AccountMaster;
-use App\Models\ItemMaster;
-use App\Models\Territory;
+use App\Services\Marketing\PromotionalSchemeRegister;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -25,6 +24,7 @@ class PromotionalSchemeForm
     {
         return $schema
             ->components([
+                Hidden::make('revision'),
                 Section::make('Scheme Details')
                     ->columns(3)
                     ->schema([
@@ -64,6 +64,7 @@ class PromotionalSchemeForm
                     ->schema([
                         Select::make('applies_to')
                             ->options(PromotionalSchemeAppliesTo::class)
+                            ->dehydrateStateUsing(fn (mixed $state): ?string => self::appliesToValue($state))
                             ->default(PromotionalSchemeAppliesTo::Global->value)
                             ->required()
                             ->live()
@@ -73,24 +74,7 @@ class PromotionalSchemeForm
 
                         Select::make('applies_to_id')
                             ->label('Target')
-                            ->options(function (Get $get): array {
-                                return match (self::appliesToValue($get('applies_to'))) {
-                                    PromotionalSchemeAppliesTo::Customer->value => AccountMaster::query()
-                                        ->orderBy('name')
-                                        ->pluck('name', 'id')
-                                        ->all(),
-                                    PromotionalSchemeAppliesTo::Territory->value => Territory::query()
-                                        ->orderBy('name')
-                                        ->pluck('name', 'id')
-                                        ->all(),
-                                    PromotionalSchemeAppliesTo::Item->value => ItemMaster::query()
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all(),
-                                    default => [],
-                                };
-                            })
+                            ->options(fn (Get $get): array => self::options(self::appliesToValue($get('applies_to'))))
                             ->searchable()
                             ->visible(fn (Get $get): bool => self::hasSpecificTarget($get('applies_to')))
                             ->required(fn (Get $get): bool => self::hasSpecificTarget($get('applies_to'))),
@@ -100,20 +84,17 @@ class PromotionalSchemeForm
                     ->description('Structured promotional benefits beyond line-level discounts.')
                     ->schema([
                         Repeater::make('benefits')
-                            ->relationship()
+                            ->reorderable(false)
                             ->columns(4)
                             ->schema([
+                                Hidden::make('id'),
                                 Select::make('benefit_type')
                                     ->options(PromotionalBenefitType::class)
                                     ->required(),
 
                                 Select::make('item_master_id')
                                     ->label('Item')
-                                    ->options(fn (): array => ItemMaster::query()
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all())
+                                    ->options(fn (): array => self::options('item'))
                                     ->searchable(),
 
                                 TextInput::make('buy_quantity')
@@ -143,6 +124,17 @@ class PromotionalSchemeForm
                             ->columnSpanFull(),
                     ])->columnSpanFull(),
             ]);
+    }
+
+    private static function options(?string $type): array
+    {
+        if (! in_array($type, ['customer', 'territory', 'item'], true)) {
+            return [];
+        }
+        $label = $type === 'item' ? 'item_name' : 'name';
+
+        return app(PromotionalSchemeRegister::class)->catalog(auth()->user(), $type)
+            ->orderBy($label)->pluck($label, 'id')->all();
     }
 
     private static function appliesToValue(mixed $appliesTo): ?string

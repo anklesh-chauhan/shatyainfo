@@ -6,9 +6,12 @@ use App\Domains\Approval\Contracts\ApprovalHandler;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\Approval;
 use App\Models\DeliveryChallan;
+use App\Models\Employee;
 use App\Models\GoodsReceiptNote;
 use App\Models\InventoryAdjustment;
 use App\Models\InventoryTransfer;
+use App\Models\LocationMaster;
+use App\Models\Position;
 use App\Models\PurchaseOrder;
 use App\Models\SalesDcr;
 use App\Models\SalesInvoice;
@@ -22,7 +25,7 @@ class OperationalApprovalHandler implements ApprovalHandler
     public static function supports(): array
     {
         return [SalesDcr::class, SalesOrder::class, SalesInvoice::class, PurchaseOrder::class,
-            GoodsReceiptNote::class, InventoryAdjustment::class, InventoryTransfer::class, DeliveryChallan::class];
+            GoodsReceiptNote::class, InventoryAdjustment::class, InventoryTransfer::class, DeliveryChallan::class, LocationMaster::class, Employee::class, Position::class];
     }
 
     public function handle(Model $model, Approval $approval): void
@@ -35,8 +38,8 @@ class OperationalApprovalHandler implements ApprovalHandler
             return;
         }
 
-        // Stock documents retain their posting status; the approval record authorizes posting.
-        if (! $model instanceof SalesDcr && ! $model instanceof SalesOrder && ! $model instanceof SalesInvoice && ! $model instanceof PurchaseOrder) {
+        // Records without a separate approval status retain their state; the approval relation records the outcome.
+        if (! $model instanceof SalesDcr && ! $model instanceof SalesOrder && ! $model instanceof SalesInvoice && ! $model instanceof PurchaseOrder && ! $model instanceof Employee && ! $model instanceof Position) {
             return;
         }
 

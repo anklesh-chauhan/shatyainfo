@@ -5,11 +5,13 @@ namespace App\Filament\Resources\SalesInvoices;
 use App\Filament\Actions\ApprovalAction;
 use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\BaseResource;
+use App\Filament\Resources\DeliveryChallans\DeliveryChallanResource;
 use App\Filament\Resources\SalesInvoices\Pages\CreateSalesInvoice;
 use App\Filament\Resources\SalesInvoices\Pages\EditSalesInvoice;
 use App\Filament\Resources\SalesInvoices\Pages\ListSalesInvoices;
 use App\Models\Organization;
 use App\Models\SalesInvoice;
+use App\Services\Inventory\InvoiceDeliveryHandoff;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\SalesDocumentResourceTrait;
 use Filament\Actions\Action;
@@ -142,7 +144,9 @@ class SalesInvoiceResource extends BaseResource
                         ->label('Create Delivery Challan')
                         ->icon('heroicon-o-truck')
                         ->color('warning')
-                        ->visible(fn (SalesInvoice $record): bool => $record->hasPendingDelivery() && $record->canProceedAfterApproval())
+                        ->visible(fn (SalesInvoice $record): bool => DeliveryChallanResource::canAccess()
+                            && app(InvoiceDeliveryHandoff::class)->canCreate(auth()->user())
+                            && app(InvoiceDeliveryHandoff::class)->isReady($record) && $record->hasPendingDelivery())
                         ->url(fn (SalesInvoice $record): string => route('filament.admin.resources.delivery-challans.create', [
                             'sales_invoice_id' => $record->id,
                         ])),

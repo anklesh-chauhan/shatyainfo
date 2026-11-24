@@ -2,29 +2,30 @@
 
 namespace App\Filament\Resources\LocationMasters;
 
-use App\Filament\Actions\ApprovalAction;
-use App\Filament\Actions\BulkApprovalAction;
-use App\Filament\Resources\AccountMasters\RelationManagers\AddressesRelationManager;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\LocationMasters\Pages\CreateLocationMaster;
 use App\Filament\Resources\LocationMasters\Pages\EditLocationMaster;
 use App\Filament\Resources\LocationMasters\Pages\ListLocationMasters;
 use App\Filament\Resources\LocationMasters\Pages\ViewLocationMaster;
+use App\Filament\Resources\LocationMasters\RelationManagers\AddressesRelationManager;
 use App\Filament\Resources\LocationMasters\RelationManagers\ItemsRelationManager;
 use App\Models\LocationMaster;
-use App\Models\NumberSeries;
 use App\Models\TypeMaster;
+use App\Services\Inventory\LocationRegister;
 use App\Traits\AddressDetailsTrait;
 use App\Traits\HasSafeGlobalSearch;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -32,6 +33,9 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 
 class LocationMasterResource extends BaseResource
 {
@@ -47,97 +51,99 @@ class LocationMasterResource extends BaseResource
 
     protected static ?int $navigationSort = 90;
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && app(LocationRegister::class)->canRead(auth()->user());
+    }
+
+    public static function canCreate(): bool
+    {
+        return parent::canCreate() && app(LocationRegister::class)->canRead(auth()->user());
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return app(LocationRegister::class)->visible(auth()->user());
+    }
+
     public static function form(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                TextInput::make('name')->label('Location Name')->required(),
-                TextInput::make('location_code')
-                    ->label('Location Code')
-                    ->default(fn () => NumberSeries::getNextNumber(LocationMaster::class))
-                    ->disabled()
-                    ->dehydrated(true),
+        return $schema->components([
+            Hidden::make('revision'),
+            TextInput::make('name')->label('Location Name')->required()->maxLength(255),
+            TextInput::make('location_code')->label('Location Code')->disabled()->dehydrated(false),
+            Select::make('parent_id')->label('Parent Location')->nullable()->searchable()
+                ->options(fn (?LocationMaster $record): array => self::formOptions('parents', $record)),
+            Textarea::make('description')->maxLength(255),
+            Select::make('parent_type_id')->label('Location Type')->dehydrated(false)->searchable()->required()->live()
+                ->options(fn (?LocationMaster $record): array => self::formOptions('types', $record))
+                ->afterStateHydrated(function (callable $set, callable $get): void {
+                    $type = TypeMaster::query()->find($get('typeable_id'));
+                    $set('parent_type_id', $type?->parent_id ?? $type?->id);
+                })
+                ->afterStateUpdated(function (callable $set, mixed $state): void {
+                    $set('typeable_id', TypeMaster::query()->where('typeable_type', LocationMaster::class)->where('parent_id', $state)->exists() ? null : $state);
+                }),
+            Select::make('typeable_id')->label('Location Sub Type')->searchable()
+                ->options(fn (Get $get, ?LocationMaster $record): array => self::formOptions('subtypes', $record, $get('parent_type_id')))
+                ->visible(fn (Get $get): bool => filled($get('parent_type_id')) && TypeMaster::query()->where('typeable_type', LocationMaster::class)->where('parent_id', $get('parent_type_id'))->exists())
+                ->dehydrated(true)->dehydratedWhenHidden()->required(),
+            Select::make('contact_id')->label('Contact Detail')->searchable()
+                ->options(fn (?LocationMaster $record): array => self::formOptions('contacts', $record)),
+            Select::make('territory_ids')->label('Territories')->multiple()->searchable()
+                ->options(fn (?LocationMaster $record): array => self::formOptions('territories', $record)),
+            TextInput::make('latitude')->numeric()->minValue(-90)->maxValue(90),
+            TextInput::make('longitude')->numeric()->minValue(-180)->maxValue(180),
+            FileUpload::make('image')->image()->maxSize(2048)->storeFiles(false),
+            Toggle::make('is_active')->label('Active')->default(true),
+        ])->disabled(fn (?LocationMaster $record): bool => $record !== null && ! app(LocationRegister::class)->canChange(auth()->user(), $record));
+    }
 
-                Select::make('parent_id')
-                    ->label('Parent Location')
-                    ->options(LocationMaster::pluck('name', 'id'))
-                    ->searchable()
-                    ->preload()
-                    ->nullable(),
+    public static function formOptions(string $kind, ?LocationMaster $record, ?int $parentType = null): array
+    {
+        $locations = app(LocationRegister::class);
+        $query = $locations->catalog(auth()->user(), $kind, $record?->id, $parentType);
+        if ($kind === 'subtypes' && ! TypeMaster::query()->where('typeable_type', LocationMaster::class)->where('parent_id', $parentType)->exists()) {
+            $query = $locations->catalog(auth()->user(), 'types')->whereKey($parentType);
+        }
+        $options = $query->get()->pluck($kind === 'contacts' ? 'full_name' : 'name', 'id')->all();
+        if ($record === null) {
+            return $options;
+        }
+        $type = TypeMaster::withTrashed()->find($record->typeable_id);
+        $current = match ($kind) {
+            'parents' => [$record->parent_id],
+            'types' => [$type?->parent_id ?? $type?->id],
+            'subtypes' => (int) ($type?->parent_id ?? $type?->id) === (int) $parentType ? [$record->typeable_id] : [],
+            'contacts' => [$record->contactDetail?->id],
+            'territories' => $record->territories()->pluck('territories.id')->all(),
+        };
+        foreach (array_filter($current) as $id) {
+            $options[$id] ??= 'Existing linked '.match ($kind) {
+                'parents' => 'location', 'contacts' => 'contact', 'territories' => 'territory', default => 'type'
+            };
+        }
 
-                Textarea::make('description')->label('Description'),
+        return $options;
+    }
 
-                Select::make('parent_type_id')
-                    ->label('Location Type')
-                    ->searchable()
-                    ->options(
-                        TypeMaster::whereNull('parent_id')
-                            ->where('typeable_type', LocationMaster::class)
-                            ->pluck('name', 'id')
-                    )
-                    ->required()
-                    ->live()
-                    ->afterStateHydrated(function (callable $set, callable $get) {
-                        $typeId = $get('typeable_id');
+    public static function adminInput(array $data, ?LocationMaster $record = null): array
+    {
+        $image = $data['image'] ?? null;
+        if (is_array($image)) {
+            $image = reset($image) ?: null;
+        }
+        if ($image instanceof UploadedFile) {
+            $data['image_base64'] = base64_encode($image->get());
+        } elseif ($image === null && $record?->image) {
+            $data['remove_image'] = true;
+        }
+        if ($record === null) {
+            unset($data['revision']);
+        }
+        unset($data['image']);
 
-                        if (! $typeId) {
-                            return;
-                        }
-
-                        $type = TypeMaster::find($typeId);
-
-                        $set('parent_type_id', $type?->parent_id ?? $typeId);
-                    })
-                    ->afterStateUpdated(function (callable $set, $state) {
-
-                        $hasChildren = TypeMaster::where('parent_id', $state)->exists();
-
-                        if (! $hasChildren) {
-                            // No sub-types → store parent directly
-                            $set('typeable_id', $state);
-                        } else {
-                            $set('typeable_id', null);
-                        }
-                    }),
-
-                Select::make('typeable_id')
-                    ->label('Location Sub Type')
-                    ->searchable()
-                    ->options(fn (Get $get) => TypeMaster::where('parent_id', $get('parent_type_id'))
-                        ->pluck('name', 'id')
-                    )
-                    ->visible(fn (Get $get) => filled($get('parent_type_id')) &&
-                        TypeMaster::where('parent_id', $get('parent_type_id'))->exists()
-                    )
-                    ->required(fn (Get $get) => TypeMaster::where('parent_id', $get('parent_type_id'))->exists()
-                    )
-                    ->live(),
-
-                Select::make('contactable_id')
-                    ->label('Contact Detail')
-                    ->relationship('contactDetail', 'full_name')
-                    ->searchable(),
-
-                Select::make('territories')
-                    ->relationship(name: 'territories', titleAttribute: 'name')
-                    ->multiple() // This enables the many-to-many logic
-                    ->preload()   // Useful if the territory list isn't massive
-                    ->searchable(),
-
-                TextInput::make('latitude')
-                    ->label('Latitude')
-                    ->numeric()
-                    ->mask('99.9999999'),
-
-                TextInput::make('longitude')
-                    ->label('Longitude')
-                    ->numeric()
-                    ->mask('99.9999999'),
-
-                FileUpload::make('image')->label('Image'),
-
-                Toggle::make('is_active')->label('Active')->default(true),
-            ]);
+        return $data;
     }
 
     public static function table(Table $table): Table
@@ -167,14 +173,26 @@ class LocationMasterResource extends BaseResource
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
-                ApprovalAction::make(),
+                Action::make('submit')->label('Send for Approval')->requiresConfirmation()
+                    ->visible(fn (LocationMaster $record): bool => app(LocationRegister::class)->canAct(auth()->user(), $record, 'submit'))
+                    ->action(fn (LocationMaster $record) => app(LocationRegister::class)->act(auth()->user(), [$record->id], 'submit', app(LocationRegister::class)->revision($record))),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    BulkApprovalAction::make(),
-                    DeleteBulkAction::make(),
+                    self::locationBulkAction('submit', 'Send for Bulk Approval'),
+                    self::locationBulkAction('delete', 'Delete selected'),
                 ]),
             ]);
+    }
+
+    private static function locationBulkAction(string $action, string $label): BulkAction
+    {
+        return BulkAction::make($action)->label($label)->requiresConfirmation()->deselectRecordsAfterCompletion()
+            ->visible(fn (): bool => auth()->user()->can(($action === 'delete' ? 'DeleteAny' : 'Update').':LocationMaster'))
+            ->action(function (Collection $records) use ($action): void {
+                app(LocationRegister::class)->act(auth()->user(), $records->modelKeys(), $action, bulk: true);
+                Notification::make()->title('Locations updated')->success()->send();
+            });
     }
 
     public static function getRelations(): array

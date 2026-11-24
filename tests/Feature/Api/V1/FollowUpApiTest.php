@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\ApprovalFlow;
+use App\Models\ApprovalSetting;
 use App\Models\FollowUp;
 use App\Models\FollowUpMedia;
 use App\Models\FollowUpPriority;
@@ -94,6 +96,12 @@ it('shows a visible follow-up and hides unrelated ones', function () {
         ->assertJsonPath('data.interaction', 'Mine')
         ->assertJsonPath('data.can_update', true);
 
+    $user->revokePermissionTo('Update:FollowUp');
+    $this->getJson('/api/v1/follow-ups/'.$mine->id)
+        ->assertSuccessful()
+        ->assertJsonPath('data.interaction', 'Mine')
+        ->assertJsonPath('data.can_update', false);
+
     $this->getJson('/api/v1/follow-ups/'.$hidden->id)->assertNotFound();
 });
 
@@ -132,10 +140,15 @@ it('returns follow-up options with can_create', function () {
     $this->getJson('/api/v1/follow-ups/options')
         ->assertSuccessful()
         ->assertJsonPath('data.can_create', true)
+        ->assertJsonPath('data.can_select_lead', false)
         ->assertJsonPath('data.media.0.name', 'Phone')
         ->assertJsonPath('data.results.0.name', 'Interested')
         ->assertJsonPath('data.statuses.0.name', 'Pending')
         ->assertJsonPath('data.priorities.0.name', 'High');
+
+    followUpApiGrant($user, ['ViewAny:Lead', 'View:Lead']);
+    $this->getJson('/api/v1/follow-ups/options')->assertOk()
+        ->assertJsonPath('data.can_select_lead', true);
 
     Sanctum::actingAs(reportingUser('FollowUpApiOptionsDenied'));
 
@@ -275,4 +288,88 @@ it('searches visible follow-ups by interaction', function () {
         ->assertSuccessful()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $match->id);
+});
+
+it('searches standalone Follow-ups by Lead reference and lookup labels inside record visibility', function () {
+    $user = reportingUser('Follow-up Register Reader');
+    $other = reportingUser('Follow-up Register Hidden');
+    followUpApiGrant($user, ['ViewAny:FollowUp', 'View:FollowUp']);
+    $lead = followUpApiLead($other);
+    $secondLead = followUpApiLead($other);
+    $secondLead->forceFill(['reference_code' => 'FOLLOWUP-REGISTER-SECOND'])->save();
+    $status = FollowUpStatus::query()->create(['name' => 'Awaiting callback']);
+    $match = followUpApiRecord($lead, $user, 'Visible first', $status);
+    $second = followUpApiRecord($secondLead, $user, 'Visible second');
+    followUpApiRecord($lead, $other, 'Hidden row', $status);
+
+    Sanctum::actingAs($user);
+    $endpoint = '/api/v1/follow-ups';
+    $this->getJson($endpoint.'?per_page=1&page=2')->assertOk()
+        ->assertJsonPath('data.0.id', $match->id)
+        ->assertJsonPath('meta.current_page', 2);
+    $this->getJson($endpoint.'?search=Awaiting')->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $match->id);
+    $this->getJson($endpoint.'?search='.urlencode($secondLead->reference_code))->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $second->id)
+        ->assertJsonMissingPath('data.0.lead_title');
+});
+
+it('soft deletes a visible follow-up and records deletion on its lead', function () {
+    $actor = reportingUser('Follow-up Delete Owner');
+    followUpApiGrant($actor, ['ViewAny:FollowUp', 'View:FollowUp', 'ViewAny:Lead', 'View:Lead', 'ViewOwn:Lead', 'ViewAny:LeadActivity']);
+    $lead = followUpApiLead($actor);
+    $followUp = followUpApiRecord($lead, $actor, 'Completed call');
+    Sanctum::actingAs($actor);
+    $path = '/api/v1/follow-ups/'.$followUp->id;
+
+    $this->getJson($path)->assertOk()->assertJsonPath('data.can_delete', false);
+    $this->deleteJson($path)->assertForbidden();
+    followUpApiGrant($actor, ['Delete:FollowUp']);
+    $this->getJson($path)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->getJson('/api/v1/follow-ups?lead_id='.$lead->id)->assertOk()->assertJsonPath('data.0.can_delete', true);
+    $this->deleteJson($path)->assertOk()->assertJsonPath('data.deleted', 1);
+    $this->assertSoftDeleted($followUp);
+    $this->assertDatabaseHas('follow_ups', ['id' => $followUp->id, 'deleted_by' => $actor->id, 'followupable_id' => $lead->id]);
+    $this->assertNotSoftDeleted($lead);
+    $this->getJson('/api/v1/leads/'.$lead->id.'/activities')->assertOk()
+        ->assertJsonPath('data.0.activity_type', 'Follow-up Deleted')
+        ->assertJsonPath('data.0.user_id', $actor->id);
+    $this->getJson($path)->assertNotFound();
+    $this->deleteJson($path)->assertNotFound();
+});
+
+it('validates a complete follow-up selection and audits deletion of legacy approved records', function () {
+    $actor = reportingUser('Follow-up Bulk Owner');
+    $other = reportingUser('Follow-up Bulk Other');
+    followUpApiGrant($actor, ['ViewAny:FollowUp', 'View:FollowUp', 'Delete:FollowUp']);
+    $lead = followUpApiLead($other);
+    $first = followUpApiRecord($lead, $actor, 'First call');
+    $hidden = followUpApiRecord($lead, $other, 'Hidden call');
+    $approved = followUpApiRecord($lead, $actor, 'Approved call');
+    $flow = ApprovalFlow::query()->create(['module' => 'SalesTourPlan', 'active' => false]);
+    $approval = $approved->approval()->create([
+        'approval_flow_id' => $flow->id, 'requested_by' => $actor->id, 'module' => 'FollowUp',
+        'record_type' => FollowUp::class, 'record_id' => $approved->id, 'approval_status' => 'approved',
+    ]);
+    expect(ApprovalSetting::supportsModule('FollowUp'))->toBeFalse();
+
+    Sanctum::actingAs($actor);
+    $path = '/api/v1/follow-ups/bulk-delete';
+    $this->postJson($path, ['ids' => [$first->id, $first->id]])->assertUnprocessable()->assertJsonValidationErrors('ids.1');
+    $this->postJson($path, ['ids' => [$first->id, $hidden->id]])->assertNotFound();
+    $this->getJson('/api/v1/follow-ups/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', false);
+    $this->postJson($path, ['ids' => [$first->id, $approved->id]])->assertUnprocessable();
+    $this->assertNotSoftDeleted($first);
+    $this->assertNotSoftDeleted($approved);
+    expect($lead->leadActivities()->count())->toBe(0);
+
+    followUpApiGrant($actor, ['OverrideApproval:FollowUp']);
+    $this->getJson('/api/v1/follow-ups/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->postJson($path, ['ids' => [$first->id, $approved->id]])->assertOk()->assertJsonPath('data.deleted', 2);
+    $this->assertSoftDeleted($first);
+    $this->assertSoftDeleted($approved);
+    $this->assertNotSoftDeleted($hidden);
+    $this->assertNotSoftDeleted($approval);
+    $this->assertDatabaseHas('approval_overrides', ['model_type' => FollowUp::class, 'model_id' => $approved->id, 'user_id' => $actor->id]);
+    expect($lead->leadActivities()->where('activity_type', 'Follow-up Deleted')->count())->toBe(2);
 });

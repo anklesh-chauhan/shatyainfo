@@ -12,12 +12,14 @@ use App\Models\SecondarySalesStatement;
 use App\Models\SkuUnitConversion;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use OpenSpout\Reader\XLSX\Reader;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SecondarySalesService
@@ -25,6 +27,29 @@ class SecondarySalesService
     public const HEADERS = ['invoice_number', 'invoice_date', 'batch_no', 'sku_code', 'unit', 'quantity', 'gross_value', 'discount_value', 'transaction_type', 'physical_reference'];
 
     public function __construct(private SecondarySalesBalanceService $balances) {}
+
+    public static function sourceExtension(SecondarySalesStatement $statement): string
+    {
+        return strtolower(pathinfo($statement->source_path, PATHINFO_EXTENSION)) === 'xlsx' ? 'xlsx' : 'csv';
+    }
+
+    public static function evidence(SecondarySalesStatement $statement, string $section): LengthAwarePaginator
+    {
+        $query = match ($section) {
+            'rows' => $statement->lines(),
+            'balances' => $statement->balances(),
+            'adjustments' => $statement->lines()->where('transaction_type', '!=', 'sale'),
+        };
+
+        return $query->orderBy('row_number')->orderBy('id')->paginate(50);
+    }
+
+    public static function downloadSource(SecondarySalesStatement $statement): StreamedResponse
+    {
+        abort_unless(Storage::disk('local')->exists($statement->source_path), 404, 'The statement file is unavailable.');
+
+        return Storage::disk('local')->download($statement->source_path, basename($statement->source_path), ['Cache-Control' => 'private, no-store']);
+    }
 
     public function ingest(User $user, UploadedFile $file, array $data): SecondarySalesStatement
     {
@@ -395,9 +420,9 @@ class SecondarySalesService
     {
         return $query->selectRaw("COALESCE(SUM(CASE WHEN line.transaction_type = 'sale' THEN line.gross_paise ELSE 0 END), 0) as gross_paise,
             COALESCE(SUM(CASE WHEN line.transaction_type = 'sale' THEN line.discount_paise ELSE 0 END), 0) as discount_paise,
-            COALESCE(SUM(CASE WHEN line.transaction_type = 'return' AND line.physically_verified = 1 THEN line.gross_paise ELSE 0 END), 0) as returns_paise,
-            COALESCE(SUM(CASE WHEN line.transaction_type = 'breakage_expiry' AND line.physically_verified = 1 THEN line.gross_paise ELSE 0 END), 0) as breakage_expiry_paise,
-            COALESCE(SUM(CASE WHEN line.transaction_type = 'sale' THEN line.base_quantity WHEN line.physically_verified = 1 THEN -line.base_quantity ELSE 0 END), 0) as net_base_quantity");
+            COALESCE(SUM(CASE WHEN line.transaction_type = 'return' AND line.physically_verified = TRUE THEN line.gross_paise ELSE 0 END), 0) as returns_paise,
+            COALESCE(SUM(CASE WHEN line.transaction_type = 'breakage_expiry' AND line.physically_verified = TRUE THEN line.gross_paise ELSE 0 END), 0) as breakage_expiry_paise,
+            COALESCE(SUM(CASE WHEN line.transaction_type = 'sale' THEN line.base_quantity WHEN line.physically_verified = TRUE THEN -line.base_quantity ELSE 0 END), 0) as net_base_quantity");
     }
 
     private function ledgerValues(object $row): array

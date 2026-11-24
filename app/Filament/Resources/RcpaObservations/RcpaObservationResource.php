@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\RcpaObservations;
 
 use App\Filament\Resources\RcpaObservations\Pages\ManageRcpaObservations;
-use App\Models\AccountMaster;
 use App\Models\RcpaObservation;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
@@ -50,12 +49,7 @@ class RcpaObservationResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        if (auth()->user()->can('View:Rcpa')) {
-            return $query->whereIn('chemist_id', AccountMaster::query()->applyVisibility('AccountMaster')->select('id'));
-        }
-
-        return $query->where('user_id', auth()->id());
+        return parent::getEloquentQuery()->forRegister(auth()->user());
     }
 
     public static function form(Schema $schema): Schema

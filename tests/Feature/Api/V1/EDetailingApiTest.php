@@ -47,6 +47,7 @@ beforeEach(function (): void {
     Schema::create('item_masters', function (Blueprint $table): void {
         $table->id();
         $table->string('item_name');
+        $table->foreignId('created_by')->nullable();
         $table->softDeletes();
     });
     Schema::create('visits', function (Blueprint $table): void {
@@ -280,4 +281,80 @@ it('uploads a private image through the admin form as a draft', function (): voi
     $material = EDetailingMaterial::where('title', 'New product image')->firstOrFail();
     expect($material->mime_type)->toBe('image/png')->and($material->is_active)->toBeFalse();
     Storage::disk('local')->assertExists($material->file_path);
+});
+
+it('creates private drafts with scoped products and publishes using the current revision', function (): void {
+    $root = '/api/v1/e-detailing/manage';
+    $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF";
+    $product = DB::table('item_masters')->insertGetId(['item_name' => 'Scoped product', 'created_by' => $this->rep->id]);
+    $outside = DB::table('item_masters')->insertGetId(['item_name' => 'Outside product']);
+    $input = ['title' => 'New presentation', 'description' => 'Overview', 'item_master_id' => $product, 'sort_order' => 5, 'is_active' => '0'];
+    $upload = fn (array $fields, string $name = 'slides.pdf', ?string $bytes = null) => $this->post($root, [
+        ...$fields, 'file' => UploadedFile::fake()->createWithContent($name, $bytes ?? $pdf),
+    ], ['Accept' => 'application/json']);
+
+    $this->getJson($root)->assertOk()->assertJsonPath('can_create', false);
+    $upload($input)->assertForbidden();
+    Sanctum::actingAs(grantPagePermissions($this->rep, 'Create:EDetailingMaterial', 'Update:EDetailingMaterial', 'ViewAny:ItemMaster', 'View:ItemMaster'));
+    $this->getJson($root.'/products')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $product);
+    $upload([...$input, 'item_master_id' => $outside])->assertUnprocessable()->assertJsonValidationErrors('item_master_id');
+    $upload($input, 'slides.txt')->assertUnprocessable()->assertJsonValidationErrors('file');
+    $existingFiles = Storage::disk('local')->allFiles();
+    $upload($input, 'slides.pdf', '<script>bad file</script>')->assertUnprocessable()->assertJsonValidationErrors('file_path');
+    expect(Storage::disk('local')->allFiles())->toBe($existingFiles);
+    $created = $upload($input)->assertCreated()
+        ->assertJsonPath('data.is_active', false)->assertJsonPath('data.product', 'Scoped product')
+        ->assertJsonPath('data.presentations_count', 0)->assertJsonMissingPath('data.file_path')->json('data');
+    $id = $created['id'];
+    $detail = $root.'/'.$id;
+    $version = $created['content_version'];
+    $record = EDetailingMaterial::findOrFail($id);
+    expect($record->file_path)->toStartWith(EDetailingMaterial::uploadDirectory().'/');
+    Storage::disk('local')->assertExists($record->file_path);
+    $this->getJson($root.'?publication=unpublished&search=Scoped')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $id);
+    $this->getJson('/api/v1/e-detailing')->assertOk()->assertJsonCount(1, 'data');
+    $this->get('/api/v1/e-detailing/'.$id.'/file?version='.$version)->assertNotFound();
+    $preview = $this->get($detail.'/file?version='.$version)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    expect($preview->headers->get('cache-control'))->toContain('private', 'no-store');
+    $this->getJson($detail.'/file?version='.str_repeat('0', 64))->assertConflict();
+
+    $update = [...$input, 'revision' => $created['revision'], 'is_active' => true];
+    $this->patchJson($detail, $update)->assertOk()->assertJsonPath('data.is_active', true)->assertJsonPath('data.content_version', $version);
+    $this->patchJson($detail, [...$update, 'is_active' => false])->assertConflict();
+    $this->getJson('/api/v1/e-detailing')->assertOk()->assertJsonCount(2, 'data');
+    $this->get('/api/v1/e-detailing/'.$id.'/file?version='.$version)->assertOk();
+
+    $this->rep->revokePermissionTo('View:EDetailingMaterial');
+    Sanctum::actingAs($this->rep->fresh());
+    $upload([...$input, 'title' => 'Author-only draft'])->assertCreated()->assertJsonPath('data.can_preview', false);
+    $this->getJson($detail)->assertForbidden();
+    $this->get('/api/v1/e-detailing/'.$id.'/file?version='.$version)->assertForbidden();
+});
+
+it('replaces the current file without changing recorded presentation history', function (): void {
+    $this->postJson($this->endpoint, $this->payload)->assertCreated();
+    Sanctum::actingAs(grantPagePermissions($this->rep, 'Update:EDetailingMaterial'));
+    $path = '/api/v1/e-detailing/manage/'.$this->material->id;
+    $previous = $this->getJson($path)->assertOk()->assertJsonPath('data.presentations_count', 1)->json('data');
+    $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=');
+    $replacement = $this->post($path.'/file', [
+        'title' => 'Revised slides', 'sort_order' => 1, 'is_active' => '1', 'revision' => $previous['revision'],
+        'file' => UploadedFile::fake()->createWithContent('replacement.png', $png),
+    ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('data.mime_type', 'image/png')->assertJsonPath('data.presentations_count', 1)->json('data');
+    expect($replacement['content_version'])->not->toBe($previous['content_version']);
+    $this->postJson($this->endpoint, $this->payload)->assertConflict();
+    $this->getJson($this->endpoint)->assertJsonPath('presentations.0.material_title', 'Product presentation')
+        ->assertJsonPath('presentations.0.content_version', $previous['content_version']);
+    $this->patchJson($path, [
+        'title' => 'Revised slides', 'sort_order' => 1, 'is_active' => false, 'revision' => $replacement['revision'],
+    ])->assertOk();
+    $this->get($this->endpoint.'/'.$this->material->id.'/file?version='.$replacement['content_version'])->assertNotFound();
+
+    $this->rep->revokePermissionTo('Update:EDetailingMaterial');
+    Sanctum::actingAs($this->rep->fresh());
+    $this->getJson($path)->assertOk()->assertJsonPath('data.can_preview', false)->assertJsonPath('data.can_update', false);
+    $this->get($path.'/file?version='.$replacement['content_version'])->assertNotFound();
+    $this->rep->revokePermissionTo('ViewAny:EDetailingMaterial');
+    Sanctum::actingAs($this->rep->fresh());
+    $this->getJson($path)->assertForbidden();
 });

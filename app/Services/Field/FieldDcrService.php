@@ -6,6 +6,7 @@ use App\Models\ApprovalSetting;
 use App\Models\SalesDcr;
 use App\Models\User;
 use App\Models\VisitPreference;
+use App\Services\Visit\DcrService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -35,15 +36,13 @@ class FieldDcrService
         $this->assertOwned($user, $dcr);
         $this->assertEditable($dcr, allowRecoveredSubmission: true);
 
-        if ($dcr->visits()->count() === 0 && ! $dcr->fieldEntries()->exists()) {
-            throw ValidationException::withMessages([
-                'dcr' => 'Add at least one visit before submitting the DCR.',
-            ]);
-        }
-
-        DB::transaction(function () use ($dcr): void {
+        DB::transaction(function () use ($user, $dcr): void {
             $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
+            $this->assertOwned($user, $dcr);
             $this->assertEditable($dcr, allowRecoveredSubmission: true);
+            if (! $dcr->visits()->exists() && ! $dcr->fieldEntries()->exists()) {
+                throw ValidationException::withMessages(['dcr' => 'Add at least one visit before submitting the DCR.']);
+            }
             app(FieldGeoFenceService::class)->assertCleared($dcr);
             app(FieldSyncRecoveryService::class)->assertNoPendingReview($dcr);
             app(FieldDeviceService::class)->assertNoOtherDevicePending($dcr);
@@ -94,30 +93,10 @@ class FieldDcrService
     private function getOrCreateForUser(User $user, Carbon|string $date, bool $authorizeCreation): SalesDcr
     {
         $dcrDate = $date instanceof Carbon ? $date->toDateString() : Carbon::parse($date)->toDateString();
-        $preference = VisitPreference::current();
-
-        $existing = SalesDcr::query()
-            ->where('user_id', $user->id)
-            ->whereDate('dcr_date', $dcrDate)
-            ->first();
-
-        if ($existing) {
-            return $existing->load($this->defaultRelations());
-        }
-
-        abort_if($authorizeCreation && $user->cannot('create', SalesDcr::class), 403);
-        $preference->assertDcrDateIsReportable($dcrDate);
-
-        $dcr = SalesDcr::query()->firstOrCreate(
-            [
-                'user_id' => $user->id,
-                'dcr_date' => $dcrDate,
-            ],
-            [
-                'approval_status' => 'draft',
-                'territory_id' => $user->territory_id ?? null,
-            ],
-        );
+        $dcr = app(DcrService::class)->getOrCreateForDate($dcrDate, $user, function () use ($user, $dcrDate, $authorizeCreation): void {
+            abort_if($authorizeCreation && $user->cannot('create', SalesDcr::class), 403);
+            VisitPreference::current()->assertDcrDateIsReportable($dcrDate);
+        });
 
         return $dcr->load($this->defaultRelations());
     }

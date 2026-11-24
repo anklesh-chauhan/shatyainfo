@@ -5,15 +5,13 @@ namespace App\Filament\Resources\SgipDistributions\Pages;
 use App\Filament\Resources\SgipDistributions\SgipDistributionResource;
 use App\Models\ApprovalSetting;
 use App\Models\SgipDistribution;
-use App\Services\SGIPComplianceService;
+use App\Services\Marketing\SgipRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ForceDeleteAction;
-use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
-use Throwable;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditSgipDistribution extends EditRecord
 {
@@ -22,84 +20,80 @@ class EditSgipDistribution extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('submit')
-                ->label('Submit')
-                ->color('primary')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => $this->record->approval_status === 'draft')
-                ->action(function (): void {
-                    if (! $this->record->items()->exists()) {
-                        Notification::make()
-                            ->title('Add at least one item before submitting.')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    try {
-                        SGIPComplianceService::validate($this->record, true);
-                        $this->record->update(['approval_status' => 'submitted']);
-                        $this->refreshFormData(['approval_status']);
-
-                        Notification::make()
-                            ->title('SGIP distribution submitted')
-                            ->success()
-                            ->send();
-                    } catch (ValidationException $exception) {
-                        Notification::make()
-                            ->title('Unable to submit SGIP distribution')
-                            ->body(collect($exception->errors())->flatten()->implode(' '))
-                            ->danger()
-                            ->send();
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Unable to submit SGIP distribution')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            Action::make('approve')
-                ->label(fn (): string => ApprovalSetting::moduleRequiresApproval(SgipDistribution::class) ? 'Approve & Deduct Stock' : 'Post & Deduct Stock')
-                ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn (): bool => $this->record->approval_status === 'submitted' && ! $this->record->isInventoryPosted())
-                ->action(function (): void {
-                    try {
-                        SGIPComplianceService::validate($this->record, true);
-                        $this->record->approve();
-                        $this->refreshFormData(['approval_status', 'inventory_posted_at']);
-
-                        Notification::make()
-                            ->title('SGIP posted and stock deducted')
-                            ->success()
-                            ->send();
-                    } catch (ValidationException $exception) {
-                        Notification::make()
-                            ->title('Unable to post SGIP distribution')
-                            ->body(collect($exception->errors())->flatten()->implode(' '))
-                            ->danger()
-                            ->send();
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Unable to post SGIP distribution')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            DeleteAction::make()
-                ->visible(fn (): bool => $this->record->approval_status === 'draft'),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            $this->distributionAction('submit', 'Submit', 'primary'),
+            $this->distributionAction('approve', ApprovalSetting::moduleRequiresApproval(SgipDistribution::class) ? 'Approve & Deduct Stock' : 'Post & Deduct Stock', 'success'),
+            $this->distributionAction('return', 'Return to Draft', 'warning'),
+            $this->distributionAction('delete', 'Delete', 'danger'),
+            $this->distributionAction('restore', 'Restore', 'success'),
+            $this->distributionAction('force-delete', 'Permanently Delete', 'danger'),
         ];
     }
 
-    protected function canEdit(): bool
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        return $this->record->approval_status === 'draft';
+        $data['revision'] = app(SgipRegister::class)->revision($this->record);
+        $data['items'] = $this->record->items()->get()->map->only(['item_master_id', 'quantity', 'unit_value'])->all();
+
+        return $data;
+    }
+
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        try {
+            return $this->record = app(SgipRegister::class)->save(auth()->user(), $record->id, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
+    }
+
+    protected function afterSave(): void
+    {
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return $this->record->isEditable() ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function distributionAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(SgipRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    app(SgipRegister::class)->act(
+                        auth()->user(), [$this->record->id], $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if (in_array($action, ['delete', 'force-delete'], true)) {
+                    $this->redirect(SgipDistributionResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('SGIP distribution updated')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
+        }
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }

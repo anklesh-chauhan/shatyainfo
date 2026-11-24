@@ -57,7 +57,7 @@ it('normalizes multi-SKU invoice groups once and requires separate physical retu
     $id = $result->json('data.id');
     $send()->assertCreated()->assertJsonPath('data.id', $id);
     expect(SecondarySalesStatement::query()->count())->toBe(1);
-    $statement = SecondarySalesStatement::query()->with('lines')->sole();
+    $statement = SecondarySalesStatement::query()->with(['lines' => fn ($query) => $query->orderBy('row_number')])->sole();
     expect((float) $statement->lines[0]->base_quantity)->toBe(200.0)
         ->and((int) $statement->lines[0]->gross_paise)->toBe(100000)
         ->and($statement->lines[0]->errors)->toBe([])->and($statement->lines[1]->errors)->toBe([]);
@@ -117,4 +117,47 @@ it('retains unmatched rows for reconciliation and supports the same template as 
     } finally {
         @unlink($path);
     }
+});
+
+it('lists participant statements with private paginated evidence and scoped intake choices', function () {
+    $path = '/api/v1/secondary-sales';
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')
+        ->assertOk()->assertJsonFragment(['key' => 'g05-01', 'screen_key' => 'sales-statements']);
+    $this->getJson($path.'/stockists?search=Alpha')->assertOk()->assertJsonPath('data.0.id', $this->stockist->id)
+        ->assertJsonPath('data.0.territory_id', $this->stockist->territory_id)->assertJsonCount(1, 'data');
+    $this->getJson($path.'/stockists?search=Other')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($path.'/ocr-options')->assertUnprocessable();
+    $this->get($path.'/template?kind=stock_balance')->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+    $csv = secondaryCsv([
+        ['REGISTER-1', today()->toDateString(), 'B1', $this->one->item_code, 'box', 1, '100.00', '0', 'sale', ''],
+        ['REGISTER-2', today()->toDateString(), 'B1', $this->one->item_code, 'box', 1, '25.00', '0', 'return', 'PHYS-REGISTER'],
+    ]);
+    $id = $this->post($path, [...$this->data, 'file' => UploadedFile::fake()->createWithContent('statement.csv', $csv)], ['Accept' => 'application/json'])
+        ->assertCreated()->json('data.id');
+    $detail = $path.'/'.$id;
+    $this->getJson($path)->assertOk()->assertJsonPath('register.can_import', true)->assertJsonPath('data.0.stockist.name', 'Stockist Alpha');
+    $this->getJson($detail.'?register=1')->assertOk()->assertJsonPath('data.can_review', false)
+        ->assertJsonPath('data.adjustments_count', 1)->assertJsonPath('data.source_extension', 'csv')
+        ->assertJsonMissingPath('data.source_path');
+    $this->getJson($detail.'/evidence/adjustments')->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.physical_reference', 'PHYS-REGISTER');
+    $this->get($detail.'/source')->assertOk()->assertHeader('cache-control', 'no-store, private');
+
+    Sanctum::actingAs($this->rsm);
+    $this->getJson($detail.'?register=1')->assertOk()->assertJsonPath('data.can_review', true);
+    $this->getJson($detail.'/evidence/rows')->assertOk()->assertJsonCount(2, 'data');
+    $this->getJson($path.'/stockists')->assertForbidden();
+    $other = reportingUser('Outside Reviewer');
+    $other->givePermissionTo('Review:SecondarySales');
+    Sanctum::actingAs($other);
+    $this->getJson($path)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($detail.'?register=1')->assertNotFound();
+    $this->getJson($detail.'/evidence/rows')->assertNotFound();
+    $this->getJson($detail.'/source')->assertNotFound();
+
+    $this->rsm->revokePermissionTo('Review:SecondarySales');
+    Sanctum::actingAs($this->rsm);
+    $this->getJson($path)->assertForbidden();
+    $this->getJson($detail.'/evidence/rows')->assertForbidden();
+    $this->getJson($detail.'/source')->assertForbidden();
 });

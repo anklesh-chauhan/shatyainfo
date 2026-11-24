@@ -275,11 +275,12 @@ class ApprovalService
     private function requestEmployee(Model $record, User $requester): ?Employee
     {
         return match (class_basename($record)) {
+            'Employee' => $record,
             'LeaveApplication', 'LeaveAdjustment', 'LeaveEncashment', 'LeaveCancellation', 'HrChangeRequest' => $record->employee,
             'SalesDcr', 'SalesTourPlan' => $record->user?->employee,
             'SalesTourPlanDetail' => $record->tourPlan?->user?->employee,
             'Quote', 'SalesOrder', 'SalesInvoice', 'PurchaseOrder', 'GoodsReceiptNote',
-            'InventoryAdjustment', 'InventoryTransfer', 'DeliveryChallan' => $requester->employee,
+            'InventoryAdjustment', 'InventoryTransfer', 'DeliveryChallan', 'LocationMaster', 'Position' => $requester->employee,
             default => throw new LogicException('No employee ownership mapping for this approval module.'),
         };
     }

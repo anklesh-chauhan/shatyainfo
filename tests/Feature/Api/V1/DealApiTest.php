@@ -2,6 +2,8 @@
 
 use App\Models\AccountMaster;
 use App\Models\Address;
+use App\Models\ApprovalFlow;
+use App\Models\ApprovalSetting;
 use App\Models\ContactDetail;
 use App\Models\Deal;
 use App\Models\DealStage;
@@ -42,6 +44,94 @@ function reportingDealType(string $name): TypeMaster
         ['parent_id' => null],
     );
 }
+
+it('soft deletes only visible deals with delete permission and keeps linked follow-ups', function () {
+    $owner = reportingUser('Deal Delete Owner');
+    $other = reportingUser('Deal Delete Other');
+    $owner->givePermissionTo(dealApiPermissions());
+    $stage = reportingDealStage('Delete pipeline');
+    $owned = Deal::query()->create([
+        'deal_name' => 'Owned deal',
+        'transaction_date' => today(),
+        'owner_id' => $owner->id,
+        'created_by' => $other->id,
+        'amount' => 100,
+        'expected_revenue' => 75,
+        'expected_close_date' => today(),
+        'status_id' => $stage->id,
+        'status_type' => DealStage::class,
+    ]);
+    $hidden = $owned->replicate(['reference_code'])->fill(['owner_id' => $other->id]);
+    $hidden->save();
+    $followUp = $owned->followUps()->create(['user_id' => $owner->id, 'follow_up_date' => now()]);
+    $path = '/api/v1/deals';
+
+    Sanctum::actingAs($owner);
+    $this->getJson($path)->assertOk()->assertJsonPath('data.0.can_delete', false);
+    $this->deleteJson($path.'/'.$owned->id)->assertForbidden();
+    $this->assertNotSoftDeleted($owned);
+
+    $owner->givePermissionTo(Permission::findOrCreate('Delete:Deal', 'web'));
+    $this->getJson($path.'/'.$owned->id)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->deleteJson($path.'/'.$hidden->id)->assertNotFound();
+    $this->deleteJson($path.'/'.$owned->id)->assertOk()->assertJsonPath('data.deleted', 1);
+    $this->assertSoftDeleted('deals', ['id' => $owned->id, 'deleted_by' => $owner->id]);
+    $this->assertNotSoftDeleted($hidden);
+    $this->assertDatabaseHas('follow_ups', [
+        'id' => $followUp->id, 'followupable_id' => $owned->id, 'followupable_type' => Deal::class, 'deleted_at' => null,
+    ]);
+    $this->getJson($path.'/'.$owned->id)->assertNotFound();
+    $this->getJson($path)->assertOk()->assertJsonCount(0, 'data');
+});
+
+it('validates bulk Deal deletion atomically and audits a legacy approval override', function () {
+    $owner = reportingUser('Deal Bulk Owner');
+    $other = reportingUser('Deal Bulk Other');
+    $owner->givePermissionTo(dealApiPermissions(['Delete:Deal']));
+    $stage = reportingDealStage('Bulk delete pipeline');
+    $first = Deal::query()->create([
+        'deal_name' => 'Bulk deal',
+        'transaction_date' => today(),
+        'owner_id' => $owner->id,
+        'created_by' => $other->id,
+        'amount' => 100,
+        'expected_revenue' => 75,
+        'expected_close_date' => today(),
+        'status_id' => $stage->id,
+        'status_type' => DealStage::class,
+    ]);
+    $hidden = $first->replicate(['reference_code'])->fill(['owner_id' => $other->id]);
+    $hidden->save();
+    $approved = $first->replicate(['reference_code']);
+    $approved->save();
+    $flow = ApprovalFlow::query()->create(['module' => 'SalesTourPlan', 'active' => false]);
+    $approval = $approved->approval()->create([
+        'approval_flow_id' => $flow->id, 'requested_by' => $owner->id, 'module' => 'Deal',
+        'record_type' => Deal::class, 'record_id' => $approved->id, 'approval_status' => 'approved',
+    ]);
+    expect(ApprovalSetting::supportsModule('Deal'))->toBeFalse();
+
+    Sanctum::actingAs($owner);
+    $path = '/api/v1/deals/bulk-delete';
+    $this->postJson($path, ['ids' => [$first->id, $first->id]])->assertUnprocessable()->assertJsonValidationErrors('ids.1');
+    $this->postJson($path, ['ids' => [$first->id, $hidden->id]])->assertNotFound();
+    $this->getJson('/api/v1/deals/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', false);
+    $this->postJson($path, ['ids' => [$first->id, $approved->id]])->assertUnprocessable();
+    $this->assertNotSoftDeleted($first);
+    $this->assertNotSoftDeleted($approved);
+
+    $owner->givePermissionTo(Permission::findOrCreate('OverrideApproval:Deal', 'web'));
+    $this->getJson('/api/v1/deals/'.$approved->id)->assertOk()->assertJsonPath('data.can_delete', true);
+    $this->postJson($path, ['ids' => [$first->id, $approved->id]])->assertOk()->assertJsonPath('data.deleted', 2);
+    $this->assertSoftDeleted($first);
+    $this->assertSoftDeleted($approved);
+    $this->assertNotSoftDeleted($hidden);
+    $this->assertDatabaseHas('approvals', ['id' => $approval->id, 'approval_status' => 'approved']);
+    $this->assertDatabaseHas('approval_overrides', [
+        'model_type' => Deal::class, 'model_id' => $approved->id, 'user_id' => $owner->id,
+        'reason' => 'Deal deleted through the mobile API',
+    ]);
+});
 
 it('lists and shows owned deals and hides unrelated ones', function () {
     $owner = reportingUser('DealApiOwner');

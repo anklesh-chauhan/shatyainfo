@@ -4,6 +4,7 @@ namespace App\Helpers;
 
 use App\Models\NumberSeries;
 use App\Models\Quote;
+use App\Models\SalesOrder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -65,7 +66,7 @@ class SalesDocumentHelper
                 foreach ($source->items as $item) {
                     $target->items()->create([
                         'item_master_id' => $item->item_master_id,
-                        'quantity' => $item->quantity,
+                        'quantity' => $item->getRawOriginal('quantity'),
                         'price' => $item->price,
                         'discount' => $item->discount,
                         'tax' => $item->tax,
@@ -83,10 +84,15 @@ class SalesDocumentHelper
 
             if (method_exists($source, 'termsAndCondition') && $source->termsAndCondition) {
                 $target->termsAndCondition()->create([
-                    'terms_type_id' => $source->termsAndCondition->terms_type_id,
-                    'terms_and_conditions' => $source->termsAndCondition->terms_and_conditions,
-                    'content' => $source->termsAndCondition->content ?? null,
+                    'title' => $source->termsAndCondition->title,
+                    'content' => $source->termsAndCondition->content,
                 ]);
+            }
+
+            if ($source instanceof Quote || $source instanceof SalesOrder) {
+                foreach ($source->taxDetails as $tax) {
+                    $target->taxDetails()->create($tax->only(['tax_id', 'tax_component_id', 'type', 'rate', 'amount']));
+                }
             }
 
             $targetBaseName = class_basename($targetClass);

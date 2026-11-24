@@ -10,7 +10,6 @@ use App\Models\VisitPreference;
 use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldPlanningSettingsService;
 use Filament\Facades\Filament;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -87,6 +86,8 @@ it('enforces own plans customer visibility and protected plan identity', functio
     $entry = $this->postJson('/api/v1/flexible-plans', $this->proposal)->assertSuccessful()->json('data');
     Sanctum::actingAs($this->other);
     $this->getJson('/api/v1/flexible-plans?user_id='.$this->rep->id)->assertForbidden();
+    $this->getJson('/api/v1/flexible-plans?include_team=1')->assertOk()
+        ->assertJsonMissingPath('data.team_review');
     openFlexibleCall($this, $entry)->assertNotFound();
     $this->postJson('/api/v1/flexible-plans', $this->proposal)->assertNotFound();
 });
@@ -138,7 +139,7 @@ it('checks the selected patch again before starting an intention', function () {
     $updated = $this->postJson('/api/v1/flexible-plans', [...$this->proposal, 'expected_version' => 1, 'patch_id' => null])->assertSuccessful()->json('data');
     openFlexibleCall($this, $updated)->assertSuccessful();
 });
-it('filters the Admin team review by current HQ without granting write access to other plans', function () {
+it('shares HQ and representative review between Admin and mobile without granting actions on other plans', function () {
     Permission::findOrCreate('Manage:FieldTeam', 'web');
     $this->rep->givePermissionTo('Manage:FieldTeam');
     $one = reportingLocation('First HQ');
@@ -148,12 +149,39 @@ it('filters the Admin team review by current HQ without granting write access to
     $this->postJson('/api/v1/flexible-plans', $this->proposal)->assertSuccessful();
     Sanctum::actingAs($this->other);
     $doctor = reportingDoctor($this->other, 'Other HQ doctor');
-    $entry = $this->postJson('/api/v1/flexible-plans', [...$this->proposal, 'client_plan_id' => (string) Str::uuid(), 'account_id' => $doctor->id])->assertSuccessful()->json('data');
+    $otherProposal = [...$this->proposal, 'client_plan_id' => (string) Str::uuid(), 'account_id' => $doctor->id];
+    $entry = $this->postJson('/api/v1/flexible-plans', $otherProposal)->assertSuccessful()->json('data');
+
+    Sanctum::actingAs($this->rep->fresh());
+    $base = '/api/v1/flexible-plans';
+    $this->getJson($base)->assertOk()->assertJsonMissingPath('data.team_review')
+        ->assertJsonPath('data.can_act_on_intentions', true)
+        ->assertJsonPath('data.entries.0.editable', true);
+    $teamUrl = $base.'?include_team=1&user_id='.$this->other->id;
+    $this->getJson($teamUrl)->assertOk()
+        ->assertJsonPath('data.user_id', $this->other->id)
+        ->assertJsonPath('data.hq.id', $two->id)
+        ->assertJsonPath('data.entries.0.account.name', 'Other HQ doctor')
+        ->assertJsonPath('data.entries.0.editable', false)
+        ->assertJsonPath('data.can_act_on_intentions', false)
+        ->assertJsonPath('data.intended', 1)
+        ->assertJsonPath('data.team_review.hqs.0.id', $one->id)
+        ->assertJsonPath('data.team_review.hqs.1.id', $two->id)
+        ->assertJsonFragment(['id' => $this->other->id, 'name' => $this->other->name, 'hq_id' => $two->id]);
+    $this->getJson($base.'?user_id=999999')->assertNotFound();
+    $this->postJson($base, [...$otherProposal, 'expected_version' => $entry['version'], 'status' => 'cancelled'])->assertNotFound();
+    openFlexibleCall($this, $entry, ['company_id' => $doctor->id])->assertNotFound();
+
     $this->actingAs($this->rep);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $page = Livewire::test(FlexiblePlanning::class)->set('hqFilter', $two->id)->assertSet('userId', $this->other->id)->assertSee('Other HQ doctor');
-    expect(fn () => $page->call('cancelIntention', $entry['id'], $entry['version']))->toThrow(ModelNotFoundException::class);
+    $page->call('cancelIntention', $entry['id'], $entry['version'])->assertStatus(404);
     expect(FlexiblePlanEntry::query()->findOrFail($entry['id'])->status)->toBe('active');
+
+    $this->rep->revokePermissionTo('Manage:FieldTeam');
+    Sanctum::actingAs($this->rep->fresh());
+    $this->getJson($teamUrl)->assertForbidden();
+    $this->getJson($base.'?include_team=1')->assertOk()->assertJsonMissingPath('data.team_review');
 });
 
 it('combines missed and patch review filters and shows an empty filtered view without changing totals', function () {
@@ -185,6 +213,10 @@ it('keeps the Admin review available and refuses a new intention when flexible p
         'reason' => 'Turn flexible planning off',
     ], 1);
     $this->settings->activate($this->rep, $revision->id, 2);
+
+    $this->getJson('/api/v1/flexible-plans')->assertOk()
+        ->assertJsonPath('data.can_act_on_intentions', false)
+        ->assertJsonPath('data.entries.0.editable', false);
 
     $this->actingAs($this->rep);
     Filament::setCurrentPanel(Filament::getPanel('admin'));

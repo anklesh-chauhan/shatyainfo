@@ -51,6 +51,8 @@ class FollowUpResource extends JsonResource
             'can_update' => $user !== null
                 ? app(FieldFollowUpService::class)->canUpdate($user, $this->resource)
                 : false,
+            'can_delete' => $user !== null
+                && app(FieldFollowUpService::class)->canDelete($user, $this->resource),
         ];
     }
 

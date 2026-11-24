@@ -19,6 +19,7 @@ class DealResource extends JsonResource
     public function toArray(Request $request): array
     {
         $user = $request->user();
+        $deals = app(FieldDealService::class);
 
         return [
             'id' => $this->id,
@@ -43,9 +44,8 @@ class DealResource extends JsonResource
             'type_id' => $this->type_id,
             'type_name' => $this->whenLoaded('type', fn (): ?string => $this->type?->name),
             'approval_status' => $this->approval_status,
-            'can_update' => $user !== null
-                ? app(FieldDealService::class)->canUpdate($user, $this->resource)
-                : false,
+            'can_update' => $user !== null && $deals->canUpdate($user, $this->resource),
+            'can_delete' => $user !== null && $deals->canDelete($user, $this->resource),
         ];
     }
 

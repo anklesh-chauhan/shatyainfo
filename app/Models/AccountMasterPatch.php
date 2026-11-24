@@ -23,6 +23,8 @@ class AccountMasterPatch extends Pivot
         'account_master_id',
         'sequence_no',
         'distance_km',
+        'created_by',
+        'updated_by',
     ];
 
     protected $casts = [

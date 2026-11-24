@@ -4,6 +4,7 @@ namespace App\Services\Mobile;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Field\SalesPerformanceService;
 use App\Services\OptionalModuleService;
 use Filament\Resources\Resource;
 
@@ -107,7 +108,7 @@ class MobileNavigationService
     }
 
     /**
-     * @param  array{permission_key: string, screen_key: string, source: class-string}  $entry
+     * @param  array{key: string, permission_key: string, screen_key: string, source: class-string}  $entry
      */
     private function visible(array $entry, bool $standalone): bool
     {
@@ -120,8 +121,45 @@ class MobileNavigationService
             return false;
         }
 
-        if ($standalone && in_array($entry['screen_key'], ['visit', 'sgip'], true)
+        if ($standalone && $entry['screen_key'] === 'visit'
             && ! auth()->user()?->can(['ViewAny:Visit', 'View:Visit'])) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'travel-segments' && ! auth()->user()?->can('View:TravelSegment')) {
+            return false;
+        }
+
+        if ($standalone && $entry['key'] === 'g02-06' && ! auth()->user()?->can('View:SalesDcrExpense')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'territory-sales-assignments'
+            && ! SalesPerformanceService::canViewTerritories(auth()->user())) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'follow-ups' && ! auth()->user()?->can('View:FollowUp')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'lead-activities' && ! auth()->user()?->can('View:LeadActivity')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'quotes' && ! auth()->user()?->can('View:Quote')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'sales-orders' && ! auth()->user()?->can('View:SalesOrder')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'sales-invoices' && ! auth()->user()?->can('View:SalesInvoice')) {
+            return false;
+        }
+
+        if ($entry['screen_key'] === 'customer-prices' && ! auth()->user()?->can('View:CustomerPrice')) {
             return false;
         }
 

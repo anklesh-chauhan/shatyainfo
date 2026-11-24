@@ -9,6 +9,7 @@ use App\Models\SalesDcrExpense;
 use App\Models\User;
 use App\Services\Expense\ExpenseCalculationService;
 use App\Services\OptionalModuleService;
+use Closure;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -41,12 +42,8 @@ class FieldExpenseService
      */
     public function storeManual(User $user, SalesDcr $dcr, array $data): SalesDcrExpense
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->dcrService->assertEditable($dcr);
-
-        return SalesDcrExpense::query()->create([
-            'sales_dcr_id' => $dcr->id,
+        return $this->withOwnerReport($user, $dcr, fn (SalesDcr $report): SalesDcrExpense => SalesDcrExpense::query()->create([
+            'sales_dcr_id' => $report->id,
             'expense_type_id' => $data['expense_type_id'],
             'transport_mode_id' => $data['transport_mode_id'] ?? null,
             'amount' => $data['amount'],
@@ -55,7 +52,7 @@ class FieldExpenseService
             'remarks' => $data['remarks'] ?? null,
             'meta' => $data['meta'] ?? null,
             'is_auto_calculated' => false,
-        ])->load(['expenseType', 'transportMode']);
+        ])->load(['expenseType', 'transportMode']));
     }
 
     /**
@@ -63,34 +60,24 @@ class FieldExpenseService
      */
     public function updateManual(User $user, SalesDcr $dcr, SalesDcrExpense $expense, array $data): SalesDcrExpense
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->dcrService->assertEditable($dcr);
-        $this->assertExpenseBelongsToDcr($dcr, $expense);
-        $this->assertManual($expense);
+        return $this->withOwnerReport($user, $dcr, function (SalesDcr $report) use ($expense, $data): SalesDcrExpense {
+            $expense = $report->expenses()->lockForUpdate()->findOrFail($expense->id);
+            $this->assertManual($expense);
+            $expense->update(collect($data)->only([
+                'expense_type_id', 'transport_mode_id', 'amount', 'quantity', 'rate', 'remarks', 'meta',
+            ])->all());
 
-        $expense->update(collect($data)->only([
-            'expense_type_id',
-            'transport_mode_id',
-            'amount',
-            'quantity',
-            'rate',
-            'remarks',
-            'meta',
-        ])->all());
-
-        return $expense->fresh(['expenseType', 'transportMode']);
+            return $expense->fresh(['expenseType', 'transportMode']);
+        });
     }
 
     public function deleteManual(User $user, SalesDcr $dcr, SalesDcrExpense $expense): void
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->dcrService->assertEditable($dcr);
-        $this->assertExpenseBelongsToDcr($dcr, $expense);
-        $this->assertManual($expense);
-
-        $expense->delete();
+        $this->withOwnerReport($user, $dcr, function (SalesDcr $report) use ($expense): void {
+            $expense = $report->expenses()->lockForUpdate()->findOrFail($expense->id);
+            $this->assertManual($expense);
+            $expense->delete();
+        });
     }
 
     /**
@@ -98,13 +85,11 @@ class FieldExpenseService
      */
     public function autoCalculate(User $user, SalesDcr $dcr): Collection
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->dcrService->assertEditable($dcr);
+        return $this->withOwnerReport($user, $dcr, function (SalesDcr $report) use ($user): Collection {
+            $this->expenseCalculation->autoCalculateDcrExpenses($report);
 
-        $this->expenseCalculation->autoCalculateDcrExpenses($dcr->fresh());
-
-        return $this->listForDcr($user, $dcr->fresh());
+            return $this->listForDcr($user, $report);
+        });
     }
 
     /**
@@ -125,28 +110,35 @@ class FieldExpenseService
         abort_unless($this->modules->navigationEnabled('SalesDcrExpense'), 403);
     }
 
-    private function assertExpenseBelongsToDcr(SalesDcr $dcr, SalesDcrExpense $expense): void
+    /**
+     * @template T
+     *
+     * @param  Closure(SalesDcr): T  $operation
+     * @return T
+     */
+    private function withOwnerReport(User $user, SalesDcr $dcr, Closure $operation, bool $editable = true): mixed
     {
-        if ((int) $expense->sales_dcr_id !== (int) $dcr->id) {
-            abort(404, 'Expense not found.');
-        }
+        $this->authorizeModule();
+
+        return $dcr->getConnection()->transaction(function () use ($user, $dcr, $operation, $editable): mixed {
+            $report = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
+            $this->dcrService->assertOwned($user, $report);
+            if ($editable) {
+                $this->dcrService->assertEditable($report);
+            }
+
+            return $operation($report);
+        }, attempts: 3);
     }
 
     public function storeReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, UploadedFile $receipt): Media
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->dcrService->assertEditable($dcr);
-        $this->assertExpenseBelongsToDcr($dcr, $expense);
-        $this->assertManual($expense);
-
-        return $expense->getConnection()->transaction(function () use ($user, $dcr, $expense, $receipt): Media {
-            $dcr = SalesDcr::query()->lockForUpdate()->findOrFail($dcr->id);
-            $this->dcrService->assertEditable($dcr);
-            $expense = SalesDcrExpense::query()->lockForUpdate()->findOrFail($expense->id);
+        return $this->withOwnerReport($user, $dcr, function (SalesDcr $report) use ($user, $expense, $receipt): Media {
+            $expense = $report->expenses()->lockForUpdate()->findOrFail($expense->id);
+            $this->assertManual($expense);
             $tenant = hash('sha256', $expense->getConnection()->getDatabaseName());
             $hash = hash_file('sha256', $receipt->getRealPath());
-            $path = 'expense-receipts/'.$tenant.'/'.$user->id.'/'.$dcr->id.'/'.$expense->id.'/'.$hash.'.'.$receipt->extension();
+            $path = 'expense-receipts/'.$tenant.'/'.$user->id.'/'.$report->id.'/'.$expense->id.'/'.$hash.'.'.$receipt->extension();
             $existing = $expense->receipts()->where('disk', 'local')->where('path', $path)->first();
             if ($existing) {
                 return $existing;
@@ -166,11 +158,11 @@ class FieldExpenseService
 
     public function findReceipt(User $user, SalesDcr $dcr, SalesDcrExpense $expense, int $receipt): Media
     {
-        $this->authorizeModule();
-        $this->dcrService->assertOwned($user, $dcr);
-        $this->assertExpenseBelongsToDcr($dcr, $expense);
+        return $this->withOwnerReport($user, $dcr, function (SalesDcr $report) use ($expense, $receipt): Media {
+            $expense = $report->expenses()->findOrFail($expense->id);
 
-        return $expense->receipts()->where('disk', 'local')->findOrFail($receipt);
+            return $expense->receipts()->where('disk', 'local')->findOrFail($receipt);
+        }, editable: false);
     }
 
     private function assertManual(SalesDcrExpense $expense): void

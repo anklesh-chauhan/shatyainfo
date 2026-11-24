@@ -25,6 +25,7 @@ class OnboardingApprovalService
                 'SalesTourPlan', 'SalesTourPlanDetail' => $planning?->mode === FieldPlanningMode::FormalMtp,
                 'LeaveApplication', 'LeaveAdjustment', 'LeaveEncashment', 'LeaveCancellation', 'HrChangeRequest' => $enabled['hr'],
                 'PurchaseOrder', 'GoodsReceiptNote', 'InventoryAdjustment', 'InventoryTransfer', 'DeliveryChallan' => $enabled['inventory'],
+                'LocationMaster', 'Employee', 'Position' => true,
                 'Quote', 'SalesOrder', 'SalesInvoice' => $enabled['crm'],
                 default => false,
             })->all();

@@ -116,6 +116,7 @@ class SecondarySalesCorrectionService
     public function canReview(User $user, SecondarySalesCorrection $correction): bool
     {
         return $correction->status === 'pending_review' && $user->can('Review:SecondarySales')
-            && (int) $correction->reviewer_id === (int) $user->id && (int) $correction->requested_by !== (int) $user->id;
+            && (int) $correction->reviewer_id === (int) $user->id && (int) $correction->requested_by !== (int) $user->id
+            && (int) $correction->statement->created_by !== (int) $user->id;
     }
 }

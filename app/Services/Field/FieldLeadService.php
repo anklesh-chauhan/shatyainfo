@@ -4,6 +4,8 @@ namespace App\Services\Field;
 
 use App\Models\AccountMaster;
 use App\Models\Address;
+use App\Models\Approval;
+use App\Models\ApprovalOverride;
 use App\Models\ContactDetail;
 use App\Models\Deal;
 use App\Models\DealStage;
@@ -41,6 +43,7 @@ class FieldLeadService
             'leadSource:id,name',
             'territory:id,name',
             'address:id,street',
+            'approval',
         ];
     }
 
@@ -52,8 +55,8 @@ class FieldLeadService
         abort_unless($user->can('viewAny', Lead::class), 403);
 
         $query = Lead::query()
-            ->with(['owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'leadSource:id,name'])
-            ->applyVisibility('Lead')
+            ->with(['owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'leadSource:id,name', 'approval'])
+            ->applyVisibility('Lead', $user)
             ->latest('transaction_date')
             ->orderByDesc('id');
 
@@ -79,7 +82,7 @@ class FieldLeadService
 
         $lead = Lead::query()
             ->with($this->detailRelations())
-            ->applyVisibility('Lead')
+            ->applyVisibility('Lead', $user)
             ->find($leadId);
 
         abort_if($lead === null, 404, 'Lead not found.');
@@ -100,7 +103,8 @@ class FieldLeadService
         $lead = $this->findVisible($user, $leadId);
 
         return $lead->leadActivities()
-            ->with('user:id,name')
+            ->with(['approval', 'user:id,name'])
+            ->chaperone()
             ->latest()
             ->orderByDesc('id')
             ->paginate($perPage > 0 ? min($perPage, 100) : 50);
@@ -222,6 +226,53 @@ class FieldLeadService
     public function canUpdate(User $user, Lead $lead): bool
     {
         return $user->can('update', $lead);
+    }
+
+    public function canDelete(User $user, Lead $lead): bool
+    {
+        return $user->can(['view', 'delete'], $lead)
+            && (! $this->requiresDeleteOverride($lead) || $user->can('overrideApproval', $lead));
+    }
+
+    private function requiresDeleteOverride(Lead $lead): bool
+    {
+        return $lead->approval_status === 'approved' || $lead->approval?->approval_status === 'approved';
+    }
+
+    /** @param list<int> $ids */
+    public function delete(User $user, array $ids): int
+    {
+        abort_unless($user->can('viewAny', Lead::class), 403);
+
+        return $user->getConnection()->transaction(function () use ($user, $ids): int {
+            $leads = Lead::query()->applyVisibility('Lead', $user)->whereKey($ids)
+                ->with('approval')
+                ->orderBy('id')->lockForUpdate()->get();
+
+            abort_unless($leads->count() === count($ids), 404, 'One or more leads are unavailable.');
+
+            $approvals = Approval::query()->whereKey($leads->pluck('approval.id')->filter()->all())
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+
+            foreach ($leads as $lead) {
+                $lead->setRelation('approval', $approvals->get($lead->approval?->id));
+                abort_unless($user->can(['view', 'delete'], $lead), 403);
+                abort_if($this->requiresDeleteOverride($lead) && $user->cannot('overrideApproval', $lead), 422,
+                    'Approved leads require approval override to delete.');
+            }
+
+            foreach ($leads as $lead) {
+                if ($lead->approval_status !== 'approved' && $lead->approval?->approval_status === 'approved') {
+                    ApprovalOverride::query()->create([
+                        'model_type' => Lead::class, 'model_id' => $lead->id, 'user_id' => $user->id,
+                        'reason' => 'Lead deleted through the mobile API',
+                    ]);
+                }
+                abort_unless($lead->delete(), 409, 'Could not delete the selected leads.');
+            }
+
+            return $leads->count();
+        }, attempts: 3);
     }
 
     public function canConvert(User $user, Lead $lead): bool

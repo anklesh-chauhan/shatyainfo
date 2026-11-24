@@ -150,6 +150,9 @@
         $otherCharges = $document->other_charges ?? 0;
         $grandTotal = $subTotalAfterDiscount + $totalTax + $shippingCost 
                         + $packingForwarding + $insuranceCharges + $otherCharges;
+        if ($document instanceof \App\Models\Quote) {
+            $grandTotal = $document->total;
+        }
     @endphp
     
     <table>
@@ -423,6 +426,13 @@
                         <tr>
                             <td style="text-align:right; font-weight:bold;">Other Charges</td>
                             <td style="text-align:right;">+{{ number_format($otherCharges, 2) }}</td>
+                        </tr>
+                    @endif
+
+                    @if($document instanceof \App\Models\Quote && (float) $document->round_off !== 0.0)
+                        <tr>
+                            <td style="text-align:right; font-weight:bold;">Round Off</td>
+                            <td style="text-align:right;">{{ number_format($document->round_off, 2) }}</td>
                         </tr>
                     @endif
 

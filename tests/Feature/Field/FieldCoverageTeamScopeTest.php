@@ -35,6 +35,8 @@ it('blocks Manage:FieldTeam alone and lets managers with ViewAny:AccountMaster r
     Sanctum::actingAs($manager);
     $this->getJson('/api/v1/field-coverage?month='.today()->format('Y-m'))
         ->assertForbidden();
+    $teamQuery = '/api/v1/field-coverage?include_team=1&user_id='.$subject->id;
+    $this->getJson($teamQuery)->assertForbidden();
 
     $manager->givePermissionTo(Permission::findOrCreate('ViewAny:AccountMaster', 'web'));
     $manager = $manager->fresh();
@@ -54,5 +56,21 @@ it('blocks Manage:FieldTeam alone and lets managers with ViewAny:AccountMaster r
     $this->getJson('/api/v1/field-coverage?month='.today()->format('Y-m'))
         ->assertSuccessful()
         ->assertJsonPath('data.user_id', $manager->id)
-        ->assertJsonPath('data.customers', []);
+        ->assertJsonPath('data.customers', [])
+        ->assertJsonMissingPath('team_review');
+    $this->getJson($teamQuery.'&hq_id='.$hq->id)->assertOk()
+        ->assertJsonPath('data.user_id', $subject->id)
+        ->assertJsonPath('data.customers.0.account_id', $doctor->id)
+        ->assertJsonPath('data.coverage_percent', $page->instance()->coverageReport()['coverage_percent'])
+        ->assertJsonPath('team_review.hqs.0.id', $hq->id)
+        ->assertJsonFragment(['id' => $subject->id, 'name' => $subject->name, 'hq_id' => $hq->id]);
+    $otherHq = reportingLocation('Different HQ');
+    $this->getJson($teamQuery.'&hq_id='.$otherHq->id)->assertUnprocessable()->assertJsonValidationErrors('hq_id');
+    $this->getJson('/api/v1/field-coverage?user_id=999999')->assertNotFound();
+
+    $manager->revokePermissionTo('Manage:FieldTeam');
+    Sanctum::actingAs($manager->fresh());
+    $this->getJson($teamQuery)->assertForbidden();
+    $this->getJson('/api/v1/field-coverage?include_team=1')->assertOk()
+        ->assertJsonPath('data.user_id', $manager->id)->assertJsonMissingPath('team_review');
 });

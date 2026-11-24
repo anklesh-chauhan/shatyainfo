@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
+use App\Enums\SampleIssueStatus;
 use App\Models\SampleIssue;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class SampleIssuePolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:SampleIssue');
@@ -34,17 +35,24 @@ class SampleIssuePolicy
 
     public function delete(AuthUser $authUser, SampleIssue $sampleIssue): bool
     {
-        return $authUser->can('Delete:SampleIssue');
+        return $authUser->can('Delete:SampleIssue') && $sampleIssue->isEditable();
     }
 
     public function restore(AuthUser $authUser, SampleIssue $sampleIssue): bool
     {
-        return $authUser->can('Restore:SampleIssue');
+        return $authUser->can('Restore:SampleIssue') && $sampleIssue->trashed() && ! $sampleIssue->isPosted()
+            && $sampleIssue->status === SampleIssueStatus::Draft;
     }
 
     public function forceDelete(AuthUser $authUser, SampleIssue $sampleIssue): bool
     {
-        return $authUser->can('ForceDelete:SampleIssue');
+        return $authUser->can('ForceDelete:SampleIssue') && $sampleIssue->trashed() && ! $sampleIssue->isPosted()
+            && $sampleIssue->status === SampleIssueStatus::Draft;
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:SampleIssue');
     }
 
     public function forceDeleteAny(AuthUser $authUser): bool
@@ -86,5 +94,4 @@ class SampleIssuePolicy
     {
         return $authUser->can('OverrideApproval:SampleIssue');
     }
-
 }

@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\InventoryTransfers;
 
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\InventoryTransfers\Pages\ManageInventoryTransfers;
 use App\Models\InventoryTransfer;
+use App\Services\Inventory\StockTransferRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +18,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class InventoryTransferResource extends BaseResource
 {
@@ -32,15 +35,21 @@ class InventoryTransferResource extends BaseResource
 
     protected static ?string $recordTitleAttribute = 'transfer_number';
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && app(StockTransferRegister::class)->canRead(auth()->user());
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Select::make('item_master_id')->relationship('item', 'item_name')->searchable()->preload()->required(),
-            Select::make('from_location_master_id')->relationship('fromLocation', 'name')->searchable()->preload()->required(),
-            Select::make('to_location_master_id')->relationship('toLocation', 'name')->searchable()->preload()->different('from_location_master_id')->required(),
+            Hidden::make('revision'),
+            Select::make('item_master_id')->options(fn (): array => app(StockTransferRegister::class)->catalog(auth()->user(), 'items')->pluck('item_name', 'id')->all())->searchable()->preload()->required(),
+            Select::make('from_location_master_id')->options(fn (): array => app(StockTransferRegister::class)->catalog(auth()->user(), 'locations')->pluck('name', 'id')->all())->searchable()->preload()->required(),
+            Select::make('to_location_master_id')->options(fn (): array => app(StockTransferRegister::class)->catalog(auth()->user(), 'locations')->pluck('name', 'id')->all())->searchable()->preload()->different('from_location_master_id')->required(),
             TextInput::make('quantity')->numeric()->minValue(0.001)->required(),
             TextInput::make('unit_cost')->numeric()->minValue(0)->required(),
-            Textarea::make('remarks'),
+            Textarea::make('remarks')->maxLength(5000),
         ])->columns(2);
     }
 
@@ -55,21 +64,51 @@ class InventoryTransferResource extends BaseResource
             TextColumn::make('status')->badge(),
             TextColumn::make('approval.approval_status')->label('Approval')->badge()->placeholder('Not submitted'),
         ])->recordActions([
-            EditAction::make()->visible(fn (InventoryTransfer $record): bool => $record->isEditable()),
-            ApprovalAction::make()->authorize(fn (InventoryTransfer $record): bool => auth()->user()->can('update', $record)),
-            Action::make('post')->label('Post Transfer')->requiresConfirmation()
-                ->authorize(fn (InventoryTransfer $record): bool => auth()->user()->can('update', $record))
-                ->visible(fn (InventoryTransfer $record): bool => ! $record->isPosted() && $record->canProceedAfterApproval())
-                ->action(function (InventoryTransfer $record): void {
-                    try {
-                        $record->post();
-                        Notification::make()->title('Transfer posted')->success()->send();
-                    } catch (\Throwable $exception) {
-                        Notification::make()->title('Unable to post transfer')->body($exception->getMessage())->danger()->send();
-                    }
-                }),
-            DeleteAction::make()->visible(fn (InventoryTransfer $record): bool => $record->isEditable()),
+            ViewAction::make(),
+            EditAction::make()->visible(fn (InventoryTransfer $record): bool => $record->isEditable())
+                ->fillForm(fn (InventoryTransfer $record): array => [...$record->getAttributes(), 'revision' => app(StockTransferRegister::class)->revision($record)])
+                ->using(fn (InventoryTransfer $record, array $data, EditAction $action): InventoryTransfer => self::persist($record, $data, $action)),
+            self::transferAction('submit', 'Send for Approval'),
+            self::transferAction('post', 'Post Transfer'),
+            self::transferAction('delete', 'Delete'),
         ]);
+    }
+
+    public static function persist(?InventoryTransfer $record, array $data, Action $action): InventoryTransfer
+    {
+        try {
+            return app(StockTransferRegister::class)->save(auth()->user(), $record?->id, $data);
+        } catch (HttpException $exception) {
+            if ($exception->getStatusCode() !== 409) {
+                throw $exception;
+            }
+            Notification::make()->title($exception->getMessage())->danger()->send();
+            $action->halt();
+        }
+    }
+
+    private static function transferAction(string $action, string $label): Action
+    {
+        return Action::make($action)->label($label)->requiresConfirmation()
+            ->schema([Hidden::make('revision')])
+            ->fillForm(fn (InventoryTransfer $record): array => ['revision' => app(StockTransferRegister::class)->revision($record)])
+            ->visible(fn (InventoryTransfer $record): bool => app(StockTransferRegister::class)->canAct(auth()->user(), $record, $action))
+            ->action(function (InventoryTransfer $record, array $data) use ($action): void {
+                try {
+                    app(StockTransferRegister::class)->act(auth()->user(), $record->id, $action, $data['revision']);
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    if ($exception->getStatusCode() !== 409) {
+                        throw $exception;
+                    } Notification::make()->title($exception->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('Transfer updated')->success()->send();
+            });
     }
 
     public static function getPages(): array

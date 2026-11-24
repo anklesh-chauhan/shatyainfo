@@ -4,9 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\Visits\VisitResource;
 use App\Models\AccountMaster;
-use App\Models\FieldUserHq;
-use App\Models\LocationMaster;
-use App\Models\User;
 use App\Services\Field\FieldFlexiblePlanningService;
 use App\Services\Field\FieldPlanningService;
 use App\Services\Field\FieldTeamOnboardingService;
@@ -134,7 +131,8 @@ class FlexiblePlanning extends Page implements HasForms
         abort_unless(static::canAccess(), 403);
         $this->patchFilter = null;
         if (FieldTeamOnboardingService::canManage(auth()->user()) && $this->hqFilter) {
-            $this->userId = (int) (FieldUserHq::query()->where('location_master_id', $this->hqFilter)->value('user_id') ?? auth()->id());
+            $this->userId = (int) (app(FieldFlexiblePlanningService::class)
+                ->reviewRepresentatives(auth()->user(), $this->hqFilter)->value('id') ?? auth()->id());
         }
     }
 
@@ -142,9 +140,12 @@ class FlexiblePlanning extends Page implements HasForms
     {
         abort_unless(static::canAccess(), 403);
 
-        return ['report' => app(FieldFlexiblePlanningService::class)->week(auth()->user(), $this->weekStart, $this->userId),
+        $service = app(FieldFlexiblePlanningService::class);
+        $user = auth()->user();
+
+        return ['report' => $service->week($user, $this->weekStart, $this->userId),
             'enabled' => app(FieldPlanningService::class)->capabilities()['supports_flexible_plans'],
-            'users' => FieldTeamOnboardingService::canManage(auth()->user()) ? User::query()->when($this->hqFilter, fn ($q) => $q->whereIn('id', FieldUserHq::query()->where('location_master_id', $this->hqFilter)->select('user_id')))->orderBy('name')->get(['id', 'name']) : collect([auth()->user()]),
-            'hqOptions' => LocationMaster::query()->whereIn('id', FieldUserHq::query()->when(! FieldTeamOnboardingService::canManage(auth()->user()), fn ($q) => $q->where('user_id', auth()->id()))->select('location_master_id'))->orderBy('name')->get(['id', 'name'])];
+            'users' => $service->reviewRepresentatives($user, $this->hqFilter)->get(['id', 'name']),
+            'hqOptions' => $service->reviewHqs($user)->get(['id', 'name'])];
     }
 }

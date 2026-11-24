@@ -9,6 +9,21 @@ class SecondaryOcrSource extends Model
 {
     protected $guarded = [];
 
+    public function stockist(): BelongsTo
+    {
+        return $this->belongsTo(AccountMaster::class, 'stockist_id');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function territory(): BelongsTo
+    {
+        return $this->belongsTo(Territory::class);
+    }
+
     public function statement(): BelongsTo
     {
         return $this->belongsTo(SecondarySalesStatement::class, 'secondary_sales_statement_id');

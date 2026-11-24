@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Traits\HasOperationalApproval;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesInvoice extends SalesDocument
 {
@@ -38,22 +41,22 @@ class SalesInvoice extends SalesDocument
         });
     }
 
-    public function salesOrders()
+    public function salesOrders(): BelongsToMany
     {
         return $this->belongsToMany(SalesOrder::class, 'sales_order_sales_invoice_pivot');
     }
 
-    public function quotes()
+    public function quotes(): BelongsToMany
     {
         return $this->belongsToMany(Quote::class, 'quote_sales_invoice_pivot');
     }
 
-    public function accountMaster()
+    public function accountMaster(): BelongsTo
     {
         return $this->belongsTo(AccountMaster::class);
     }
 
-    public function deliveryChallans()
+    public function deliveryChallans(): HasMany
     {
         return $this->hasMany(DeliveryChallan::class);
     }

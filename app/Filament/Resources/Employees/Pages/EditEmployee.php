@@ -2,95 +2,115 @@
 
 namespace App\Filament\Resources\Employees\Pages;
 
-use Filament\Actions\ViewAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ForceDeleteAction;
-use Filament\Actions\RestoreAction;
-use Filament\Actions\CreateAction;
 use App\Filament\Resources\Employees\EmployeeResource;
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use App\Filament\Resources\Employees\Schemas\EmployeeForm;
+use App\Services\HR\EmployeeRegister;
+use App\Services\HR\HrChangeService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
-use App\Models\Employee;
+use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditEmployee extends EditRecord
 {
     protected static string $resource = EmployeeResource::class;
 
-    /**
-     * Holds employment detail data temporarily between form mutation and afterSave.
-     *
-     * @var array
-     */
-    protected array $employmentDetailData = [];
-
-    public function getHeading(): string
+    protected function getHeaderActions(): array
     {
-        /** @var Model $record */
-        $record = $this->getRecord();
-
-        // Assuming your Employee model has 'name' and 'employee_id' columns
-        $first_name = $record->first_name;
-        $last_name = $record->last_name;
-        $employeeId = $record->employee_id;
-
-        // Return your custom heading
-        return "{$first_name} {$last_name} (ID: {$employeeId})";
+        return [
+            $this->employeeAction('submit', 'Send for Approval', 'primary'),
+            $this->employeeAction('delete', 'Delete', 'danger'),
+            $this->employeeAction('restore', 'Restore', 'primary'),
+            $this->hrChangeAction(),
+        ];
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Extract employment_detail data
-        $employmentDetailData = $data['employment_detail'] ?? [];
-        unset($data['employment_detail']);
-
-        // Store employment_detail data for afterSave
-        $this->employmentDetailData = $employmentDetailData;
+        $data['revision'] = app(EmployeeRegister::class)->revision($this->record);
+        $data['provision_login'] = false;
+        $data['resolved_reporting_manager'] = app(EmployeeRegister::class)->reportingSummary(auth()->user(), $this->record)['reporting_manager'];
 
         return $data;
     }
 
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        try {
+            return $this->record = app(EmployeeRegister::class)->save(auth()->user(), $record->id, EmployeeResource::adminInput($data, $record));
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
+    }
+
     protected function afterSave(): void
     {
-        // Update or create the employmentDetail record
-        if (!empty($this->employmentDetailData)) {
-            $this->record->employmentDetail()->updateOrCreate(
-                ['employee_id' => $this->record->id],
-                $this->employmentDetailData
-            );
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return app(EmployeeRegister::class)->canChange(auth()->user(), $this->record) ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function employeeAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(EmployeeRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    app(EmployeeRegister::class)->act(
+                        auth()->user(), [$this->record->id], $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if (in_array($action, ['delete', 'force-delete'], true)) {
+                    $this->redirect(EmployeeResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('Employee updated')->success()->send();
+            });
+    }
+
+    private function hrChangeAction(): Action
+    {
+        return Action::make('request_hr_change')->label('Request HR change')
+            ->visible(fn (): bool => app(EmployeeRegister::class)->canRequestChange(auth()->user(), $this->record))
+            ->schema([...EmployeeForm::fields('employee', change: true),
+                Hidden::make('revision'), Textarea::make('reason')->required()->maxLength(2000)])
+            ->fillForm(fn (): array => $this->record->only(array_keys(HrChangeService::rules('employee'))) + ['revision' => app(EmployeeRegister::class)->revision($this->record->fresh())])
+            ->action(function (array $data): void {
+                app(EmployeeRegister::class)->requestChange(auth()->user(), $this->record->id, 'employee', ['revision' => $data['revision'], 'reason' => $data['reason'], 'values' => Arr::only($data, array_keys(HrChangeService::rules('employee')))]);
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('HR change submitted')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
         }
-
-        // Send success notification
-        Notification::make()
-            ->success()
-            ->title('Employee updated')
-            ->body('The employee has been updated successfully.')
-            ->send();
-    }
-
-    protected function getHeaderActions(): array
-    {
-        return [
-            ViewAction::make(),
-            RestoreAction::make(),
-            CreateAction::make(),
-        ];
-    }
-
-    public function hasCombinedRelationManagerTabsWithContent(): bool
-    {
-        return true;
-    }
-
-    public function getContentTabLabel(): ?string
-    {
-        /** @var Model $record */
-        $record = $this->getRecord();
-
-        // Assuming your Employee model has a column named 'employee_id'
-        $employeeId = $record->employee_id;
-
-        // Construct the label
-        return "Employee Details";
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }

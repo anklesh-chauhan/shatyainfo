@@ -236,19 +236,11 @@ class PatchResource extends BaseResource
                 ActionGroup::make([
                     ApprovalAction::make(),
                     EditAction::make(),
-                    DeleteAction::make()
-                        ->before(function (DeleteAction $action, $record) {
-                            // Ensure 'deleted_by' is set before deletion
-                            $record->update(['deleted_by' => Auth::user()->name ?? 'System']);
-                        }),
+                    DeleteAction::make(),
                 ]),
             ], position: RecordActionsPosition::BeforeColumns)
             ->toolbarActions([
-                DeleteBulkAction::make()
-                    ->before(function (DeleteBulkAction $action, $records) {
-                        // Set 'deleted_by' for all records before bulk deletion
-                        $records->each(fn ($record) => $record->update(['deleted_by' => Auth::user()->name ?? 'System']));
-                    }),
+                DeleteBulkAction::make(),
             ]);
     }
 

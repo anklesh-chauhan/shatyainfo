@@ -3,34 +3,32 @@
 namespace App\Filament\Resources\Positions;
 
 use App\Enums\PositionStatus;
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Clusters\HR\EmployeeManagementCluster;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\Positions\Pages\CreatePosition;
 use App\Filament\Resources\Positions\Pages\EditPosition;
 use App\Filament\Resources\Positions\Pages\ListPositions;
-use App\Models\Employee;
-use App\Models\OrganizationalUnit;
+use App\Filament\Resources\Positions\Pages\ViewPosition;
+use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Models\Position;
-use App\Models\Territory;
-use App\Services\OrganizationalUnitService;
+use App\Services\HR\PositionRegister;
 use App\Traits\HasSafeGlobalSearch;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Hidden;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class PositionResource extends BaseResource
 {
@@ -48,177 +46,52 @@ class PositionResource extends BaseResource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema->components([
-            Section::make('Position Details')
-                ->columns(2)
-                ->schema([
-                    TextInput::make('name')
-                        ->required()
-                        ->maxLength(255),
-                    TextInput::make('code')
-                        ->unique(ignoreRecord: true)
-                        ->required()
-                        ->maxLength(255),
-                    Select::make('status')
-                        ->options(PositionStatus::class)
-                        ->default(PositionStatus::Active)
-                        ->required(),
-                    TextInput::make('level')
-                        ->nullable()
-                        ->maxLength(255),
-                    Textarea::make('description')
-                        ->nullable()
-                        ->maxLength(65535)
-                        ->columnSpanFull(),
-                ]),
+        return $schema->components([Section::make('Position Details')->columns(2)->schema(PositionForm::fields())
+            ->disabled(fn (?Position $record): bool => $record !== null && ! app(PositionRegister::class)->canChange(auth()->user(), $record))]);
+    }
 
-            Section::make('Reporting & Organizational Structure')
-                ->columns(2)
-                ->schema([
-                    Select::make('job_role_id')
-                        ->relationship('jobRole', 'name')
-                        ->required(),
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && app(PositionRegister::class)->canRead(auth()->user());
+    }
 
-                    Select::make('reports_to_position_id')
-                        ->label('Reports To Position')
-                        ->relationship('reportsTo', 'name')
-                        ->searchable()
-                        ->nullable()
-                        ->placeholder('Select a reporting position'),
+    public static function canCreate(): bool
+    {
+        return parent::canCreate() && app(PositionRegister::class)->canRead(auth()->user());
+    }
 
-                    // 1. Multiple Territories
-                    Select::make('territories')
-                        ->relationship(name: 'territories', titleAttribute: 'name')
-                        ->multiple()
-                        ->preload()
-                        ->live()                    // Important for reactivity
-                        ->searchable()
-                        ->label('Associated Territories')
-                        ->required(),
+    public static function canEdit(Model $record): bool
+    {
+        return parent::canEdit($record) && app(PositionRegister::class)->canChange(auth()->user(), $record);
+    }
 
-                    // 2. HQ Territory (Only from selected territories)
-                    Select::make('hq_territory_id')
-                        ->label('HQ Territory')
-                        ->options(function (Get $get) {
-                            $selectedIds = $get('territories') ?? [];
+    public static function getEloquentQuery(): Builder
+    {
+        $service = app(PositionRegister::class);
+        $relations = ['approval'];
+        foreach (['reportsTo' => 'parents', 'territories' => 'territories', 'location' => 'locations', 'division' => 'divisions', 'department' => 'departments', 'jobTitle' => 'titles', 'jobGrade' => 'grades', 'organizationalUnits' => 'org-units'] as $relation => $kind) {
+            $relations[$relation] = fn ($query) => $query->whereIn($query->getModel()->qualifyColumn('id'), $service->catalog(auth()->user(), $kind)->select('id'));
+        }
 
-                            if (empty($selectedIds)) {
-                                return [];
-                            }
+        return $service->visible(auth()->user())->with($relations);
+    }
 
-                            return Territory::whereIn('id', $selectedIds)
-                                ->orderBy('name')
-                                ->pluck('name', 'id');
-                        })
-                        ->live(onBlur: true)           // More stable reactivity
-                        ->searchable()
-                        ->required()
-                        ->placeholder('Select HQ Territory...')
-                        ->disabled(fn (Get $get) => empty($get('territories')))
-                        ->afterStateUpdated(function (Set $set, $state, Get $get) {
-                            $selected = $get('territories') ?? [];
-                            if ($state && ! in_array($state, $selected)) {
-                                $set('hq_territory_id', null);   // Reset if HQ is no longer valid
-                            }
-                        }),
-
-                    Select::make('location_id')
-                        ->label('Location')
-                        ->relationship('location', 'name')
-                        ->searchable()
-                        ->nullable()
-                        ->preload()
-                        ->placeholder('Select a location'),
-
-                    Select::make('division_ou_id')
-                        ->label('Division')
-                        ->options(fn () => OrganizationalUnit::query()
-                            ->whereHas('typeMaster', fn ($q) => $q->where('name', 'Division')
-                            )
-                            ->pluck('name', 'id')
-                        )
-                        ->searchable()
-                        ->preload()
-                        ->nullable()
-                        ->reactive()
-                        ->afterStateUpdated(function (callable $set) {
-                            // 🔥 RESET dependent field
-                            $set('organizational_unit_id', null);
-                            $set('organizationalUnits', []);
-                        }),
-
-                    Select::make('organizationalUnits')
-                        ->label('Organizational Units')
-                        ->multiple()
-                        ->rules([fn (callable $get) => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
-                            try {
-                                OrganizationalUnitService::validateSelection($get('division_ou_id') ? (int) $get('division_ou_id') : null, (array) $value);
-                            } catch (ValidationException $exception) {
-                                $fail('Choose organizational units within the selected Division.');
-                            }
-                        }])
-                        ->relationship(
-                            name: 'organizationalUnits',
-                            titleAttribute: 'name',
-                            modifyQueryUsing: function ($query, callable $get) {
-                                $divisionId = $get('division_ou_id');
-
-                                if (! $divisionId) {
-                                    $query->whereRaw('1 = 0');
-
-                                    return;
-                                }
-
-                                $query->whereIn('organizational_units.id', OrganizationalUnitService::divisionUnitIds((int) $divisionId));
-                            }
-                        )
-                        ->searchable()
-                        ->preload()
-                        ->reactive(),
-                ]),
-
-            Section::make('Job Classification')
-                ->columns(2)
-                ->schema([
-                    Select::make('department_id')
-                        ->label('Department')
-                        ->relationship('department', 'department_name')
-                        ->searchable()
-                        ->nullable()
-                        ->preload()
-                        ->placeholder('Select a department'),
-
-                    Select::make('job_title_id')
-                        ->label('Job Title')
-                        ->relationship('jobTitle', 'title')
-                        ->searchable()
-                        ->nullable()
-                        ->preload()
-                        ->placeholder('Select a job title'),
-
-                    Select::make('job_grade_id')
-                        ->label('Job Grade')
-                        ->relationship('jobGrade', 'grade_name')
-                        ->searchable()
-                        ->nullable()
-                        ->preload()
-                        ->placeholder('Select a job grade'),
-                ]),
-
-            Section::make('Assigned Employees')
-                ->columns(1)
-                ->description('Select employees assigned to this position.')
-                ->schema([
-                    Select::make('employees')
-                        ->relationship('employees', 'first_name')
-                        ->getOptionLabelFromRecordUsing(fn (Employee $record) => "{$record->employee_id} - {$record->first_name} {$record->last_name}"
-                        )
-                        ->multiple()
-                        ->searchable(['employees.employee_id', 'first_name', 'last_name'])
-                        ->preload()
-                        ->label('Select Employees'),
-                ]),
-        ]);
+    public static function recordAction(string $action, string $label): Action
+    {
+        return Action::make($action)->label($label)->color($action === 'delete' ? 'danger' : 'primary')->requiresConfirmation()
+            ->schema([Hidden::make('revision')])->fillForm(fn (Position $record): array => ['revision' => app(PositionRegister::class)->revision($record->fresh())])
+            ->visible(fn (Position $record): bool => app(PositionRegister::class)->canAct(auth()->user(), $record, $action))
+            ->action(function (Position $record, array $data) use ($action): void {
+                try {
+                    app(PositionRegister::class)->act(auth()->user(), [$record->id], $action, $data['revision']);
+                    Notification::make()->title('Position updated')->success()->send();
+                } catch (HttpException $exception) {
+                    if ($exception->getStatusCode() !== 409) {
+                        throw $exception;
+                    }
+                    Notification::make()->title($exception->getMessage())->danger()->send();
+                }
+            });
     }
 
     public static function table(Table $table): Table
@@ -227,6 +100,7 @@ class PositionResource extends BaseResource
             ->columns([
                 TextColumn::make('name')->searchable()->sortable(),
                 TextColumn::make('code')->searchable()->sortable(),
+                TextColumn::make('status')->badge()->sortable(),
 
                 TextColumn::make('level')
                     ->searchable()
@@ -279,49 +153,50 @@ class PositionResource extends BaseResource
                     ->toggleable(),
             ])
             ->filters([
+                SelectFilter::make('status')->options(PositionStatus::class),
                 SelectFilter::make('territories')
-                    ->relationship('territories', 'name')
+                    ->relationship('territories', 'name', modifyQueryUsing: fn ($query) => $query->whereIn($query->getModel()->qualifyColumn('id'), app(PositionRegister::class)->catalog(auth()->user(), 'territories')->select('id')))
                     ->multiple()
                     ->label('Filter by Territory'),
 
                 SelectFilter::make('location_id')
                     ->label('Location')
-                    ->relationship('location', 'name')
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'locations')->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('reports_to_position_id')
                     ->label('Reports To')
-                    ->relationship('reportsTo', 'name')
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'parents')->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('division_ou_id')
                     ->label('Division')
-                    ->relationship('division', 'name', modifyQueryUsing: fn ($query) => $query->whereHas('typeMaster', fn ($type) => $type->where('name', 'Division')))
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'divisions')->pluck('name', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('department_id')
                     ->label('Department')
-                    ->relationship('department', 'department_name')
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'departments')->orderBy('department_name')->pluck('department_name', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('job_title_id')
                     ->label('Job Title')
-                    ->relationship('jobTitle', 'title')
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'titles')->orderBy('title')->pluck('title', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('job_grade_id')
                     ->label('Job Grade')
-                    ->relationship('jobGrade', 'grade_name')
+                    ->options(fn (): array => app(PositionRegister::class)->catalog(auth()->user(), 'grades')->orderBy('grade_name')->pluck('grade_name', 'id')->all())
                     ->searchable()
                     ->preload(),
 
                 SelectFilter::make('organizationalUnits')
-                    ->relationship('organizationalUnits', 'name')
+                    ->relationship('organizationalUnits', 'name', modifyQueryUsing: fn ($query) => $query->whereIn($query->getModel()->qualifyColumn('id'), app(PositionRegister::class)->catalog(auth()->user(), 'org-units')->select('id')))
                     ->multiple()
                     ->preload()
                     ->label('Organizational Units'),
@@ -329,11 +204,22 @@ class PositionResource extends BaseResource
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
-                ApprovalAction::make(),
-                DeleteAction::make(),
+                self::recordAction('submit', 'Send for Approval'),
+                self::recordAction('delete', 'Delete'),
             ])
             ->toolbarActions([
-                DeleteBulkAction::make(),
+                BulkAction::make('delete')->label('Delete')->color('danger')->requiresConfirmation()
+                    ->visible(fn (): bool => auth()->user()->can('DeleteAny:Position'))->deselectRecordsAfterCompletion()
+                    ->action(function (Collection $records): void {
+                        try {
+                            app(PositionRegister::class)->act(auth()->user(), $records->modelKeys(), 'delete', bulk: true);
+                        } catch (HttpException $exception) {
+                            if ($exception->getStatusCode() !== 409) {
+                                throw $exception;
+                            }
+                            Notification::make()->title($exception->getMessage())->danger()->send();
+                        }
+                    }),
             ])
             ->defaultSort('name');
     }
@@ -348,6 +234,7 @@ class PositionResource extends BaseResource
         return [
             'index' => ListPositions::route('/'),
             'create' => CreatePosition::route('/create'),
+            'view' => ViewPosition::route('/{record}'),
             'edit' => EditPosition::route('/{record}/edit'),
         ];
     }

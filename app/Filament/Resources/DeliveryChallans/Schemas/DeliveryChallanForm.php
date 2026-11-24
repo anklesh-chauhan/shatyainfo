@@ -3,14 +3,11 @@
 namespace App\Filament\Resources\DeliveryChallans\Schemas;
 
 use App\Enums\DeliveryChallanStatus;
-use App\Models\AccountMaster;
 use App\Models\DeliveryChallan;
-use App\Models\ItemMaster;
-use App\Models\LocationMaster;
 use App\Models\NumberSeries;
-use App\Models\SalesDocumentItem;
-use App\Models\SalesInvoice;
+use App\Services\Inventory\DeliveryChallanRegister;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -19,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Arr;
 
 class DeliveryChallanForm
 {
@@ -26,14 +24,16 @@ class DeliveryChallanForm
     {
         return $schema
             ->components([
+                Hidden::make('revision'),
                 Section::make('Delivery Details')
+                    ->disabled(fn (?DeliveryChallan $record): bool => $record !== null && ! $record->isEditable())
                     ->columns(4)
                     ->schema([
                         TextInput::make('document_number')
                             ->label('Challan Number')
                             ->default(fn (): string => NumberSeries::getNextNumber(DeliveryChallan::class))
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         DatePicker::make('delivery_date')
                             ->label('Delivery Date')
@@ -44,55 +44,28 @@ class DeliveryChallanForm
                             ->options(DeliveryChallanStatus::class)
                             ->default(DeliveryChallanStatus::Draft)
                             ->disabled()
-                            ->dehydrated(),
+                            ->dehydrated(false),
 
                         Select::make('sales_invoice_id')
                             ->label('Sales Invoice')
-                            ->options(fn (): array => SalesInvoice::query()
-                                ->whereNotIn('status', ['canceled', 'rejected'])
-                                ->whereHas('items', fn ($query) => $query
-                                    ->whereNotNull('item_master_id')
-                                    ->whereRaw('quantity > COALESCE(quantity_delivered, 0)'))
-                                ->orderByDesc('date')
-                                ->pluck('document_number', 'id')
-                                ->all())
+                            ->options(fn (): array => app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'sales-invoices')->pluck('document_number', 'id')->all())
                             ->searchable()
                             ->live()
-                            ->afterStateUpdated(function (?string $state, Set $set): void {
+                            ->afterStateUpdated(function (?string $state, Set $set, ?DeliveryChallan $record): void {
                                 if (! $state) {
+                                    $set('lines', []);
+
                                     return;
                                 }
+                                $order = app(DeliveryChallanRegister::class)->orderData(auth()->user(), (int) $state, (int) $record?->sales_invoice_id === (int) $state ? $record?->id : null);
+                                $set('customer_id', $order['customer_id']);
 
-                                $invoice = SalesInvoice::query()
-                                    ->with(['items.itemMaster', 'accountMaster'])
-                                    ->find($state);
-
-                                if ($invoice === null) {
-                                    return;
-                                }
-
-                                $set('customer_id', $invoice->account_master_id);
-
-                                $lines = $invoice->items
-                                    ->filter(fn (SalesDocumentItem $item): bool => $item->item_master_id !== null && $item->remainingQuantity() > 0)
-                                    ->map(fn (SalesDocumentItem $item): array => [
-                                        'sales_document_item_id' => $item->id,
-                                        'item_master_id' => $item->item_master_id,
-                                        'quantity_delivered' => $item->remainingQuantity(),
-                                        'unit_cost' => $item->unit_price ?? $item->itemMaster?->selling_price ?? 0,
-                                    ])
-                                    ->values()
-                                    ->all();
-
-                                $set('lines', $lines);
+                                $set('lines', collect($order['lines'])->map(fn (array $line): array => Arr::except($line, ['item']))->all());
                             }),
 
                         Select::make('customer_id')
                             ->label('Customer')
-                            ->options(fn (): array => AccountMaster::query()
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->all())
+                            ->options(fn (): array => app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'customers')->pluck('name', 'id')->all())
                             ->searchable()
                             ->required(),
 
@@ -102,16 +75,18 @@ class DeliveryChallanForm
                             ->searchable()
                             ->required(),
 
-                        Textarea::make('notes')
+                        Textarea::make('notes')->maxLength(5000)
                             ->columnSpanFull(),
                     ])->columnSpanFull(),
 
                 Section::make('Items to Deliver')
+                    ->disabled(fn (?DeliveryChallan $record): bool => $record !== null && ! $record->isEditable())
                     ->schema([
                         Repeater::make('lines')
-                            ->relationship()
+                            ->default([])
                             ->columns(5)
                             ->schema([
+                                Hidden::make('id'),
                                 Select::make('sales_document_item_id')
                                     ->label('Invoice Line')
                                     ->options(function (Get $get): array {
@@ -121,45 +96,48 @@ class DeliveryChallanForm
                                             return [];
                                         }
 
-                                        return SalesDocumentItem::query()
-                                            ->where('document_type', SalesInvoice::class)
-                                            ->where('document_id', $salesInvoiceId)
-                                            ->whereNotNull('item_master_id')
-                                            ->with('itemMaster')
-                                            ->get()
-                                            ->mapWithKeys(fn (SalesDocumentItem $item): array => [
-                                                $item->id => ($item->itemMaster?->item_name ?? 'Item').' (Remaining: '.$item->remainingQuantity().')',
-                                            ])
-                                            ->all();
+                                        return app(DeliveryChallanRegister::class)->orderLineOptions(auth()->user(), (int) $salesInvoiceId);
                                     })
                                     ->searchable()
+                                    ->live()
+                                    ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
+                                        if (! $state) {
+                                            return;
+                                        }
+
+                                        $orderId = $get('../../sales_invoice_id');
+                                        $order = $orderId ? app(DeliveryChallanRegister::class)->salesInvoice(auth()->user(), (int) $orderId) : null;
+                                        $line = $order?->items()->find($state);
+
+                                        if ($line === null) {
+                                            return;
+                                        }
+
+                                        $set('item_master_id', $line->item_master_id);
+                                        $set('quantity_delivered', $line->remainingQuantity());
+                                        $set('unit_cost', $line->unit_price ?? $line->itemMaster?->selling_price ?? 0);
+                                    }),
+
+                                Select::make('item_master_id')
+                                    ->label('Item')
+                                    ->options(fn (Get $get): array => app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'items', $get('../../sales_invoice_id') ? (int) $get('../../sales_invoice_id') : null)->pluck('item_name', 'id')->all())
+                                    ->searchable()
+                                    ->required()
+                                    ->columnSpan(2)
                                     ->live()
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
                                         if (! $state) {
                                             return;
                                         }
 
-                                        $item = SalesDocumentItem::query()->with('itemMaster')->find($state);
+                                        $item = app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'items')->find($state);
 
                                         if ($item === null) {
                                             return;
                                         }
 
-                                        $set('item_master_id', $item->item_master_id);
-                                        $set('quantity_delivered', $item->remainingQuantity());
-                                        $set('unit_cost', $item->unit_price ?? $item->itemMaster?->selling_price ?? 0);
+                                        $set('unit_cost', $item->purchase_price ?? 0);
                                     }),
-
-                                Select::make('item_master_id')
-                                    ->label('Item')
-                                    ->options(fn (): array => ItemMaster::query()
-                                        ->whereNull('parent_id')
-                                        ->orderBy('item_name')
-                                        ->pluck('item_name', 'id')
-                                        ->all())
-                                    ->searchable()
-                                    ->required()
-                                    ->columnSpan(2),
 
                                 TextInput::make('quantity_delivered')
                                     ->label('Qty Delivered')
@@ -170,12 +148,13 @@ class DeliveryChallanForm
 
                                 TextInput::make('unit_cost')
                                     ->label('Unit Cost')
-                                    ->numeric(),
+                                    ->numeric()
+                                    ->required(),
 
                                 TextInput::make('batch_number')
-                                    ->label('Batch / Lot'),
+                                    ->label('Batch / Lot')->maxLength(255),
 
-                                Textarea::make('remarks')
+                                Textarea::make('remarks')->maxLength(2000)
                                     ->columnSpanFull()
                                     ->rows(1),
                             ])
@@ -186,29 +165,6 @@ class DeliveryChallanForm
 
     protected static function locationOptions(): array
     {
-        $locations = LocationMaster::query()
-            ->where('is_active', true)
-            ->whereNull('parent_id')
-            ->with('subLocations')
-            ->orderBy('name')
-            ->get();
-
-        $options = [];
-        self::buildLocationOptions($locations, $options);
-
-        return $options;
-    }
-
-    protected static function buildLocationOptions($locations, array &$options, string $prefix = ''): void
-    {
-        foreach ($locations as $location) {
-            $options[$location->id] = $prefix.$location->name.' ['.$location->location_code.']';
-
-            $activeSubLocations = $location->subLocations->where('is_active', true);
-
-            if ($activeSubLocations->isNotEmpty()) {
-                self::buildLocationOptions($activeSubLocations, $options, $prefix.'— ');
-            }
-        }
+        return app(DeliveryChallanRegister::class)->catalog(auth()->user(), 'locations')->orderBy('name')->pluck('name', 'id')->all();
     }
 }

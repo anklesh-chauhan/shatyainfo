@@ -2,10 +2,15 @@
 
 namespace App\Filament\Resources\CustomerPrices\Schemas;
 
-use Filament\Schemas\Schema;
+use App\Models\CustomerPrice;
+use App\Models\ItemMaster;
+use App\Services\Field\FieldCustomerPriceService;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use App\Models\CustomerPrice;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rules\Unique;
 
 class CustomerPriceForm
 {
@@ -13,68 +18,44 @@ class CustomerPriceForm
     {
         return $schema
             ->components([
-                // Select Customer
                 Select::make('customer_id')
                     ->label('Customer')
-                    ->relationship('customer', 'name')
+                    ->relationship('customer', 'name', modifyQueryUsing: fn (Builder $query): Builder => app(FieldCustomerPriceService::class)
+                        ->customers(auth()->user(), $query))
                     ->searchable()
                     ->preload()
                     ->required()
-                    ->reactive(),
+                    ->live(),
 
-                // Select Item (can be main item or variant)
                 Select::make('item_master_id')
-    ->label('Item / Variant')
-    ->relationship('item', 'item_name', function ($query) {
-        $query->orderBy('parent_id')->orderBy('item_name');
-    })
-    ->getOptionLabelFromRecordUsing(function ($record) {
-        // If the item has a parent, show as "Parent – Child"
-        return $record->parent
-            ? "{$record->parent->item_name} – {$record->variant_name}"
-            : $record->item_name;
-    })
-    ->searchable()
-    ->preload()
-    ->required()
-    ->rules([
-        function ($get, $component) {
-            return function ($attribute, $value, $fail) use ($get, $component) {
-                $customerId = $get('customer_id');
-                $itemMasterId = $value;
-                $recordId = $component->getLivewire()->record?->id;
+                    ->label('Item / Variant')
+                    ->relationship('item', 'item_name', modifyQueryUsing: fn (Builder $query): Builder => $query->with('parent'))
+                    ->getOptionLabelFromRecordUsing(fn (ItemMaster $record): string => app(FieldCustomerPriceService::class)->itemLabel($record))
+                    ->searchable(['item_name', 'item_code', 'sku', 'variant_name'])
+                    ->preload()
+                    ->required()
+                    ->unique(table: CustomerPrice::class, ignoreRecord: true,
+                        modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->withoutTrashed()->where('customer_id', $get('customer_id'))),
 
-                if (!$customerId || !$itemMasterId) {
-                    return;
-                }
-
-                $exists = \App\Models\CustomerPrice::where('customer_id', $customerId)
-                    ->where('item_master_id', $itemMasterId)
-                    ->when($recordId, fn($q) => $q->where('id', '!=', $recordId))
-                    ->exists();
-
-                if ($exists) {
-                    $fail('A price for this customer and item/variant already exists.');
-                }
-            };
-        },
-    ]),
-
-                // Price
                 TextInput::make('price')
                     ->label('Price')
                     ->numeric()
-                    ->required()
+                    ->required(fn (?CustomerPrice $record): bool => $record === null || $record->price !== null)
+                    ->minValue(0)
+                    ->maxValue(9999999999999.99)
+                    ->rules(['decimal:0,2'])
                     ->inputMode('decimal'),
 
-                // Discount
                 TextInput::make('discount')
                     ->label('Discount (%)')
                     ->numeric()
+                    ->required()
                     ->default(0)
                     ->suffix('%')
                     ->inputMode('decimal')
-                    ->maxValue(100),
+                    ->minValue(0)
+                    ->maxValue(100)
+                    ->rules(['decimal:0,2']),
             ]);
     }
 }

@@ -24,10 +24,20 @@ class LocationMaster extends BaseModel
         'parent_id',
     ];
 
+    public function getDocumentNumber(): string
+    {
+        return (string) $this->location_code;
+    }
+
     public function territories(): BelongsToMany
     {
         return $this->belongsToMany(Territory::class, 'location_territory', 'location_master_id', 'territory_id')
             ->withTimestamps();
+    }
+
+    public function scopeApplyTerritoryVisibility(Builder $query, array $territoryIds): Builder
+    {
+        return $query->whereHas('territories', fn (Builder $territories) => $territories->whereKey($territoryIds));
     }
 
     public function typeable()

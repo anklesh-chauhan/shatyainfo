@@ -68,6 +68,7 @@ it('negotiates standalone destinations without changing the original screen keys
     foreach ([
         'g01-02' => 'punch',
         'g02-03' => 'visit-register',
+        'g02-04' => 'dcr-register',
         'g02-06' => 'expense-register',
         'g06-03' => 'e-detailing-library',
         'g06-07' => 'sgip-register',
@@ -76,6 +77,56 @@ it('negotiates standalone destinations without changing the original screen keys
             ->and($items[$item]['screen_key'])->toBe($legacy[$item]['screen_key'])
             ->and($items[$item]['standalone_screen_key'])->toBe($screen);
     }
+});
+
+it('offers Travel Segments only in negotiated navigation with list and detail permissions', function () {
+    $actor = grantPagePermissions(reportingUser('Travel Navigation'), 'ViewAny:TravelSegment');
+    Sanctum::actingAs($actor);
+    $endpoint = '/api/v1/mobile-navigation';
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g02-05']);
+    grantPagePermissions($actor, 'View:TravelSegment');
+    Sanctum::actingAs($actor->fresh());
+    $this->getJson($endpoint)->assertOk()->assertJsonMissing(['key' => 'g02-05']);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g02-05', 'screen_key' => 'travel-segments']);
+});
+
+it('offers Contacts to eligible clients through negotiated navigation', function () {
+    $actor = grantPagePermissions(reportingUser('Contacts Navigation'), 'ViewAny:ContactDetail');
+    Sanctum::actingAs($actor);
+    $this->getJson('/api/v1/mobile-navigation')->assertOk()->assertJsonMissing(['key' => 'g03-02']);
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g03-02', 'screen_key' => 'contacts']);
+});
+
+it('offers Companies in negotiated navigation to callers with company list access', function () {
+    $actor = grantPagePermissions(reportingUser('Company Navigation'), 'ViewAny:Company');
+    Sanctum::actingAs($actor);
+    $this->getJson('/api/v1/mobile-navigation')->assertOk()->assertJsonMissing(['key' => 'g03-03']);
+    $this->getJson('/api/v1/mobile-navigation?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g03-03', 'screen_key' => 'companies']);
+});
+
+it('offers Territories to eligible clients through negotiated navigation', function () {
+    $actor = reportingUser('Territory Navigation');
+    $endpoint = '/api/v1/mobile-navigation';
+    Sanctum::actingAs($actor);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g03-04']);
+    Sanctum::actingAs(grantPagePermissions($actor, 'ViewAny:Territory')->fresh());
+    $this->getJson($endpoint)->assertOk()->assertJsonMissing(['key' => 'g03-04']);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g03-04', 'screen_key' => 'territories']);
+});
+
+it('negotiates Patches for callers with Patch list access', function () {
+    $actor = reportingUser('Patch Navigation');
+    $endpoint = '/api/v1/mobile-navigation';
+    Sanctum::actingAs($actor);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g03-05']);
+    Sanctum::actingAs(grantPagePermissions($actor, 'ViewAny:Patch')->fresh());
+    $this->getJson($endpoint)->assertOk()->assertJsonMissing(['key' => 'g03-05']);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g03-05', 'screen_key' => 'patches']);
 });
 
 it('shares ordered quick links without replacing saved Admin-only entries', function () {
@@ -118,6 +169,39 @@ it('uses Admin cluster parents for HR and reports', function () {
     $report = $registry->parentFor(DcrRegister::class);
     expect($leave['key'])->toBe('leave-management')->and($leave['sort'])->toBe(30)
         ->and($report['key'])->toBe('all-reports')->and($report['sort'])->toBe(3);
+});
+
+it('negotiates the standalone Follow-ups register for callers with list and detail access', function () {
+    $user = grantPagePermissions(reportingUser('Follow-ups navigation'), 'ViewAny:FollowUp');
+    Sanctum::actingAs($user);
+    $endpoint = '/api/v1/mobile-navigation';
+    $entry = ['key' => 'g04-02', 'screen_key' => 'follow-ups'];
+
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g04-02']);
+    grantPagePermissions($user, 'View:FollowUp');
+    $this->getJson($endpoint)->assertOk()->assertJsonMissing(['key' => 'g04-02']);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonFragment($entry);
+    $user->revokePermissionTo('View:FollowUp');
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g04-02']);
+});
+
+it('negotiates Lead Activities only for callers with standalone activity access', function () {
+    $user = grantPagePermissions(reportingUser('Lead Activities Navigation'), 'ViewAny:LeadActivity');
+    Sanctum::actingAs($user);
+    $endpoint = '/api/v1/mobile-navigation';
+
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g04-03']);
+    $this->getJson('/api/v1/lead-activities')->assertForbidden();
+    grantPagePermissions($user, 'View:LeadActivity');
+    $this->getJson($endpoint)->assertOk()->assertJsonMissing(['key' => 'g04-03']);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()
+        ->assertJsonFragment(['key' => 'g04-03', 'screen_key' => 'lead-activities']);
+    Organization::query()->create([
+        'name' => 'Lead Activities CRM Disabled',
+        'metadata' => ['company_setup' => ['organization_saved' => true]],
+    ]);
+    $this->getJson($endpoint.'?destinations=standalone')->assertOk()->assertJsonMissing(['key' => 'g04-03']);
+    $this->getJson('/api/v1/lead-activities')->assertForbidden();
 });
 
 it('accounts for eligible Admin destinations through bindings and the remaining delivery inventory', function () {

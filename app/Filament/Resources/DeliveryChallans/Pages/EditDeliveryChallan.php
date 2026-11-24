@@ -2,13 +2,15 @@
 
 namespace App\Filament\Resources\DeliveryChallans\Pages;
 
-use App\Filament\Actions\ApprovalAction;
 use App\Filament\Resources\DeliveryChallans\DeliveryChallanResource;
+use App\Models\DeliveryChallanLine;
+use App\Services\Inventory\DeliveryChallanRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Throwable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditDeliveryChallan extends EditRecord
 {
@@ -17,57 +19,80 @@ class EditDeliveryChallan extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ApprovalAction::make(),
-            Action::make('post')
-                ->label('Post to Stock')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalHeading('Post delivery challan to inventory?')
-                ->modalDescription('This will reduce stock at the dispatch location and update delivered quantities on the linked sales invoice.')
-                ->visible(fn (): bool => ! $this->record->isPosted() && $this->record->canProceedAfterApproval())
-                ->action(function (): void {
-                    try {
-                        $this->record->post();
-
-                        Notification::make()
-                            ->title('Delivery challan posted')
-                            ->body('Stock has been updated successfully.')
-                            ->success()
-                            ->send();
-
-                        $this->refreshFormData(['status', 'posted_at', 'posted_by']);
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Unable to post delivery challan')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            DeleteAction::make()
-                ->visible(fn (): bool => $this->record->isEditable()),
+            $this->receiptAction('submit', 'Send for Approval', 'primary'),
+            $this->receiptAction('post', 'Post to Stock', 'success'),
+            $this->receiptAction('delete', 'Delete', 'danger'),
         ];
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        if (! $this->record->isEditable()) {
-            Notification::make()
-                ->title('Delivery challan is locked')
-                ->body('Posted delivery challans cannot be edited.')
-                ->danger()
-                ->send();
-
-            $this->halt();
-        }
+        $this->record->load('lines');
+        $data['revision'] = app(DeliveryChallanRegister::class)->revision($this->record);
+        $data['lines'] = $this->record->lines->map(fn (DeliveryChallanLine $line): array => $line->only([
+            'id', 'sales_document_item_id', 'item_master_id', 'quantity_delivered', 'unit_cost', 'batch_number', 'remarks',
+        ]))->all();
 
         return $data;
     }
 
-    protected function canEdit(): bool
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return ! $this->record->isPosted();
+        try {
+            return $this->record = app(DeliveryChallanRegister::class)->save(auth()->user(), $record->id, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
+    }
+
+    protected function afterSave(): void
+    {
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return $this->record->isEditable() ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function receiptAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(DeliveryChallanRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    app(DeliveryChallanRegister::class)->act(
+                        auth()->user(), [$this->record->id], $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if ($action === 'delete') {
+                    $this->redirect(DeliveryChallanResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('Delivery challan updated')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
+        }
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }

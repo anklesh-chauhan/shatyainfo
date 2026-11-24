@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\GoodsReceiptNote;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class GoodsReceiptNotePolicy
 {
     use HandlesAuthorization;
-    
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:GoodsReceiptNote');
@@ -35,6 +35,11 @@ class GoodsReceiptNotePolicy
     public function delete(AuthUser $authUser, GoodsReceiptNote $goodsReceiptNote): bool
     {
         return $authUser->can('Delete:GoodsReceiptNote');
+    }
+
+    public function deleteAny(AuthUser $authUser): bool
+    {
+        return $authUser->can('DeleteAny:GoodsReceiptNote');
     }
 
     public function restore(AuthUser $authUser, GoodsReceiptNote $goodsReceiptNote): bool
@@ -86,5 +91,4 @@ class GoodsReceiptNotePolicy
     {
         return $authUser->can('OverrideApproval:GoodsReceiptNote');
     }
-
 }

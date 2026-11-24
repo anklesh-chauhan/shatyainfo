@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\CustomerPrices\Tables;
 
 use App\Filament\Actions\ApprovalAction;
-
+use App\Models\CustomerPrice;
+use App\Services\Field\FieldCustomerPriceService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class CustomerPricesTable
 {
@@ -25,14 +27,8 @@ class CustomerPricesTable
                 // Item (shows parent + variant if applicable)
                 TextColumn::make('item.item_name')
                     ->label('Item / Variant')
-                    ->formatStateUsing(function ($record) {
-                        $item = $record->item;
-                        if ($item?->parent) {
-                            // show "Parent - Variant"
-                            return "{$item->parent->item_name} – {$item->variant_name}";
-                        }
-                        return $item?->item_name ?? '-';
-                    })
+                    ->formatStateUsing(fn (CustomerPrice $record): string => $record->item
+                        ? app(FieldCustomerPriceService::class)->itemLabel($record->item) : '-')
                     ->searchable()
                     ->sortable(),
 
@@ -63,12 +59,16 @@ class CustomerPricesTable
                 //
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->visible(fn (CustomerPrice $record): bool => app(FieldCustomerPriceService::class)->canChange(auth()->user(), $record, 'update')),
                 ApprovalAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->using(function (DeleteBulkAction $action, Collection $records): void {
+                        $deleted = app(FieldCustomerPriceService::class)->delete(auth()->user(), $records->modelKeys());
+                        $action->reportBulkProcessingSuccessfulRecordsCount($deleted);
+                    }),
                 ]),
             ]);
     }

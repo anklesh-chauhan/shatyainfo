@@ -6,8 +6,10 @@ use App\Enums\FieldPlanningMode;
 use App\Models\FieldPlanningRevision;
 use App\Models\FieldUserHq;
 use App\Models\FlexiblePlanEntry;
+use App\Models\LocationMaster;
 use App\Models\User;
 use App\Models\Visit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -84,16 +86,43 @@ class FieldFlexiblePlanningService
         return $entry;
     }
 
-    public function week(User $actor, string $start, ?int $userId = null): array
+    public function reviewRepresentatives(User $actor, ?int $hqId = null): Builder
+    {
+        return User::query()
+            ->when(! FieldTeamOnboardingService::canManage($actor), fn (Builder $query): Builder => $query->whereKey($actor->id))
+            ->when($hqId, fn (Builder $query): Builder => $query->whereIn('id',
+                FieldUserHq::query()->where('location_master_id', $hqId)->select('user_id')))
+            ->orderBy('name')->orderBy('id');
+    }
+
+    public function reviewHqs(User $actor): Builder
+    {
+        return LocationMaster::query()->whereIn('id', FieldUserHq::query()
+            ->whereIn('user_id', $this->reviewRepresentatives($actor)->reorder()->select('id'))
+            ->select('location_master_id'))->orderBy('name')->orderBy('id');
+    }
+
+    public function week(User $actor, string $start, ?int $userId = null, bool $includeTeam = false): array
     {
         $userId ??= $actor->id;
-        abort_unless(($userId === $actor->id && $actor->can('ViewAny:AccountMaster')) || FieldTeamOnboardingService::canManage($actor), 403);
+        $isPersonal = $userId === (int) $actor->id;
+        $canReviewTeam = FieldTeamOnboardingService::canManage($actor);
+        abort_unless(($isPersonal && $actor->can('ViewAny:AccountMaster')) || $canReviewTeam, 403);
+        if (! $isPersonal) {
+            $this->reviewRepresentatives($actor)->findOrFail($userId, ['id']);
+        }
         Validator::make(['start' => $start], ['start' => ['required', 'date_format:Y-m-d']])->validate();
+        $canAct = $isPersonal && $actor->can('create', Visit::class)
+            && app(FieldPlanningService::class)->capabilities()['supports_flexible_plans'];
         $day = Carbon::parse($start)->startOfDay();
         $end = $day->copy()->addDays(6)->endOfDay();
         $entries = FlexiblePlanEntry::query()->where('user_id', $userId)->whereBetween('date', [$day->toDateString(), $end->toDateString()])
             ->with(['account', 'patch', 'visits'])->orderBy('date')->orderBy('id')->get();
-        $rows = $entries->map(fn ($entry) => $this->resource($entry))->all();
+        $rows = $entries->map(function (FlexiblePlanEntry $entry) use ($canAct): array {
+            $row = $this->resource($entry);
+
+            return [...$row, 'editable' => $canAct && $row['editable']];
+        })->all();
         $unplanned = Visit::query()->where('employee_id', $userId)->whereBetween('visit_date', [$day->toDateString(), $end->toDateString()])
             ->whereNull('flexible_plan_entry_id')->whereNull('sales_tour_plan_id')->whereIn('visit_status', ['started', 'checked_out_pending', 'completed'])
             ->whereIn('planning_revision_id', FieldPlanningRevision::query()->where('mode', FieldPlanningMode::Flexible->value)->select('id'))
@@ -101,6 +130,13 @@ class FieldFlexiblePlanningService
         $hq = FieldUserHq::query()->with('location')->where('user_id', $userId)->first();
 
         return ['start' => $day->toDateString(), 'end' => $end->toDateString(), 'user_id' => $userId,
+            'can_act_on_intentions' => $canAct,
+            ...($includeTeam && $canReviewTeam ? ['team_review' => [
+                'hqs' => $this->reviewHqs($actor)->get(['id', 'name']),
+                'representatives' => $this->reviewRepresentatives($actor)->select(['id', 'name'])
+                    ->addSelect(['hq_id' => FieldUserHq::query()->whereColumn('user_id', 'users.id')->select('location_master_id')])
+                    ->get()->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'hq_id' => $user->hq_id]),
+            ]] : []),
             'hq' => $hq?->location ? ['id' => $hq->location->id, 'name' => $hq->location->name] : null,
             'entries' => $rows, 'intended' => collect($rows)->where('status', 'active')->count(),
             'completed' => collect($rows)->where('execution_status', 'completed')->count(),

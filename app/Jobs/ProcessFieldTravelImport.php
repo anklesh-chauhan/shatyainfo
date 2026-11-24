@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DataImport\FieldTravelImport;
+use App\Services\Field\FieldPatchWorkbook;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Auth;
@@ -48,12 +49,15 @@ class ProcessFieldTravelImport implements ShouldQueue, TenantAware
             $previous = Auth::user();
             try {
                 Auth::setUser(User::findOrFail($this->userId));
+                $authorizePlan = ($payload['patch_register'] ?? false)
+                    ? app(FieldPatchWorkbook::class)->authorizePlans(Auth::user(), lock: true)
+                    : null;
                 $payload['status'] = 'running';
                 Storage::disk('local')->put($path, json_encode($payload, JSON_THROW_ON_ERROR));
                 Cache::store('file')->put($this->progressKey(), ['processed' => 0, 'total' => array_sum(array_map('count', $payload['rows']))], now()->addDays(7));
                 $payload['result'] = $importer->import($payload['rows'], $payload['fingerprint'], function (int $processed, int $total): void {
                     Cache::store('file')->put($this->progressKey(), compact('processed', 'total'), now()->addDays(7));
-                });
+                }, $authorizePlan);
                 $payload['status'] = 'complete';
                 unset($payload['rows']);
             } catch (Throwable $exception) {

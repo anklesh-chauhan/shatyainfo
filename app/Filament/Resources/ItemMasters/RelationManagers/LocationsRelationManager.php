@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources\ItemMasters\RelationManagers;
 
+use App\Services\Inventory\StockRegister;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LocationsRelationManager extends RelationManager
 {
@@ -23,6 +26,9 @@ class LocationsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('inventory_stocks.id',
+                app(StockRegister::class)->visible(auth()->user())->select('inventory_stocks.id'))
+                ->with(['item' => fn (BelongsTo $item) => $item->withTrashed(), 'location' => fn (BelongsTo $location) => $location->withTrashed()]))
             ->columns([
                 TextColumn::make('location.name')
                     ->label('Location')

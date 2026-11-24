@@ -6,7 +6,9 @@ use App\Enums\DeliveryChallanStatus;
 use App\Enums\GoodsReceiptNoteStatus;
 use App\Enums\InventoryAdjustmentType;
 use App\Enums\InventoryDocumentStatus;
+use App\Enums\PurchaseOrderStatus;
 use App\Enums\SampleIssueStatus;
+use App\Enums\SampleRequestStatus;
 use App\Enums\SgipStockSource;
 use App\Models\DeliveryChallan;
 use App\Models\GoodsReceiptNote;
@@ -15,9 +17,8 @@ use App\Models\InventoryAudit;
 use App\Models\InventoryMovement;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
-use App\Models\PurchaseOrderLine;
-use App\Models\SalesDocumentItem;
 use App\Models\SampleIssue;
+use App\Models\SampleRequest;
 use App\Models\SampleRequestLine;
 use App\Models\SgipDistribution;
 use App\Models\VisitPreference;
@@ -33,19 +34,21 @@ class InventoryService
 {
     public function postAdjustment(InventoryAdjustment $adjustment, ?int $userId = null, ?CarbonInterface $movementAt = null): void
     {
-        if ($adjustment->isPosted()) {
-            return;
-        }
-
-        DB::transaction(function () use ($adjustment, $userId, $movementAt): void {
+        $adjustment->getConnection()->transaction(function () use ($adjustment, $userId, $movementAt): void {
             $adjustment = $adjustment->newQuery()->lockForUpdate()->findOrFail($adjustment->id);
             if ($adjustment->isPosted()) {
                 return;
             }
+            if ($adjustment->status !== InventoryDocumentStatus::Draft) {
+                throw new RuntimeException('Only draft adjustments can be posted.');
+            }
+            if (trim((string) $adjustment->reason) === '') {
+                throw new RuntimeException('A reason is required for stock adjustments.');
+            }
             $adjustment->assertApprovalComplete();
             $quantity = (float) $adjustment->quantity;
 
-            if ($quantity <= 0) {
+            if (! is_finite($quantity) || $quantity <= 0 || ($adjustment->unit_cost !== null && (! is_finite((float) $adjustment->unit_cost) || (float) $adjustment->unit_cost < 0))) {
                 throw new RuntimeException('Adjustment quantity must be greater than zero.');
             }
 
@@ -75,19 +78,18 @@ class InventoryService
                 'posted_by' => $userId,
                 'posted_at' => now(),
             ])->saveQuietly();
-        });
+        }, 3);
     }
 
     public function postTransfer(InventoryTransfer $transfer, ?int $userId = null): void
     {
-        if ($transfer->isPosted()) {
-            return;
-        }
-
-        DB::transaction(function () use ($transfer, $userId): void {
+        $transfer->getConnection()->transaction(function () use ($transfer, $userId): void {
             $transfer = $transfer->newQuery()->lockForUpdate()->findOrFail($transfer->id);
             if ($transfer->isPosted()) {
                 return;
+            }
+            if ($transfer->status !== InventoryDocumentStatus::Draft) {
+                throw new RuntimeException('Only draft transfers can be posted.');
             }
             $transfer->assertApprovalComplete();
             if ((int) $transfer->from_location_master_id === (int) $transfer->to_location_master_id) {
@@ -96,8 +98,14 @@ class InventoryService
 
             $quantity = (float) $transfer->quantity;
 
-            if ($quantity <= 0) {
+            if (! is_finite($quantity) || $quantity <= 0 || ($transfer->unit_cost !== null && (! is_finite((float) $transfer->unit_cost) || (float) $transfer->unit_cost < 0))) {
                 throw new RuntimeException('Transfer quantity must be greater than zero.');
+            }
+
+            $locations = [(int) $transfer->from_location_master_id, (int) $transfer->to_location_master_id];
+            sort($locations);
+            foreach ($locations as $locationId) {
+                $this->stockFor($transfer->item_master_id, $locationId);
             }
 
             $this->postMovement(
@@ -125,7 +133,7 @@ class InventoryService
                 'posted_by' => $userId,
                 'posted_at' => now(),
             ])->saveQuietly();
-        });
+        }, 3);
     }
 
     public function postAudit(InventoryAudit $audit, ?int $userId = null): void
@@ -173,73 +181,68 @@ class InventoryService
 
     public function postGrn(GoodsReceiptNote $grn, ?int $userId = null): void
     {
-        if ($grn->isPosted()) {
-            return;
-        }
-
-        DB::transaction(function () use ($grn, $userId): void {
+        $grn->getConnection()->transaction(function () use ($grn, $userId): void {
             $grn = $grn->newQuery()->lockForUpdate()->findOrFail($grn->id);
             if ($grn->isPosted()) {
                 return;
             }
+            if ($grn->status !== GoodsReceiptNoteStatus::Draft) {
+                throw new RuntimeException('Only draft GRNs can be posted.');
+            }
             $grn->assertApprovalComplete();
-            $grn->loadMissing(['lines.purchaseOrderLine', 'purchaseOrder']);
-            $grn->purchaseOrder?->assertApprovalComplete();
-
-            if ($grn->lines->isEmpty()) {
+            $purchaseOrder = $grn->purchase_order_id === null ? null : $grn->purchaseOrder()->lockForUpdate()->first();
+            if ($grn->purchase_order_id !== null) {
+                if ($purchaseOrder === null || ! in_array($purchaseOrder->status, [PurchaseOrderStatus::Approved, PurchaseOrderStatus::PartiallyReceived], true)
+                    || (int) $grn->supplier_id !== (int) $purchaseOrder->supplier_id
+                    || (int) $grn->location_master_id !== (int) $purchaseOrder->location_master_id) {
+                    throw new RuntimeException('The linked purchase order is unavailable for this receipt.');
+                }
+                $purchaseOrder->assertApprovalComplete();
+            }
+            $lines = $grn->lines()->orderBy('id')->lockForUpdate()->get();
+            if ($lines->isEmpty()) {
                 throw new RuntimeException('GRN must have at least one line before posting.');
             }
-
-            foreach ($grn->lines as $line) {
+            $poLines = $purchaseOrder?->lines()->orderBy('id')->lockForUpdate()->get()->keyBy('id') ?? collect();
+            $requested = [];
+            foreach ($lines as $line) {
                 $quantity = (float) $line->quantity_received;
-
-                if ($quantity <= 0) {
-                    throw new RuntimeException('GRN line quantity must be greater than zero.');
+                if (! is_finite($quantity) || $quantity <= 0 || ! is_finite((float) $line->unit_cost) || (float) $line->unit_cost < 0) {
+                    throw new RuntimeException('GRN lines require positive quantities and non-negative costs.');
                 }
-
-                if ($line->purchase_order_line_id !== null) {
-                    $poLine = $line->purchaseOrderLine;
-
-                    if ($poLine === null) {
-                        throw new RuntimeException('Linked purchase order line was not found.');
+                if ($purchaseOrder === null && $line->purchase_order_line_id !== null) {
+                    throw new RuntimeException('Select the purchase order for the linked receipt lines.');
+                }
+                if ($purchaseOrder !== null) {
+                    $poLine = $poLines->get($line->purchase_order_line_id);
+                    if ($poLine === null || (int) $poLine->item_master_id !== (int) $line->item_master_id) {
+                        throw new RuntimeException('Receipt items must match lines from the selected purchase order.');
                     }
-
-                    $remaining = $poLine->remainingQuantity();
-
-                    if ($quantity > $remaining) {
-                        throw new RuntimeException("Received quantity exceeds remaining PO quantity for {$poLine->item?->item_name}.");
+                    $requested[$poLine->id] = ($requested[$poLine->id] ?? 0) + $quantity;
+                    if (round($requested[$poLine->id], 3) > $poLine->remainingQuantity()) {
+                        throw new RuntimeException('Received quantity exceeds remaining PO quantity.');
                     }
                 }
-
+            }
+            foreach ($lines->sortBy('item_master_id') as $line) {
                 $this->postMovement(
                     itemMasterId: $line->item_master_id,
                     locationMasterId: $grn->location_master_id,
-                    quantity: $quantity,
+                    quantity: (float) $line->quantity_received,
                     movementType: 'grn_receipt',
                     reference: $grn,
                     unitCost: (float) $line->unit_cost,
                     remarks: $line->remarks ?? $line->batch_number,
                 );
-
-                if ($line->purchase_order_line_id !== null) {
-                    $poLine = PurchaseOrderLine::query()->lockForUpdate()->find($line->purchase_order_line_id);
-
-                    if ($poLine !== null) {
-                        $poLine->forceFill([
-                            'quantity_received' => (float) $poLine->quantity_received + $quantity,
-                        ])->saveQuietly();
-                    }
-                }
             }
-
-            $grn->forceFill([
-                'status' => GoodsReceiptNoteStatus::Posted,
-                'posted_by' => $userId,
-                'posted_at' => now(),
-            ])->saveQuietly();
-
-            $grn->purchaseOrder?->refreshReceiptStatus();
-        });
+            foreach ($requested as $id => $quantity) {
+                $poLine = $poLines->get($id);
+                $poLine->forceFill(['quantity_received' => (float) $poLine->quantity_received + $quantity])->saveQuietly();
+            }
+            $grn->forceFill(['status' => GoodsReceiptNoteStatus::Posted, 'posted_by' => $userId, 'posted_at' => now()])->saveQuietly();
+            $purchaseOrder?->unsetRelation('lines');
+            $purchaseOrder?->refreshReceiptStatus();
+        }, 3);
     }
 
     public function postDeliveryChallan(DeliveryChallan $challan, ?int $userId = null): void
@@ -253,31 +256,41 @@ class InventoryService
             if ($challan->isPosted()) {
                 return;
             }
+            if ($challan->status !== DeliveryChallanStatus::Draft) {
+                throw new RuntimeException('Only draft delivery challans can be posted.');
+            }
             $challan->assertApprovalComplete();
-            $challan->loadMissing(['lines.salesDocumentItem', 'salesInvoice']);
-            $challan->salesInvoice?->assertApprovalComplete();
+            $challan->loadMissing('lines');
+            $invoice = $challan->sales_invoice_id === null ? null
+                : $challan->salesInvoice()->lockForUpdate()->firstOrFail();
+            $invoice?->assertApprovalComplete();
+            if ($invoice !== null && (! app(InvoiceDeliveryHandoff::class)->isReady($invoice)
+                || (int) $challan->customer_id !== (int) $invoice->account_master_id)) {
+                throw new RuntimeException('The linked invoice is unavailable for delivery.');
+            }
 
             if ($challan->lines->isEmpty()) {
                 throw new RuntimeException('Delivery challan must have at least one line before posting.');
             }
 
-            foreach ($challan->lines as $line) {
+            foreach ($challan->lines->sortBy('item_master_id') as $line) {
                 $quantity = (float) $line->quantity_delivered;
 
-                if ($quantity <= 0) {
-                    throw new RuntimeException('Delivery challan line quantity must be greater than zero.');
+                if (! is_finite($quantity) || $quantity <= 0 || ($line->unit_cost !== null && (! is_finite((float) $line->unit_cost) || (float) $line->unit_cost < 0))) {
+                    throw new RuntimeException('Delivery challan lines require positive quantities and non-negative costs.');
                 }
 
-                if ($line->sales_document_item_id !== null) {
-                    $invoiceItem = $line->salesDocumentItem;
-
-                    if ($invoiceItem === null) {
-                        throw new RuntimeException('Linked sales invoice line was not found.');
+                $invoiceItem = null;
+                if ($invoice !== null || $line->sales_document_item_id !== null) {
+                    if ($invoice === null || $line->sales_document_item_id === null) {
+                        throw new RuntimeException('Each linked delivery line must belong to its sales invoice.');
+                    }
+                    $invoiceItem = $invoice->items()->lockForUpdate()->find($line->sales_document_item_id);
+                    if ($invoiceItem === null || (int) $invoiceItem->item_master_id !== (int) $line->item_master_id) {
+                        throw new RuntimeException('Linked sales invoice line was not found for this item.');
                     }
 
-                    $remaining = $invoiceItem->remainingQuantity();
-
-                    if ($quantity > $remaining) {
+                    if ($quantity > $invoiceItem->remainingQuantity()) {
                         throw new RuntimeException("Delivered quantity exceeds remaining invoice quantity for {$invoiceItem->itemMaster?->item_name}.");
                     }
                 }
@@ -292,15 +305,9 @@ class InventoryService
                     remarks: $line->remarks ?? $line->batch_number,
                 );
 
-                if ($line->sales_document_item_id !== null) {
-                    $invoiceItem = SalesDocumentItem::query()->lockForUpdate()->find($line->sales_document_item_id);
-
-                    if ($invoiceItem !== null) {
-                        $invoiceItem->forceFill([
-                            'quantity_delivered' => (float) $invoiceItem->quantity_delivered + $quantity,
-                        ])->saveQuietly();
-                    }
-                }
+                $invoiceItem?->forceFill([
+                    'quantity_delivered' => (float) $invoiceItem->quantity_delivered + $quantity,
+                ])->saveQuietly();
             }
 
             $challan->forceFill([
@@ -309,18 +316,28 @@ class InventoryService
                 'posted_at' => now(),
             ])->saveQuietly();
 
-            $challan->salesInvoice?->refreshDeliveryStatus();
+            $invoice?->refreshDeliveryStatus();
         });
     }
 
     public function postSampleIssue(SampleIssue $sampleIssue, ?int $userId = null): void
     {
-        if ($sampleIssue->isPosted()) {
-            return;
-        }
-
         DB::transaction(function () use ($sampleIssue, $userId): void {
-            $sampleIssue->loadMissing(['lines.sampleRequestLine.item', 'sampleRequest']);
+            $sampleIssue = SampleIssue::query()->lockForUpdate()->findOrFail($sampleIssue->id);
+            if ($sampleIssue->isPosted()) {
+                return;
+            }
+            $request = SampleRequest::query()->lockForUpdate()->find($sampleIssue->sample_request_id);
+            if (! $sampleIssue->isEditable() || ! $request || ! in_array($request->status, [
+                SampleRequestStatus::Approved,
+                SampleRequestStatus::PartiallyIssued,
+            ], true)) {
+                throw new RuntimeException('Only an approved or partially issued sample request can be posted.');
+            }
+            if ((int) $request->location_master_id !== (int) $sampleIssue->to_location_id) {
+                throw new RuntimeException('Sample issue destination must match the request.');
+            }
+            $sampleIssue->load('lines');
 
             if ($sampleIssue->lines->isEmpty()) {
                 throw new RuntimeException('Sample issue must have at least one line before posting.');
@@ -384,8 +401,9 @@ class InventoryService
                 'posted_at' => now(),
             ])->save();
 
-            $sampleIssue->sampleRequest->refreshIssueStatus();
+            $request->refreshIssueStatus();
         });
+        $sampleIssue->refresh();
     }
 
     public function postSgipDistribution(SgipDistribution $distribution): void
@@ -420,6 +438,10 @@ class InventoryService
 
             if ($sourceLocationId === null) {
                 throw new RuntimeException('No inventory source location is configured for this SGIP distribution.');
+            }
+
+            if ($distribution->inventory_reserved_at !== null && (int) $distribution->inventory_source_location_id !== (int) $sourceLocationId) {
+                throw new RuntimeException('The stock source changed after submission. Return the distribution to draft and submit it again.');
             }
 
             app(FieldSgipStockService::class)->release($distribution);
@@ -480,7 +502,7 @@ class InventoryService
             ->firstOrCreate([
                 'item_master_id' => $itemMasterId,
                 'location_master_id' => $locationMasterId,
-            ]);
+            ], ['average_cost' => 0]);
     }
 
     private function postMovement(

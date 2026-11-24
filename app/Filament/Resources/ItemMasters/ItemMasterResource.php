@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\ItemMasters;
 
-use App\Filament\Actions\ApprovalAction;
-use App\Filament\Actions\BulkApprovalAction;
 use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\ItemMasterResource\RelationManagers;
 use App\Filament\Resources\ItemMasters\Pages\CreateItemMaster;
@@ -13,12 +11,13 @@ use App\Filament\Resources\ItemMasters\RelationManagers\LeadsRelationManager;
 use App\Filament\Resources\ItemMasters\RelationManagers\LocationsRelationManager;
 use App\Filament\Resources\ItemMasters\RelationManagers\SuppliersRelationManager;
 use App\Filament\Resources\ItemMasters\RelationManagers\VariantsRelationManager;
+use App\Filament\Resources\ItemMasters\Schemas\ItemRegisterForm;
+use App\Filament\Resources\ItemMasters\Tables\ItemRegisterActions;
 use App\Models\ItemMaster;
 use App\Traits\HasSafeGlobalSearch;
 use App\Traits\ItemMasterTableTrait;
 use App\Traits\ItemMasterTrait;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -43,10 +42,7 @@ class ItemMasterResource extends BaseResource
 
     public static function form(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                ...self::getItemMasterTraitField(),
-            ]);
+        return ItemRegisterForm::configure($schema);
     }
 
     public static function table(Table $table): Table
@@ -65,14 +61,14 @@ class ItemMasterResource extends BaseResource
             ])
             ->recordActions([
                 EditAction::make(),
-                ApprovalAction::make(),
+                ItemRegisterActions::record('submit', 'Send for Approval'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
 
-                    BulkApprovalAction::make(),
+                    Bulk\App\Filament\Resources\ItemMasters\Tables\ItemRegisterActions::record('submit', 'Send for Approval'),
 
-                    DeleteBulkAction::make(),
+                    ItemRegisterActions::bulk('delete', 'Delete'),
                 ]),
             ]);
     }

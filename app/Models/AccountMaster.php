@@ -301,31 +301,13 @@ class AccountMaster extends BaseModel
             }
         });
 
-        static::deleting(function ($account_master) {
-            // belongsToMany → detach
-            $account_master->contactDetails()->detach();
-
-            // morphMany → delete or soft delete
-            $account_master->addresses()->each(function ($address) {
-                $address->delete(); // soft delete
-            });
-        });
-        static::restoring(function ($account_master) {
-            $account_master->addresses()->restore();
-            $account_master->contactDetails()->restore();
-        });
-        static::forceDeleted(function ($account_master) {
-            $account_master->addresses()->forceDelete();
-            $account_master->contactDetails()->forceDelete();
+        static::forceDeleted(function (self $account): void {
+            $account->addresses()->withTrashed()->forceDelete();
         });
         static::updated(function (self $account): void {
             $account->contactDetails()
                 ->wherePivotIn('contact_detail_id', ContactDetail::onlyTrashed()->select('id'))
                 ->detach();
-        });
-        static::restored(function ($account_master) {
-            $account_master->addresses()->restore();
-            $account_master->contactDetails()->restore();
         });
     }
 }

@@ -9,9 +9,6 @@ use App\Filament\Resources\DeliveryChallans\Pages\ListDeliveryChallans;
 use App\Filament\Resources\DeliveryChallans\Schemas\DeliveryChallanForm;
 use App\Filament\Resources\DeliveryChallans\Tables\DeliveryChallansTable;
 use App\Models\DeliveryChallan;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
@@ -28,6 +25,11 @@ class DeliveryChallanResource extends BaseResource
 
     protected static ?int $navigationSort = 50;
 
+    public static function canViewAny(): bool
+    {
+        return parent::canViewAny() && auth()->user()->can('View:DeliveryChallan');
+    }
+
     public static function form(Schema $schema): Schema
     {
         return DeliveryChallanForm::configure($schema);
@@ -35,15 +37,7 @@ class DeliveryChallanResource extends BaseResource
 
     public static function table(Table $table): Table
     {
-        return DeliveryChallansTable::configure($table)
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+        return DeliveryChallansTable::configure($table);
     }
 
     public static function getPages(): array

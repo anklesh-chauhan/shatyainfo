@@ -8,6 +8,7 @@ use App\Filament\Resources\MarketingCampaigns\Pages\ListMarketingCampaigns;
 use App\Filament\Resources\MarketingCampaigns\Schemas\MarketingCampaignForm;
 use App\Filament\Resources\MarketingCampaigns\Tables\MarketingCampaignsTable;
 use App\Models\MarketingCampaign;
+use App\Services\Marketing\MarketingCampaignRegister;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -44,6 +45,11 @@ class MarketingCampaignResource extends Resource
             'create' => CreateMarketingCampaign::route('/create'),
             'edit' => EditMarketingCampaign::route('/{record}/edit'),
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return app(MarketingCampaignRegister::class)->visible(auth()->user(), parent::getEloquentQuery());
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder

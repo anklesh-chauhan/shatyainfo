@@ -4,6 +4,8 @@ namespace App\Services\Field;
 
 use App\Models\AccountMaster;
 use App\Models\Address;
+use App\Models\Approval;
+use App\Models\ApprovalOverride;
 use App\Models\ContactDetail;
 use App\Models\Deal;
 use App\Models\DealStage;
@@ -20,7 +22,7 @@ class FieldDealService
      */
     private function detailRelations(): array
     {
-        return ['owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'type', 'address:id,street'];
+        return ['approval', 'owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'type', 'address:id,street'];
     }
 
     /**
@@ -31,8 +33,8 @@ class FieldDealService
         abort_unless($user->can('viewAny', Deal::class), 403);
 
         $query = Deal::query()
-            ->with(['owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'type'])
-            ->applyVisibility('Deal')
+            ->with(['approval', 'owner:id,name', 'status', 'accountMaster:id,name', 'contactDetail', 'type'])
+            ->applyVisibility('Deal', $user)
             ->latest('transaction_date')
             ->orderByDesc('id');
 
@@ -53,7 +55,7 @@ class FieldDealService
 
         $deal = Deal::query()
             ->with($this->detailRelations())
-            ->applyVisibility('Deal')
+            ->applyVisibility('Deal', $user)
             ->find($dealId);
 
         abort_if($deal === null, 404, 'Deal not found.');
@@ -89,6 +91,51 @@ class FieldDealService
     public function canUpdate(User $user, Deal $deal): bool
     {
         return $user->can('update', $deal);
+    }
+
+    public function canDelete(User $user, Deal $deal): bool
+    {
+        return $user->can('viewAny', Deal::class) && $user->can(['view', 'delete'], $deal)
+            && (! $this->requiresDeleteOverride($deal) || $user->can('overrideApproval', $deal));
+    }
+
+    private function requiresDeleteOverride(Deal $deal): bool
+    {
+        return $deal->approval_status === 'approved' || $deal->approval?->approval_status === 'approved';
+    }
+
+    /** @param list<int> $ids */
+    public function delete(User $user, array $ids): int
+    {
+        abort_unless($user->can('viewAny', Deal::class), 403);
+
+        return $user->getConnection()->transaction(function () use ($user, $ids): int {
+            $deals = Deal::query()->applyVisibility('Deal', $user)->whereKey($ids)
+                ->with('approval')->orderBy('id')->lockForUpdate()->get();
+            abort_unless($deals->count() === count($ids), 404, 'One or more deals are unavailable.');
+
+            $approvals = Approval::query()->whereKey($deals->pluck('approval.id')->filter()->all())
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+
+            foreach ($deals as $deal) {
+                $deal->setRelation('approval', $approvals->get($deal->approval?->id));
+                abort_unless($user->can(['view', 'delete'], $deal), 403);
+                abort_if($this->requiresDeleteOverride($deal) && $user->cannot('overrideApproval', $deal), 422,
+                    'Approved deals require approval override to delete.');
+            }
+
+            foreach ($deals as $deal) {
+                if ($deal->approval_status !== 'approved' && $deal->approval?->approval_status === 'approved') {
+                    ApprovalOverride::query()->create([
+                        'model_type' => Deal::class, 'model_id' => $deal->id, 'user_id' => $user->id,
+                        'reason' => 'Deal deleted through the mobile API',
+                    ]);
+                }
+                abort_unless($deal->delete(), 409, 'Could not delete the selected deals.');
+            }
+
+            return $deals->count();
+        }, attempts: 3);
     }
 
     /**

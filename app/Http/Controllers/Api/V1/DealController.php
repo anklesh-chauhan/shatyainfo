@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\DeleteDealsRequest;
 use App\Http\Requests\Api\V1\StoreDealRequest;
 use App\Http\Requests\Api\V1\UpdateDealRequest;
 use App\Http\Resources\Api\V1\DealResource;
@@ -53,5 +54,17 @@ class DealController extends Controller
         return new DealResource(
             $this->deals->update($request->user(), $record, $request->validated()),
         );
+    }
+
+    public function destroy(Request $request, int $deal): JsonResponse
+    {
+        return response()->json(['data' => ['deleted' => $this->deals->delete($request->user(), [$deal])]]);
+    }
+
+    public function bulkDelete(DeleteDealsRequest $request): JsonResponse
+    {
+        $ids = array_map(intval(...), $request->validated('ids'));
+
+        return response()->json(['data' => ['deleted' => $this->deals->delete($request->user(), $ids)]]);
     }
 }

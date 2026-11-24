@@ -1,6 +1,10 @@
 <?php
 
+use App\Models\FieldGpsPoint;
+use App\Models\JobRole;
 use App\Models\Media;
+use App\Models\Position;
+use App\Models\SalesDcr;
 use App\Models\Visit;
 use App\Models\VisitFeedbackQuestion;
 use App\Models\VisitOutcome;
@@ -11,16 +15,130 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
+
+it('filters the register using Admin team visibility while keeping field work owner-scoped', function () {
+    $manager = fieldReportingUser('Register manager');
+    $rep = fieldReportingUser('Visible visit rep');
+    $outsider = fieldReportingUser('Outside visit rep');
+    $territory = reportingTerritory('Visible register territory');
+    $otherTerritory = reportingTerritory('Unrelated register territory');
+    $patch = reportingPatch($territory, 'Visible register patch');
+    $outsidePatch = reportingPatch($otherTerritory, 'Other register patch');
+    $role = JobRole::create(['name' => 'Visits register manager', 'code' => 'VREGMGR', 'level' => 1]);
+    $position = Position::create(['name' => 'Visits register manager', 'code' => 'VREGPOS', 'job_role_id' => $role->id]);
+    $position->territories()->attach($territory);
+    $manager->employee->positions()->attach($position, ['is_primary' => true]);
+    grantPagePermissions($manager, 'ViewOwnTerritory:Visit');
+
+    $make = fn ($user, $visitPatch, array $attributes): Visit => Visit::withoutEvents(fn (): Visit => Visit::forceCreate([
+        'employee_id' => $user->id, 'created_by' => $user->id,
+        'territory_id' => $visitPatch->territory_id, 'patch_id' => $visitPatch->id,
+        'visit_date' => today(), 'visit_type' => 'unplanned', 'visit_status' => 'draft',
+        ...$attributes,
+    ]));
+    $own = $make($manager, $patch, ['document_number' => 'VIS-OWN']);
+    $visible = $make($rep, $patch, [
+        'document_number' => 'VIS-VISIBLE', 'approval_status' => 'pending',
+        'visit_status' => 'completed', 'remarks' => 'Reviewed delivery questions',
+    ]);
+    $outside = $make($outsider, $outsidePatch, ['document_number' => 'VIS-OUTSIDE']);
+
+    Sanctum::actingAs($manager->fresh());
+    $base = '/api/v1/visits';
+    $this->getJson($base)->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $own->id)->assertJsonMissingPath('meta.can_view_team');
+    $this->getJson($base.'?register=1')->assertOk()->assertJsonPath('meta.can_view_team', true)
+        ->assertJsonPath('data.0.can_open_workspace', true);
+    $this->getJson($base.'?register=1&scope=team&search=VISIBLE&approval_status=pending&employee_id='.$rep->id)
+        ->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $visible->id)
+        ->assertJsonPath('data.0.can_open_workspace', false)
+        ->assertJsonPath('data.0.actions', [])
+        ->assertJsonCount(1, 'meta.employees')
+        ->assertJsonPath('meta.employees.0.id', $rep->id);
+    $this->getJson($base.'?register=1&scope=team&employee_id='.$outsider->id)->assertOk()->assertJsonCount(0, 'data');
+    $teamDetail = $base.'/'.$visible->id.'/register?scope=team';
+    $this->getJson($teamDetail)->assertOk()->assertJsonPath('data.remarks', 'Reviewed delivery questions')
+        ->assertJsonMissingPath('data.workspace')->assertJsonMissingPath('data.checkin_latitude');
+    $this->getJson($base.'/'.$outside->id.'/register?scope=team')->assertNotFound();
+    $this->getJson($base.'/'.$visible->id)->assertNotFound();
+    $this->patchJson($base.'/'.$visible->id, ['remarks' => 'Cross-user write'])->assertNotFound();
+
+    $manager->revokePermissionTo('ViewOwnTerritory:Visit');
+    Sanctum::actingAs($manager->fresh());
+    $this->getJson($teamDetail)->assertNotFound();
+    $this->getJson($base.'?register=1')->assertOk()->assertJsonPath('meta.can_view_team', false);
+    $manager->revokePermissionTo('View:Visit');
+    Sanctum::actingAs($manager->fresh());
+    $this->getJson($teamDetail)->assertForbidden();
+});
+
+it('only trashes or restores eligible drafts and verifies an entire selection before writing', function () {
+    $user = fieldReportingUser('Visits lifecycle');
+    $outside = reportingUser('Unrelated lifecycle visit');
+    $territory = reportingTerritory('Visit lifecycle territory');
+    $patch = reportingPatch($territory, 'Visit lifecycle patch');
+    $closedDcr = SalesDcr::query()->create([
+        'user_id' => $user->id, 'dcr_date' => today(), 'approval_status' => 'approved',
+    ]);
+    $make = fn (string $number, array $attributes = []): Visit => Visit::withoutEvents(fn (): Visit => Visit::forceCreate([
+        'document_number' => $number, 'employee_id' => $user->id, 'created_by' => $user->id,
+        'territory_id' => $territory->id, 'patch_id' => $patch->id, 'visit_date' => today(),
+        'visit_type' => 'unplanned', 'visit_status' => 'draft', 'approval_status' => 'draft',
+        ...$attributes,
+    ]));
+    $first = $make('VIS-LIFE-1');
+    $second = $make('VIS-LIFE-2');
+    $journalVisit = $make('VIS-LIFE-JOURNAL', ['client_call_id' => (string) Str::uuid()]);
+    $approvedVisit = $make('VIS-LIFE-APPROVED', ['sales_dcr_id' => $closedDcr->id]);
+    $gpsVisit = $make('VIS-LIFE-GPS');
+    FieldGpsPoint::query()->create([
+        'user_id' => $user->id, 'visit_id' => $gpsVisit->id, 'latitude' => 19, 'longitude' => 72, 'recorded_at' => now(),
+    ])->delete();
+    $unrelated = $make('VIS-LIFE-OUTSIDE', ['employee_id' => $outside->id, 'created_by' => $outside->id]);
+    Sanctum::actingAs($user);
+
+    $base = '/api/v1/visits';
+    $run = fn (string $action, array $ids) => $this->postJson($base.'/register-actions', [
+        'scope' => 'personal', 'action' => $action, 'ids' => $ids,
+    ], ['Idempotency-Key' => (string) Str::uuid()]);
+    $run('delete', [$first->id])->assertForbidden();
+    grantPagePermissions($user, 'Delete:Visit', 'Restore:Visit', 'ForceDelete:Visit');
+    $user->revokePermissionTo('Update:Visit');
+    Sanctum::actingAs($user->fresh());
+    $this->getJson($base.'/'.$first->id.'/register')->assertOk()->assertJsonPath('data.actions', ['delete']);
+    foreach ([$journalVisit, $approvedVisit, $gpsVisit] as $protected) {
+        $run('delete', [$first->id, $protected->id])->assertUnprocessable();
+        $this->assertNotSoftDeleted('visits', ['id' => $first->id]);
+    }
+    $run('delete', [$first->id, $unrelated->id])->assertNotFound();
+    $this->assertNotSoftDeleted('visits', ['id' => $first->id]);
+    $run('delete', [$first->id, $second->id])->assertOk()->assertJsonPath('data.updated', 2);
+    $this->assertSoftDeleted('visits', ['id' => $first->id]);
+    $this->getJson($base.'?register=1&trash=only')->assertOk()->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.can_open_workspace', false);
+    $this->getJson($base.'/'.$first->id)->assertNotFound();
+    $run('restore', [$first->id, $second->id])->assertForbidden();
+    grantPagePermissions($user, 'RestoreAny:Visit');
+    Sanctum::actingAs($user->fresh());
+    $run('restore', [$first->id, $second->id])->assertOk()->assertJsonPath('data.updated', 2);
+    $run('forceDelete', [$first->id])->assertConflict();
+    $run('delete', [$first->id])->assertOk();
+    $run('forceDelete', [$first->id])->assertOk()->assertJsonPath('data.updated', 1);
+    $this->assertDatabaseMissing('visits', ['id' => $first->id]);
+    $this->assertNotSoftDeleted('visits', ['id' => $second->id]);
+});
 
 it('loads and saves the mobile visit workspace', function () {
     $user = fieldReportingUser('VisitWorkspaceApi');
     $territory = reportingTerritory('Workspace Territory');
     $patch = reportingPatch($territory, 'Workspace Patch');
     $outcome = VisitOutcome::create(['label' => 'Interested', 'code' => 'INTERESTED']);
-    $question = VisitFeedbackQuestion::create(['question' => 'How was the call?', 'code' => 'CALL', 'is_active' => true]);
+    $question = VisitFeedbackQuestion::create(['question' => 'How was the call?', 'code' => 'CALL', 'answer_type' => 'rating_1_5', 'is_active' => true]);
     $this->actingAs($user);
     VisitPreference::current()->update(['enable_check_in' => true, 'require_general_visit_image' => false]);
     $visit = Visit::withoutEvents(fn (): Visit => Visit::query()->create([

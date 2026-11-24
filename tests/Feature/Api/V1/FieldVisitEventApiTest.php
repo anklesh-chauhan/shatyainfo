@@ -4,6 +4,7 @@ use App\Enums\SgipStockSource;
 use App\Jobs\ProcessMediaUploadJob;
 use App\Models\AccountMaster;
 use App\Models\ContactDetail;
+use App\Models\CustomerPrice;
 use App\Models\EDetailingMaterial;
 use App\Models\EDetailingPresentation;
 use App\Models\FieldOrderState;
@@ -310,12 +311,14 @@ it('releases reserved samples when a submitted distribution is rejected', functi
 });
 
 it('merges order fields across devices by UTC edit time without duplicating drafts', function () {
-    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder');
+    grantPagePermissions($this->rep, 'Create:SalesOrder', 'Update:SalesOrder', 'ViewAny:SalesOrder',
+        'View:SalesOrder', 'Delete:SalesOrder', 'Create:SalesInvoice');
     $company = AccountMaster::query()->findOrFail($this->target['company_id']);
     $contact = ContactDetail::forceCreate(['first_name' => 'Order Contact', 'created_by' => $this->rep->id, 'updated_by' => $this->rep->id]);
     $company->contactDetails()->attach($contact->id);
     $item = reportingSampleItem('ORDER-ONE', 'Order Product');
     $item->forceFill(['selling_price' => 12.5])->save();
+    CustomerPrice::query()->create(['customer_id' => $company->id, 'item_master_id' => $item->id, 'price' => 7, 'discount' => 5]);
     $send = fn (array $event) => $this->postJson('/api/v1/field-visit-events', $event, ['Idempotency-Key' => $event['event_id']]);
     $checkin = queuedFieldEvent($this->target, 'check_in', ['latitude' => 19, 'longitude' => 72]);
     $send($checkin)->assertSuccessful();
@@ -338,6 +341,11 @@ it('merges order fields across devices by UTC edit time without duplicating draf
         ->and((float) $state->salesOrder->items()->sole()->quantity)->toBe(4.0)
         ->and((float) $state->salesOrder->total)->toBe(50.0)
         ->and($state->salesOrder->delivery_date->toDateString())->toBe(today()->addDay()->toDateString());
+    $orderPath = '/api/v1/sales-orders/'.$state->sales_order_id;
+    $this->getJson($orderPath)->assertOk()->assertJsonPath('data.can_update', false);
+    $this->patchJson($orderPath, ['description' => 'Register edit'])->assertUnprocessable();
+    $this->deleteJson($orderPath)->assertUnprocessable();
+
     $state->salesOrder->forceFill(['description' => 'Edited in ERP'])->save();
     $send(queuedFieldEvent($this->target, 'order', ['order_id' => $orderId, 'changes' => [
         ['field' => 'description', 'value' => 'Older device edit', 'updated_at' => $clock(15)],
@@ -347,5 +355,13 @@ it('merges order fields across devices by UTC edit time without duplicating draf
     $send(queuedFieldEvent($this->target, 'order', ['order_id' => $orderId, 'changes' => [
         ['field' => 'line:'.$item->id, 'value' => 10, 'updated_at' => $clock(1)],
     ]], captured: $clock(1)))->assertConflict();
+    expect((float) $state->salesOrder->items()->sole()->quantity)->toBe(4.0);
+
+    $state->salesOrder->forceFill(['tax' => 0])->save();
+    $this->postJson('/api/v1/sales-orders/actions', ['action' => 'sales_invoice', 'ids' => [$state->sales_order_id]])
+        ->assertOk()->assertJsonPath('data.created', true);
+    $send(queuedFieldEvent($this->target, 'order', ['order_id' => $orderId, 'changes' => [
+        ['field' => 'line:'.$item->id, 'value' => 7, 'updated_at' => $clock(1)],
+    ]], captured: $clock(1)))->assertConflict()->assertJsonPath('message', 'This order has been converted to an invoice.');
     expect((float) $state->salesOrder->items()->sole()->quantity)->toBe(4.0);
 });

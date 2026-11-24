@@ -13,11 +13,14 @@ class ListFlexiblePlansRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['start' => ['sometimes', 'date_format:Y-m-d'], 'user_id' => ['sometimes', 'integer', 'min:1']];
+        return ['start' => ['sometimes', 'date_format:Y-m-d'], 'user_id' => ['sometimes', 'integer', 'min:1'], 'include_team' => ['sometimes', 'boolean']];
     }
 
     public function messages(): array
     {
-        return ['start.date_format' => 'Choose a valid week start date.'];
+        return [
+            'start.date_format' => 'Choose a valid week start date.',
+            'include_team.boolean' => 'Choose whether to include the team review filters.',
+        ];
     }
 }

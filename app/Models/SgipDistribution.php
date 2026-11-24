@@ -118,6 +118,12 @@ class SgipDistribution extends BaseModel
         return $this->inventory_posted_at !== null;
     }
 
+    public function isEditable(): bool
+    {
+        return ! $this->trashed() && $this->approval_status === 'draft'
+            && ! $this->isInventoryPosted() && $this->inventory_reserved_at === null;
+    }
+
     public function fieldVersion(): string
     {
         return hash('sha256', json_encode([
@@ -144,6 +150,11 @@ class SgipDistribution extends BaseModel
 
     protected static function booted(): void
     {
+        static::deleting(fn (SgipDistribution $distribution): bool => $distribution->approval_status === 'draft'
+            && ! $distribution->isInventoryPosted() && $distribution->inventory_reserved_at === null);
+        static::restoring(fn (SgipDistribution $distribution): bool => $distribution->approval_status === 'draft'
+            && ! $distribution->isInventoryPosted() && $distribution->inventory_reserved_at === null);
+
         static::saving(function (SgipDistribution $distribution): void {
             if ($distribution->inventory_reserved_at && in_array($distribution->approval_status, ['draft', 'rejected', 'cancelled'], true)) {
                 app(FieldSgipStockService::class)->release($distribution);

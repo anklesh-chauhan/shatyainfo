@@ -20,7 +20,7 @@
             <x-filament::section wire:key="intention-{{ $entry['id'] }}" heading="{{ $entry['account']['name'] ?? 'Customer unavailable' }}">
                 <p>{{ $entry['date'] }} · {{ $entry['execution_status'] }} · {{ $entry['patch']['name'] ?? 'No patch' }}</p>
                 <p>{{ $entry['notes'] }}</p>
-                @if ($enabled && $report['user_id'] === auth()->id())
+                @if ($report['can_act_on_intentions'])
                     @if ($entry['editable'])
                         <x-filament::button color="gray" wire:click="editIntention({{ $entry['id'] }})">Edit</x-filament::button>
                         <x-filament::button color="gray" wire:click="cancelIntention({{ $entry['id'] }}, {{ $entry['version'] }})" wire:confirm="Cancel this intention?">Cancel</x-filament::button>

@@ -3,13 +3,14 @@
 namespace App\Filament\Resources\SampleIssues\Pages;
 
 use App\Filament\Resources\SampleIssues\SampleIssueResource;
+use App\Models\SampleIssueLine;
+use App\Services\Inventory\SampleIssueRegister;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ForceDeleteAction;
-use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Throwable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class EditSampleIssue extends EditRecord
 {
@@ -18,46 +19,81 @@ class EditSampleIssue extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('post')
-                ->label('Post to Stock')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalDescription('This transfers approved samples from the warehouse to the representative location.')
-                ->visible(fn (): bool => $this->record->isEditable())
-                ->action(function (): void {
-                    try {
-                        $this->record->post();
-                        Notification::make()->title('Sample issue posted.')->success()->send();
-                        $this->refreshFormData(['status', 'posted_at', 'issued_by']);
-                    } catch (Throwable $exception) {
-                        Notification::make()
-                            ->title('Unable to post sample issue')
-                            ->body($exception->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            DeleteAction::make()
-                ->visible(fn (): bool => $this->record->isEditable()),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            $this->issueAction('post', 'Post to Stock', 'success'),
+            $this->issueAction('delete', 'Delete', 'danger'),
+            $this->issueAction('restore', 'Restore', 'success'),
+            $this->issueAction('force-delete', 'Permanently Delete', 'danger'),
         ];
     }
 
-    protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        if (! $this->record->isEditable()) {
-            Notification::make()->title('This sample issue is locked.')->danger()->send();
-            $this->halt();
-        }
+        $this->record->load('lines');
+        $data['revision'] = app(SampleIssueRegister::class)->revision($this->record);
+        $data['lines'] = $this->record->lines->map(fn (SampleIssueLine $line): array => $line->only([
+            'id', 'sample_request_line_id', 'item_master_id', 'quantity', 'unit_cost', 'remarks',
+        ]))->all();
 
         return $data;
     }
 
-    protected function canEdit(): bool
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        return $this->record->isEditable();
+        try {
+            return $this->record = app(SampleIssueRegister::class)->save(auth()->user(), $record->id, $data);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(collect($exception->errors())->mapWithKeys(fn (array $errors, string $key): array => ['data.'.$key => $errors])->all());
+        } catch (HttpException $exception) {
+            $this->notifyConflict($exception);
+            $this->halt();
+        }
+    }
+
+    protected function afterSave(): void
+    {
+        $this->fillForm();
+    }
+
+    protected function getFormActions(): array
+    {
+        return $this->record->isEditable() ? parent::getFormActions() : [$this->getCancelFormAction()];
+    }
+
+    private function issueAction(string $action, string $label, string $color): Action
+    {
+        return Action::make($action)->label($label)->color($color)->requiresConfirmation()
+            ->visible(fn (): bool => app(SampleIssueRegister::class)->canAct(auth()->user(), $this->record, $action))
+            ->action(function (array $data) use ($action): void {
+                try {
+                    app(SampleIssueRegister::class)->act(
+                        auth()->user(), [$this->record->id], $action, $this->data['revision']
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->title($exception->validator->errors()->first())->danger()->send();
+
+                    return;
+                } catch (HttpException $exception) {
+                    $this->notifyConflict($exception);
+
+                    return;
+                }
+
+                if (in_array($action, ['delete', 'force-delete'], true)) {
+                    $this->redirect(SampleIssueResource::getUrl('index'));
+
+                    return;
+                }
+                $this->record->refresh();
+                $this->fillForm();
+                Notification::make()->title('Sample issue updated')->success()->send();
+            });
+    }
+
+    private function notifyConflict(HttpException $exception): void
+    {
+        if ($exception->getStatusCode() !== 409) {
+            throw $exception;
+        }
+        Notification::make()->title($exception->getMessage())->danger()->send();
     }
 }
