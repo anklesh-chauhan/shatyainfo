@@ -10,7 +10,7 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-it('renders approval snapshots without a syntax highlighting dependency', function (?array $snapshots) {
+it('renders approval snapshots as readable details', function (?array $snapshots) {
     $user = grantPagePermissions(reportingUser('Approval Requester'), 'ViewAny:Approval', 'View:Approval');
     $this->actingAs($user);
     Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -35,16 +35,45 @@ it('renders approval snapshots without a syntax highlighting dependency', functi
         ->assertSee('Selected Routing')
         ->assertSee('Submitted Record');
 
-    foreach (['selected_steps', 'selected_approvers', 'submitted_record_summary'] as $name) {
-        $page->assertSee(json_encode($approval->getAttribute($name) ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    if (filled($snapshots)) {
+        $page->assertSee('Reporting Manager')
+            ->assertSee('All territories')
+            ->assertSee('Optional step')
+            ->assertSee('No')
+            ->assertSee('24 hours')
+            ->assertSee('Manager & Reviewer')
+            ->assertSee('Original Manager')
+            ->assertSee('Explicit reporting employee')
+            ->assertSee('Reporting manager approvals')
+            ->assertSee('November 2026')
+            ->assertSee('Draft')
+            ->assertSee('Résumé')
+            ->assertSee('250')
+            ->assertSee('Yes')
+            ->assertSee('<script>alert(1)</script>')
+            ->assertDontSee('approval_flow_step_id')
+            ->assertDontSeeText('selected_approvers')
+            ->assertDontSee('"attributes"')
+            ->assertDontSee('App\\Models\\SalesTourPlan');
+    } else {
+        $page->assertSee('No routing steps recorded')
+            ->assertSee('No approvers recorded')
+            ->assertSee('No submitted details recorded');
     }
 
     $page->assertDontSee('<script>alert(1)</script>', escape: false);
 })->with([
     'nested snapshots' => [[
-        'steps' => [['step_order' => 1, 'routing' => ['scope' => 'self', 'required' => true]]],
-        'approvers' => [['user_id' => 42, 'name' => 'Manager & Reviewer']],
-        'summary' => ['id' => 123, 'notes' => '<script>alert(1)</script>', 'details' => ['amount' => 250, 'label' => 'Résumé']],
+        'steps' => [['approval_flow_step_id' => 91, 'step_order' => 1, 'routing_type' => 'reporting_manager', 'territory_scope' => 'all', 'can_skip' => false, 'sla_hours' => 24, 'reason' => 'Explicit reporting employee']],
+        'approvers' => [['step_order' => 1, 'user_id' => 42, 'name' => 'Manager & Reviewer', 'original_name' => 'Original Manager', 'reason' => 'Explicit reporting employee', 'delegated_from_user_id' => 43]],
+        'summary' => [
+            'class' => SalesTourPlan::class,
+            'id' => 123,
+            'document_number' => null,
+            'flow_name' => 'Reporting manager approvals',
+            'employee_id' => 7,
+            'attributes' => ['id' => 123, 'user_id' => 42, 'month' => '2026-11', 'approval_status' => 'draft', 'notes' => '<script>alert(1)</script>', 'details' => ['amount' => 250, 'label' => 'Résumé', 'required' => true]],
+        ],
     ]],
     'empty snapshots' => [[]],
     'legacy null snapshots' => [null],
