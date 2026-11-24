@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Approvals\Schemas;
 
-use Filament\Infolists\Components\CodeEntry;
+use App\Models\Approval;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontFamily;
 
 class ApprovalInfolist
 {
@@ -37,14 +38,14 @@ class ApprovalInfolist
 
                 Section::make('Selected Routing')
                     ->schema([
-                        CodeEntry::make('selected_steps')->label('Steps'),
-                        CodeEntry::make('selected_approvers')->label('Approvers'),
+                        self::snapshotEntry('selected_steps')->label('Steps'),
+                        self::snapshotEntry('selected_approvers')->label('Approvers'),
                     ])
                     ->columns(2),
 
                 Section::make('Submitted Record')
                     ->schema([
-                        CodeEntry::make('submitted_record_summary')
+                        self::snapshotEntry('submitted_record_summary')
                             ->label('Summary'),
                     ]),
 
@@ -62,5 +63,16 @@ class ApprovalInfolist
                             ->columns(3),
                     ]),
             ]);
+    }
+
+    protected static function snapshotEntry(string $name): TextEntry
+    {
+        return TextEntry::make($name)
+            ->state(fn (Approval $record): string => json_encode(
+                $record->getAttribute($name) ?? [],
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ))
+            ->fontFamily(FontFamily::Mono)
+            ->extraAttributes(['style' => 'white-space: pre-wrap; overflow-wrap: anywhere;']);
     }
 }
