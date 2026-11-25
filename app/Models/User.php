@@ -126,7 +126,8 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessBusinessPage(string $permission): bool
     {
-        return $this->hasAnyRole(['super_admin', 'administration_admin'])
+        return $permission === 'View:MyApprovals'
+            || $this->hasAnyRole(['super_admin', 'administration_admin'])
             || $this->can($permission);
     }
 

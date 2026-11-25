@@ -61,7 +61,7 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
                 }
             }
 
-            foreach (config('permission-map.page_permissions.'.$roleName, []) as $permission) {
+            foreach ([...config('permission-map.shared_page_permissions', []), ...config('permission-map.page_permissions.'.$roleName, [])] as $permission) {
                 $permissions->push($permissionModel::findOrCreate($permission, 'web'));
             }
 
@@ -69,6 +69,7 @@ class ConfigDrivenShieldPermissionSeeder extends Seeder
         }
 
         $this->call(HrApprovalPermissionSeeder::class);
+        $this->call(MyApprovalsPermissionSeeder::class);
         $roleModel::findByName('super_admin', 'web')->syncPermissions($permissionModel::where('guard_name', 'web')->get());
 
         $this->command->info('Shield permissions synced using Action:Model format.');

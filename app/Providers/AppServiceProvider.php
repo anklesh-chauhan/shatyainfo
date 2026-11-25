@@ -8,6 +8,7 @@ use App\Http\Middleware\AuthorizeReportExportDownload;
 use App\Listeners\ApprovalListener;
 use App\Models\ApprovalSetting;
 use App\Models\Media;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Models\Visit;
 use App\Observers\MediaObserver;
@@ -25,6 +26,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\Column;
 use Filament\Tables\Filters\BaseFilter;
 use Filament\Tables\Table;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -48,6 +50,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(Logout::class, function (Logout $event): void {
+            if ($event->user && request()->hasSession() && $event->user->getConnection()->getSchemaBuilder()->hasTable('push_subscriptions')) {
+                PushSubscription::query()->where('user_id', $event->user->id)
+                    ->where('session_key', hash('sha256', request()->session()->getId()))->delete();
+            }
+        });
         app(Router::class)->pushMiddlewareToGroup('filament.actions', AuthorizeReportExportDownload::class);
         Export::creating(function (Export $export): void {
             $policy = app(ReportExportPolicy::class);

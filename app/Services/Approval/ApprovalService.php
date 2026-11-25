@@ -23,10 +23,41 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use LogicException;
 
 class ApprovalService
 {
+    /** @param list<int> $stepIds */
+    public function decideMany(array $stepIds, int $userId, string $decision, ?string $comments = null, bool $mobile = false): bool
+    {
+        return DB::transaction(function () use ($stepIds, $userId, $decision, $comments, $mobile): bool {
+            $stepIds = array_values(array_unique($stepIds));
+            if ($stepIds === [] || ! in_array($decision, ['approve', 'reject'], true)) {
+                return false;
+            }
+
+            $steps = ApprovalStep::query()->currentFor($userId)
+                ->when($mobile, fn (Builder $query): Builder => $query->availableOnMobile())
+                ->whereKey($stepIds)->with('approval')->orderBy('approval_id')->get();
+
+            if ($steps->count() !== count($stepIds)) {
+                return false;
+            }
+
+            foreach ($steps as $step) {
+                $accepted = $this->{$decision}($step->approval, $userId, $comments, (int) $step->id);
+                if (! $accepted) {
+                    throw ValidationException::withMessages([
+                        'steps' => 'A selected request has changed. Refresh My Approvals and select again.',
+                    ]);
+                }
+            }
+
+            return true;
+        });
+    }
+
     /**
      * Start approval for any approvable model.
      *
@@ -149,6 +180,8 @@ class ApprovalService
                 $approvable->markOperationalApprovalSubmitted();
             }
 
+            app(ApprovalNotificationService::class)->pending($approval);
+
             return $approval->refresh();
         });
     }
@@ -178,6 +211,8 @@ class ApprovalService
 
             if ($approval->fresh()->isFullyApproved()) {
                 $this->finalizeApproval($approval, ApprovalStatus::Approved);
+            } else {
+                app(ApprovalNotificationService::class)->pending($approval);
             }
 
             return true;
@@ -262,6 +297,8 @@ class ApprovalService
         }
 
         $approval->refresh();
+
+        app(ApprovalNotificationService::class)->completed($approval, $status);
 
         if (in_array($approval->record_type, [...OperationalApprovalHandler::supports(), ...HrApprovalHandler::supports(), LeaveApplication::class], true)) {
             app(ApprovalDomainDispatcher::class)->dispatch($approval, $status->value);

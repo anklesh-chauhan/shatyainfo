@@ -26,6 +26,7 @@
         <env name="DB_DATABASE" value="it_erp_testing" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="FIREBASE_PUSH_ENABLED" value="false" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

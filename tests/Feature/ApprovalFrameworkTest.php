@@ -512,7 +512,7 @@ it('limits mobile approval decisions to the assigned current step and preserves 
     ]);
 
     Sanctum::actingAs($fixture['requester']);
-    $this->getJson('/api/v1/my-approvals')->assertForbidden();
+    $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonCount(0, 'data');
     Sanctum::actingAs($unassigned);
     $this->getJson('/api/v1/my-approvals')->assertOk()->assertJsonCount(0, 'data');
     $this->postJson("/api/v1/my-approvals/{$first->id}/decision", ['decision' => 'approve'])->assertNotFound();

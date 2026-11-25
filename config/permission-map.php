@@ -2,6 +2,8 @@
 
 return [
 
+    'shared_page_permissions' => ['View:MyApprovals'],
+
     'page_permissions' => [
         'sales_admin' => ['Delete:SalesDcrExpense', 'View:Dashboard', 'View:TodaysTour', 'View:SalesAssistant', 'View:PunchIn', 'View:ReportsOverview', 'View:DcrRegister', 'View:LeadPipeline', 'View:DealPipeline', 'View:SalesDocumentRegister', 'View:OverdueFollowUps', 'View:StockMovementRegister'],
         'sales_user' => ['Delete:SalesDcrExpense', 'View:Dashboard', 'View:TodaysTour', 'View:SalesAssistant', 'View:PunchIn', 'View:ReportsOverview', 'View:DcrRegister', 'View:LeadPipeline', 'View:SalesDocumentRegister', 'View:OverdueFollowUps'],

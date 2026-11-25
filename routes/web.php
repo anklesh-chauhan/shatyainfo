@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\RcpaController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\MarketingController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RegistrationAccessController;
 use App\Http\Controllers\SalesDocumentPdfController;
 use App\Http\Controllers\SupportController;
@@ -12,6 +13,14 @@ use App\Services\Attendance\LeaveWorkflowService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
+Route::get('/firebase-push-config', fn () => response()->json(config('services.firebase.public')))->name('push-config');
+Route::get('/firebase-messaging-sw.js', fn () => response()->view('firebase-messaging-sw')
+    ->header('Content-Type', 'application/javascript')->header('Cache-Control', 'no-cache'))->name('push-worker');
+
+Route::middleware('auth')->group(function (): void {
+    Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+});
 Route::view('/help', 'marketing.help')->name('help.index');
 Route::get('/legal/data-processing-agreement/download', [LegalController::class, 'downloadDpa'])->name('legal.dpa.download');
 Route::get('/legal/{document}', [LegalController::class, 'show'])

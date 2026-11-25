@@ -5,13 +5,16 @@ namespace App\Filament\Pages;
 use App\Models\ApprovalStep;
 use App\Services\Approval\ApprovalService;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class MyApprovals extends Page implements HasTable
@@ -36,6 +39,7 @@ class MyApprovals extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
+            ->maxSelectableRecords(100)
             ->query(fn () => ApprovalStep::query()
                 ->currentFor((int) Auth::id())
                 ->with([
@@ -83,6 +87,32 @@ class MyApprovals extends Page implements HasTable
                     ),
             ])
             ->emptyStateHeading('No pending approvals')
+            ->toolbarActions([
+                BulkAction::make('approveSelected')
+                    ->label('Approve selected')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalDescription('Approve all selected requests? If any request has changed, refresh and select again.')
+                    ->deselectRecordsAfterCompletion()
+                    ->action(function (Collection $records): void {
+                        $accepted = app(ApprovalService::class)->decideMany($records->modelKeys(), (int) Auth::id(), 'approve');
+                        Notification::make()
+                            ->title($accepted ? 'Selected requests approved' : 'A selected request has changed. Refresh and select again.')
+                            ->status($accepted ? 'success' : 'warning')->send();
+                    }),
+                BulkAction::make('rejectSelected')
+                    ->label('Reject selected')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->schema([Textarea::make('comments')->label('Reason')->required()->maxLength(2000)])
+                    ->deselectRecordsAfterCompletion()
+                    ->action(function (Collection $records, array $data): void {
+                        $accepted = app(ApprovalService::class)->decideMany($records->modelKeys(), (int) Auth::id(), 'reject', $data['comments']);
+                        Notification::make()
+                            ->title($accepted ? 'Selected requests rejected' : 'A selected request has changed. Refresh and select again.')
+                            ->status($accepted ? 'success' : 'warning')->send();
+                    }),
+            ])
             ->emptyStateDescription('You currently have no approvals waiting for you.');
     }
 }

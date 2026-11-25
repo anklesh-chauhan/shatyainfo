@@ -238,7 +238,7 @@ class EmployeeOnboardingImporter
     private function assignConfiguredPermissions(Role $role): void
     {
         $profile = config('permission-map.job_role_profiles.'.$role->name);
-        if ($profile === null || $role->permissions()->exists()) {
+        if ($profile === null || $role->permissions()->whereNotIn('name', config('permission-map.shared_page_permissions', []))->exists()) {
             return;
         }
 
@@ -267,7 +267,7 @@ class EmployeeOnboardingImporter
                 $permissions[] = Permission::findOrCreate($action.':'.$model, $role->guard_name);
             }
         }
-        foreach (config('permission-map.page_permissions.'.$profile, []) as $permission) {
+        foreach ([...config('permission-map.shared_page_permissions', []), ...config('permission-map.page_permissions.'.$profile, [])] as $permission) {
             $permissions[] = Permission::findOrCreate($permission, $role->guard_name);
         }
 

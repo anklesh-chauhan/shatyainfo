@@ -1,6 +1,24 @@
 <?php
 
 return [
+
+    'firebase' => [
+        'enabled' => env('FIREBASE_PUSH_ENABLED', false),
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'vapid_key' => env('FIREBASE_VAPID_PUBLIC_KEY'),
+        'queue_connection' => env('FIREBASE_QUEUE_CONNECTION', 'database'),
+        'queue' => env('FIREBASE_QUEUE', 'approval-notifications'),
+        'public' => [
+            'apiKey' => env('FIREBASE_API_KEY'),
+            'projectId' => env('FIREBASE_PROJECT_ID'),
+            'messagingSenderId' => env('FIREBASE_MESSAGING_SENDER_ID'),
+            'appId' => env('FIREBASE_WEB_APP_ID'),
+            'androidAppId' => env('FIREBASE_ANDROID_APP_ID'),
+            'iosAppId' => env('FIREBASE_IOS_APP_ID'),
+            'iosBundleId' => env('FIREBASE_IOS_BUNDLE_ID'),
+            'authDomain' => env('FIREBASE_AUTH_DOMAIN'),
+        ],
+    ],
     'razorpay' => [
         'key_id' => env('RAZORPAY_KEY_ID'),
         'key_secret' => env('RAZORPAY_KEY_SECRET'),

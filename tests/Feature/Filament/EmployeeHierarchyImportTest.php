@@ -25,6 +25,7 @@ use App\Services\EmployeeReportingService;
 use App\Services\OrganizationalUnitService;
 use Database\Seeders\ConfigDrivenShieldPermissionSeeder;
 use Database\Seeders\DepartmentRoleSeeder;
+use Database\Seeders\MyApprovalsPermissionSeeder;
 use Database\Seeders\TypeMasterSeeder;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -127,6 +128,20 @@ it('assigns narrow permissions to recognized job roles and leaves unknown roles 
         expect($permissions->contains($create))->toBe($mapped)
             ->and($permissions->contains($delete))->toBeFalse();
     }
+});
+
+it('initializes job role profiles after common page permissions are seeded', function () {
+    $role = Role::findOrCreate('hr_manager', 'web');
+    $this->seed(MyApprovalsPermissionSeeder::class);
+    $row = app(EmployeeImportTemplate::class)->examples()[1];
+    $row['job_role'] = 'HR Manager';
+    $row['email'] = 'seeded-hr-manager@example.test';
+    $row['temporary_password'] = 'Temporary-Password-42';
+
+    expect(hierarchyUpload([$row])->failed)->toBe([])
+        ->and($role->fresh()->hasPermissionTo('View:MyApprovals'))->toBeTrue()
+        ->and($role->fresh()->hasPermissionTo('Create:Employee'))->toBeTrue()
+        ->and($role->fresh()->checkPermissionTo('Delete:Employee'))->toBeFalse();
 });
 
 it('rejects login email collisions without linking another users account', function () {

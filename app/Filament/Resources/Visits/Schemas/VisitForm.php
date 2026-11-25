@@ -33,6 +33,7 @@ use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Schema;
+use Filament\Support\State\LazyLoadedStateGroup;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -41,6 +42,20 @@ class VisitForm
     public static function configure(Schema $schema): Schema
     {
         $prefs = VisitPreference::current();
+        $salesDocumentTotals = LazyLoadedStateGroup::make('visit-sales-document-totals')
+            ->state(function (?Visit $record): array {
+                $quotes = $record?->quoteSummary();
+                $orders = $record?->salesOrderSummary();
+
+                return [
+                    'quote_count' => $quotes['count'] ?? 0,
+                    'quote_amount' => $quotes['amount'] ?? 0,
+                    'quote_items' => $quotes['items'] ?? 0,
+                    'so_count' => $orders['count'] ?? 0,
+                    'so_amount' => $orders['amount'] ?? 0,
+                    'so_items' => $orders['items'] ?? 0,
+                ];
+            });
 
         return $schema
             ->components([
@@ -446,38 +461,32 @@ class VisitForm
                                             ->schema([
                                                 TextEntry::make('quote_count')
                                                     ->label('Total Quotes')
-                                                    ->state(fn ($record) => $record?->quoteSummary()['count'] ?? 0
-                                                    ),
+                                                    ->lazyLoadedState(group: $salesDocumentTotals),
 
                                                 TextEntry::make('quote_amount')
                                                     ->label('Quote Amount')
-                                                    ->state(fn ($record) => $record?->quoteSummary()['amount'] ?? 0
-                                                    )
+                                                    ->lazyLoadedState(group: $salesDocumentTotals)
                                                     ->money('INR'),
 
                                                 TextEntry::make('quote_items')
                                                     ->label('Items')
-                                                    ->state(fn ($record) => $record?->quoteSummary()['items'] ?? 0
-                                                    ),
+                                                    ->lazyLoadedState(group: $salesDocumentTotals),
                                             ]),
 
                                         Section::make('Sales Orders')
                                             ->schema([
                                                 TextEntry::make('so_count')
                                                     ->label('Total Orders')
-                                                    ->state(fn ($record) => $record?->salesOrderSummary()['count'] ?? 0
-                                                    ),
+                                                    ->lazyLoadedState(group: $salesDocumentTotals),
 
                                                 TextEntry::make('so_amount')
                                                     ->label('Order Amount')
-                                                    ->state(fn ($record) => $record?->salesOrderSummary()['amount'] ?? 0
-                                                    )
+                                                    ->lazyLoadedState(group: $salesDocumentTotals)
                                                     ->money('INR'),
 
                                                 TextEntry::make('so_items')
                                                     ->label('Items')
-                                                    ->state(fn ($record) => $record?->salesOrderSummary()['items'] ?? 0
-                                                    ),
+                                                    ->lazyLoadedState(group: $salesDocumentTotals),
                                             ]),
 
                                         Section::make('Linked Documents')

@@ -73,10 +73,13 @@ class AdminPanelProvider extends PanelProvider
         );
 
         return $panel
+            ->databaseNotifications(fn (): bool => auth()->check() && auth()->user()->getConnection()->getSchemaBuilder()->hasTable('notifications'))
+            ->databaseNotificationsPolling('30s')
             ->default()
             ->globalSearch(BusinessSearchProvider::class)
             ->topbar(true)
             ->renderHook(PanelsRenderHook::TOPBAR_LOGO_AFTER, fn () => view('filament.components.topbar-quick-links'))
+            ->renderHook(PanelsRenderHook::TOPBAR_END, fn () => view('filament.components.approval-push'))
             ->renderHook(PanelsRenderHook::HEAD_START, fn () => view('filament.components.subnav-scripts'))
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->globalSearchFieldSuffix(fn (): string => Platform::detect() === Platform::Mac ? '⌘K' : 'Ctrl+K')

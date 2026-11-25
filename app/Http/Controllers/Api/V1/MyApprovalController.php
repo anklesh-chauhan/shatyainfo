@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\BulkDecideMyApprovalRequest;
 use App\Http\Requests\Api\V1\DecideMyApprovalRequest;
 use App\Models\ApprovalStep;
 use App\Models\SalesDcr;
@@ -14,6 +15,17 @@ use Illuminate\Http\Request;
 
 class MyApprovalController extends Controller
 {
+    public function bulkDecide(BulkDecideMyApprovalRequest $request, ApprovalService $approvals): JsonResponse
+    {
+        $data = $request->validated();
+        abort_unless($approvals->decideMany(
+            array_map(intval(...), $data['steps']), (int) $request->user()->id,
+            $data['decision'], $data['comments'] ?? null, mobile: true,
+        ), 409, 'A selected request has changed or is unavailable. Refresh My Approvals.');
+
+        return response()->json(['data' => ['count' => count($data['steps']), 'decision' => $data['decision']]]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()->canAccessBusinessPage('View:MyApprovals'), 403);
