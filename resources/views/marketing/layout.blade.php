@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Plan pharma field visits, record doctor calls and samples, and review sales, stock, and attendance in one company workspace. Start with a 30-day free trial.">
+    <meta name="description" content="@yield('description', 'Plan pharma field visits, record doctor calls and samples, and review sales, stock, and attendance in one company workspace. Start with a 30-day free trial.')">
     <meta name="theme-color" content="#175cdb">
     <title>@yield('title', 'Shatya Info')</title>
     <link rel="icon" type="image/png" href="{{ asset('shatya-info-logo-transparent.png') }}">
@@ -218,6 +218,7 @@
         <header class="site">
             <a class="brand" href="{{ route('home') }}"><img class="mark" src="{{ asset('shatya-info-logo-transparent.png') }}" alt="" width="52" height="52"> Shatya Info</a>
             <nav aria-label="Main navigation">
+                <a class="nav-link" href="{{ route('home') }}#whats-new">What’s new</a>
                 <a class="nav-link" href="{{ route('home') }}#features">Features</a>
                 <a class="nav-link" href="{{ route('home') }}#pricing">Pricing</a>
                 <a class="nav-link" href="{{ route('home') }}#platform">Workspace</a>

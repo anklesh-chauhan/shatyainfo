@@ -18,7 +18,13 @@ it('shows the marketing page on the landlord host', function () {
     $this->get('/')
         ->assertOk()
         ->assertSee('Shatya Info')
-        ->assertSee('Create your company');
+        ->assertSee('Start your free trial')
+        ->assertSee('E-detailing library')
+        ->assertSee('RCPA observations')
+        ->assertSee('Secondary sales reconciliation')
+        ->assertSee('Territory sales targets')
+        ->assertSee('Account reach & frequency')
+        ->assertSee('Approval inbox & alerts');
 });
 
 it('registers a company and keeps the owner off the public tenant columns', function () {

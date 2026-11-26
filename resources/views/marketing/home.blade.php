@@ -1,6 +1,7 @@
 @extends('marketing.layout')
 
 @section('title', 'Shatya Info · Pharma field visits, sales and team operations')
+@section('description', 'Explore e-detailing, RCPA observations, secondary sales reconciliation, territory targets, account reach reports, and approval alerts alongside pharma field visits and daily call reports.')
 
 @push('head')
     <link rel="stylesheet" href="{{ asset('css/marketing-home.css') }}">
@@ -77,6 +78,52 @@
 
     <div class="home-index" aria-label="Product areas"><span>For pharma field teams and managers</span><a href="#field-work">Field work <sup>01</sup></a><a href="#operations">Business operations <sup>02</sup></a><a href="#platform">Your workspace <sup>03</sup></a></div>
 
+    <section class="home-section latest-features" id="whats-new" aria-labelledby="latest-features-title">
+        <div class="toolkit-intro">
+            <div><p class="eyebrow">WHAT’S NEW</p><h2 id="latest-features-title">More context for every call. More visibility after it.</h2></div>
+            <p>Explore the newer tools connecting product discussions, chemist observations, stockist sales, and team decisions.</p>
+        </div>
+        <div class="latest-feature-grid">
+            <article>
+                <p class="feature-area">Doctor calls</p>
+                <h3>E-detailing library</h3>
+                <p>Publish product PDFs and images for your field team, then record which material was presented during a visit.</p>
+                <a href="#module-e-detailing-library">Explore e-detailing</a>
+            </article>
+            <article>
+                <p class="feature-area">Market observations</p>
+                <h3>RCPA observations</h3>
+                <p>Capture chemist stock availability, estimated offtake, and competitor presence. Keep field estimates identifiable when reviewing the market.</p>
+                <a href="#module-rcpa-observations">Explore RCPA</a>
+            </article>
+            <article>
+                <p class="feature-area">Stockist sales</p>
+                <h3>Secondary sales reconciliation</h3>
+                <p>Import stockist statements, review stock-balance variances, and approve sales with a traceable correction process.</p>
+                <a href="#module-secondary-sales-statements">Explore secondary sales</a>
+            </article>
+            <article>
+                <p class="feature-area">Sales performance</p>
+                <h3>Territory sales targets</h3>
+                <p>Set monthly, quarterly, or annual value and quantity targets, and review achievement against approved secondary sales.</p>
+                <a href="#module-territory-targets-achievement">Explore territory targets</a>
+            </article>
+            <article>
+                <p class="feature-area">Account coverage</p>
+                <h3>Account reach &amp; frequency</h3>
+                <p>Compare completed calls with monthly account targets. Review coverage gaps alongside division profiles and account potential.</p>
+                <a href="#module-account-reach-frequency">Explore account coverage</a>
+            </article>
+            <article>
+                <p class="feature-area">Team decisions</p>
+                <h3>Approval inbox &amp; alerts</h3>
+                <p>Review requests in My Approvals, act on selected requests together, and receive updates when a decision is made.</p>
+                <a href="#module-approvals-access-control">Explore approvals</a>
+            </article>
+        </div>
+        <p class="latest-features-note">Available within your company workspace according to your role. Push alerts require company notification setup and permission on your device.</p>
+    </section>
+
     <section class="home-section field-story" id="field-work" aria-labelledby="field-work-title">
         <div class="section-intro"><p class="eyebrow">01 / FIELD WORK</p><h2 id="field-work-title">Plan the day. Record each call. Review the report.</h2><p>Give representatives a tour plan and the context for each visit. Notes, samples, travel, and expenses stay with the day’s work.</p></div>
         <div class="story-list"><article><span>01</span><div><h3>Plan the route</h3><p>Monthly tour plans, daily priorities, territories, and pre-call context.</p></div></article><article><span>02</span><div><h3>Make the visit count</h3><p>Doctor and customer records, check-in, visit notes, photos, and samples.</p></div></article><article><span>03</span><div><h3>Close the day properly</h3><p>Daily call reports, travel, expenses, and follow-up actions.</p></div></article></div>
@@ -95,6 +142,8 @@
             ['Field & relationships', 'Plan calls and review what happened on each visit.', [
                 ['Tour planning & field visits', 'Plan visits and give representatives the details they need before a call.', ['Monthly tour plans and today’s tour', 'Doctor calls, visit purposes, and pre-call briefings', 'Visit check-in, check-out, photos, and location', 'Territories, regions, patches, and visit preferences']],
                 ['Doctors & customer relationships', 'Keep account details, visit history, and follow-ups together.', ['Doctor and customer account records', 'Contacts and multiple addresses', 'Follow-up priorities, statuses, and outcomes', 'Visit history and doctor sample ledger']],
+                ['E-detailing library', 'Bring published product material into the doctor conversation.', ['Private company library of product PDFs and images', 'Publish or withdraw materials for the field team', 'Record presentations during active visits', 'Visit-linked presentation history and notes']],
+                ['RCPA observations', 'Capture retail chemist prescription audit observations from the field.', ['Chemist stock availability and estimated offtake', 'Doctor prescription share estimates', 'Competitor presence observations', 'Observation register and CSV export with field estimates identified']],
                 ['Daily call reports & travel', 'Review visits, travel, and expenses from the field day.', ['Daily call reports (DCRs) and visit records', 'Travel segments and transport modes', 'Expense entries, types, and configurations', 'Standard fare charts and expense summaries']],
                 ['Samples & SGIP', 'Record sample requests, issues, and distribution limits.', ['Sample requests and sample issues', 'SGIP distributions and configured limits', 'Doctor-wise sample tracking', 'SGIP compliance reporting']],
             ]],
@@ -103,11 +152,17 @@
                 ['Sales documents', 'Keep commercial documents and customer terms together.', ['Quotations, sales orders, and invoices', 'Delivery challans and document PDF downloads', 'Customer prices, taxes, and payment terms', 'Shipping methods and document preferences']],
                 ['Purchasing & inventory', 'Connect incoming goods, stock changes, and sample movements.', ['Purchase orders and goods receipt notes', 'Stock balances and inventory movements', 'Inventory adjustments and stock transfers', 'Items, brands, categories, packaging, and units']],
             ]],
+            ['Secondary sales & performance', 'Turn stockist statements into reviewed sales and territory achievement.', [
+                ['Secondary sales statements', 'Review stockist sales and balances before they contribute to performance.', ['CSV and Excel statement imports with source downloads', 'Product and quantity-unit mapping', 'Opening, purchase, sales, returns, and closing-stock reconciliation', 'Reviewer approval, rejection, and variance review']],
+                ['Statement scans & corrections', 'Keep original documents and follow a review process when figures change.', ['Upload statement scans and PDFs for review', 'OCR text extraction when configured, followed by manual review and mapping', 'Correction requests with reasons and reviewer decisions', 'Reversal and replacement history for approved statements']],
+                ['Territory targets & achievement', 'Compare approved secondary sales with territory goals.', ['Monthly, quarterly, and annual sales targets', 'Value targets and normalized quantity targets', 'Territory achievement dashboard', 'Dated territory assignments and target revision history']],
+            ]],
             ['People & oversight', 'Manage attendance, leave, access, and approvals.', [
                 ['Attendance & employee management', 'Review daily punches alongside shifts and employee records.', ['Punch-in and daily attendance records', 'Employees, departments, positions, and grades', 'Shifts, holidays, and weekly offs', 'Attendance registers and punch-versus-tour reports']],
                 ['Leave management', 'Manage time away with balances, rules, and approvals.', ['Leave applications, types, and rules', 'Leave balances, adjustments, and ledger', 'Encashments and lapse records', 'Payroll leave snapshots']],
-                ['Approvals & access control', 'Assign access and review requests that need a decision.', ['Approval flows and approval settings', 'My Approvals and bulk approval actions', 'Approval delegation', 'Users, roles, and permissions']],
-                ['Reports & exports', 'Review field execution, commercial progress, and workforce activity.', ['Visit coverage, DCR, and expense reports', 'Lead, deal, and overdue follow-up reports', 'Sales document and stock movement registers', 'Sample, SGIP, attendance, and leave exports']],
+                ['Approvals & access control', 'Assign access and review requests that need a decision.', ['Approval flows and approval settings', 'My Approvals with bulk approve and reject actions', 'In-app alerts for pending requests and completed decisions', 'Browser and mobile push alerts when configured and permitted', 'Approval delegation', 'Users, roles, and permissions']],
+                ['Account reach & frequency', 'See which accounts were reached and where call frequency needs attention.', ['Monthly account call targets and completed calls', 'Call gaps, achievement percentages, and reached accounts', 'Division profiles, segmentation, and account potential', 'Month-end owner and territory context with CSV export']],
+                ['Reports & exports', 'Review field execution, commercial progress, and workforce activity.', ['Visit coverage, DCR, and expense reports', 'Lead, deal, and overdue follow-up reports', 'Sales document and stock movement registers', 'Sample, SGIP, attendance, and leave exports', 'Account reach and frequency reporting']],
                 ['Sales Assistant & administration', 'Get planning suggestions and manage company settings.', ['Daily priorities and suggested route order', 'Monthly tour plan drafts and pre-call briefings', 'Voice notes, sample suggestions, and follow-up scripts', 'Suggested next actions for leads and deals', 'Company onboarding, branding, and data imports', 'Organization setup, number series, and integration settings']],
             ]],
         ] as [$groupTitle, $groupDescription, $modules])
@@ -115,7 +170,7 @@
                 <div class="toolkit-group-heading"><span>{{ str_pad($loop->iteration, 2, '0', STR_PAD_LEFT) }} / PRODUCT AREA</span><h3>{{ $groupTitle }}</h3><p>{{ $groupDescription }}</p></div>
                 <div class="toolkit-items">
                     @foreach ($modules as [$moduleTitle, $moduleDescription, $tools])
-                        <details class="toolkit-item" @if ($loop->first) open @endif>
+                        <details class="toolkit-item" id="module-{{ \Illuminate\Support\Str::slug($moduleTitle) }}" @if ($loop->first) open @endif>
                             <summary><span class="toolkit-item-title"><strong>{{ $moduleTitle }}</strong><span>{{ $moduleDescription }}</span></span><span class="toolkit-toggle" aria-hidden="true"></span></summary>
                             <ul>@foreach ($tools as $tool)<li>{{ $tool }}</li>@endforeach</ul>
                         </details>

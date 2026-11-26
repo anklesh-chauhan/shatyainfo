@@ -73,6 +73,18 @@ html:has(.home-page)::-webkit-scrollbar { display:none; }
 .home-section { padding:116px 0; scroll-margin-top:30px; }
 .home-section h2 { font-size:clamp(2.35rem,3.8vw,4rem); letter-spacing:-.055em; line-height:1.08; font-weight:600; }
 .home-section p { color:#536580; line-height:1.65; }
+.latest-features { border-bottom:1px solid #cbd9ea; }
+.latest-feature-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0 36px; }
+.latest-feature-grid article { display:flex; flex-direction:column; align-items:flex-start; padding:28px 0; border-top:2px solid #b8cdea; min-width:0; }
+.latest-feature-grid .feature-area { color:var(--home-blue); font-size:.875rem; font-weight:700; margin-bottom:12px; }
+.latest-feature-grid h3 { font-size:1.35rem; line-height:1.25; letter-spacing:-.025em; margin-bottom:14px; }
+.latest-feature-grid article > p:not(.feature-area) { font-size:1rem; margin-bottom:22px; }
+.latest-feature-grid a { color:var(--home-navy); font-weight:700; margin-top:auto; text-underline-offset:5px; }
+.latest-feature-grid a:hover { color:var(--home-blue); }
+.latest-features a:focus-visible,.toolkit-item:target > summary { outline:2px solid var(--home-blue); outline-offset:5px; }
+.latest-features .latest-features-note { margin:16px 0 0; font-size:.875rem; max-width:780px; }
+@media(max-width:1000px){.latest-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px}}
+@media(max-width:600px){.latest-feature-grid{grid-template-columns:1fr}}
 .field-story { display:grid; grid-template-columns:1fr 1fr; gap:10%; }
 .section-intro h2 { max-width:540px; }
 .section-intro > p:last-child { font-size:1.05rem; max-width:490px; }
@@ -105,7 +117,7 @@ html:has(.home-page)::-webkit-scrollbar { display:none; }
 .toolkit-group-heading h3 { font-size:1.55rem; line-height:1.16; letter-spacing:-.035em; margin:15px 0 10px; }
 .toolkit-group-heading p { font-size:.87rem; margin:0; }
 .toolkit-items { border-bottom:1px solid #d7e3f1; }
-.toolkit-item { padding:0; border-top:1px solid #d7e3f1; border-bottom:0; }
+.toolkit-item { padding:0; border-top:1px solid #d7e3f1; border-bottom:0; scroll-margin-top:30px; }
 .toolkit-item:first-child { border-top:0; }
 .toolkit-item summary { display:flex; align-items:center; justify-content:space-between; gap:20px; list-style:none; padding:19px 0; cursor:pointer; }
 .toolkit-item summary::-webkit-details-marker { display:none; }

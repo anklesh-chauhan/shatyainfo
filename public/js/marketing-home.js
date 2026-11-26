@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+    function openLinkedModule(hash = window.location.hash) {
+        const target = document.getElementById(hash.slice(1));
+        if (target?.matches('details.toolkit-item')) {
+            target.open = true;
+        }
+    }
+
+    document.querySelectorAll('.latest-feature-grid a').forEach(link => {
+        link.addEventListener('click', () => openLinkedModule(link.hash));
+    });
+    window.addEventListener('hashchange', () => openLinkedModule());
+    openLinkedModule();
+
     const slider = document.querySelector('[data-hero-slider]');
     if (!slider) return;
 
