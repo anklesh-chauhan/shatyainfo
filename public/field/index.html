@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/field/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#175CDB">
+  <meta name="description" content="Shatya Info field workspace for attendance, visits, tours, samples and daily reports.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Shatya Info">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Shatya Info</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; background: #f7faff; }
+    #app-loading {
+      position: fixed; inset: 0; display: grid; place-content: center;
+      padding: 24px; text-align: center; color: #10264b;
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+    #app-loading img { margin: 0 auto 16px; border-radius: 24px; }
+    #app-loading h1 { margin: 0; font-size: 24px; }
+    #app-loading p { margin: 8px 0; }
+    #app-loading button {
+      min-height: 48px; margin-top: 16px; padding: 12px 24px;
+      border: 0; border-radius: 14px; background: #175cdb;
+      color: white; font: inherit; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-loading" role="status" aria-live="polite">
+    <img src="icons/Icon-192.png" width="96" height="96" alt="">
+    <h1>Shatya Info</h1>
+    <p id="app-loading-message">Opening your field workspace…</p>
+    <button id="app-retry" type="button" hidden>Try again</button>
+  </div>
+  <noscript>Enable JavaScript in Safari to use Shatya Info.</noscript>
+  <script>
+    window.shatyaInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      window.shatyaInstallPrompt = event;
+    });
+    window.addEventListener('appinstalled', () => {
+      window.shatyaInstallPrompt = null;
+    });
+    const loading = document.getElementById('app-loading');
+    const retry = document.getElementById('app-retry');
+    const loadingTimeout = setTimeout(() => {
+      document.getElementById('app-loading-message').textContent =
+        'Still loading. Check your internet connection and try again.';
+      retry.hidden = false;
+    }, 45000);
+    retry.addEventListener('click', () => window.location.reload());
+    window.addEventListener('flutter-first-frame', () => {
+      clearTimeout(loadingTimeout);
+      loading.remove();
+    }, { once: true });
+  </script>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

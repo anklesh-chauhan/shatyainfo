@@ -13,6 +13,7 @@ use App\Services\Attendance\LeaveWorkflowService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MarketingController::class, 'home'])->name('home');
+Route::redirect('/field', '/field/index.html')->name('field');
 Route::get('/firebase-push-config', fn () => response()->json(config('services.firebase.public')))->name('push-config');
 Route::get('/firebase-messaging-sw.js', fn () => response()->view('firebase-messaging-sw')
     ->header('Content-Type', 'application/javascript')->header('Cache-Control', 'no-cache'))->name('push-worker');
