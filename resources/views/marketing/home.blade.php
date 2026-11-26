@@ -4,7 +4,7 @@
 @section('description', 'Explore e-detailing, RCPA observations, secondary sales reconciliation, territory targets, account reach reports, and approval alerts alongside pharma field visits and daily call reports.')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('css/marketing-home.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/marketing-home.css') }}?v={{ hash_file('sha256', public_path('css/marketing-home.css')) }}">
 @endpush
 
 @section('content')
@@ -197,5 +197,5 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('js/marketing-home.js') }}" defer></script>
+    <script src="{{ asset('js/marketing-home.js') }}?v={{ hash_file('sha256', public_path('js/marketing-home.js')) }}" defer></script>
 @endpush

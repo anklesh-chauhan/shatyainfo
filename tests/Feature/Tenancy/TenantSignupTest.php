@@ -24,7 +24,9 @@ it('shows the marketing page on the landlord host', function () {
         ->assertSee('Secondary sales reconciliation')
         ->assertSee('Territory sales targets')
         ->assertSee('Account reach & frequency')
-        ->assertSee('Approval inbox & alerts');
+        ->assertSee('Approval inbox & alerts')
+        ->assertSee(asset('css/marketing-home.css').'?v='.hash_file('sha256', public_path('css/marketing-home.css')), false)
+        ->assertSee(asset('js/marketing-home.js').'?v='.hash_file('sha256', public_path('js/marketing-home.js')), false);
 });
 
 it('registers a company and keeps the owner off the public tenant columns', function () {
