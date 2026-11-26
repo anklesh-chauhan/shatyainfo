@@ -2,16 +2,14 @@
 
 namespace App\Filament\Pages;
 
-use App\Jobs\ProcessDailyAttendanceJob;
-use App\Models\AttendancePunch;
-use App\Models\DailyAttendance;
-use App\Models\EmployeeAttendanceStatus;
+use App\Services\Field\FieldAttendanceService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Computed;
 
 class PunchIn extends Page
 {
@@ -34,175 +32,109 @@ class PunchIn extends Page
 
     protected function getHeaderActions(): array
     {
-        $employee = Auth::user()?->employee;
-
-        // If user is not an employee, hide attendance actions
-        if (! $employee) {
-            return [];
-        }
-
-        $todayAttendance = DailyAttendance::where('employee_id', $employee->id)
-            ->whereDate('attendance_date', today())
-            ->first();
-
-        // ────────────────────────────── CHECK IN ──────────────────────────────
-        if (! $todayAttendance) {
-            return [
-                Action::make('punchIn')
-                    ->label('👋 Punch In')
-                    ->button()
-                    ->color('success')
-                    ->icon('heroicon-o-clock')
-                    ->modal(false)
-                    ->requiresConfirmation(false)
-                    ->extraAttributes([
-                        'x-on:click.prevent' => 'startPunchIn($wire)',
-                    ]),
-            ];
-        }
-
-        // ────────────────────────────── CHECK OUT ──────────────────────────────
-        if ($todayAttendance && $todayAttendance->punches()->where('punch_type', 'out')->doesntExist()) {
-            return [
-                Action::make('punchOut')
-                    ->label('🚪 Punch Out')
-                    ->color('danger')
-                    ->icon('heroicon-o-arrow-right-on-rectangle')
-                    ->modal(false)
-                    ->button()
-                    ->requiresConfirmation(false)
-                    ->extraAttributes([
-                        'x-on:click.prevent' => 'startPunchOut($wire)',
-                    ]),
-            ];
-        }
-
-        // ────────────────────────────── COMPLETED ──────────────────────────────
         return [
+            Action::make('punchIn')
+                ->label('👋 Punch In')
+                ->button()
+                ->color('success')
+                ->icon('heroicon-o-clock')
+                ->visible(fn (): bool => $this->punchState === 'in')
+                ->alpineClickHandler('startPunchIn($wire)'),
+            Action::make('punchOut')
+                ->label('🚪 Punch Out')
+                ->color('danger')
+                ->icon('heroicon-o-arrow-right-on-rectangle')
+                ->button()
+                ->visible(fn (): bool => $this->punchState === 'out')
+                ->alpineClickHandler('startPunchOut($wire)'),
             Action::make('completed')
                 ->label('✔ Attendance Completed')
                 ->color('gray')
                 ->disabled()
+                ->visible(fn (): bool => $this->punchState === 'completed')
                 ->icon('heroicon-o-check-circle'),
         ];
+    }
+
+    #[Computed]
+    public function punchState(): string
+    {
+        $user = Auth::user();
+
+        if (! $user?->employee) {
+            return 'unavailable';
+        }
+
+        $attendance = app(FieldAttendanceService::class)->today($user);
+
+        if (! $attendance) {
+            return 'in';
+        }
+
+        return $attendance->punches()->where('punch_type', 'out')->exists() ? 'completed' : 'out';
     }
 
     public function doPunchIn(array $data): void
     {
         abort_unless(Auth::user()?->canPunchAttendance(), 403);
 
-        $employee = Auth::user()->employee;
-
-        if (! isset($data['latitude'], $data['longitude'])) {
-            Notification::make()
-                ->title('Location permission not allowed')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        if (! $employee) {
-            Notification::make()
-                ->title('Employee not linked')
-                ->danger()
-                ->send();
+        try {
+            app(FieldAttendanceService::class)->punchIn(Auth::user(), [
+                ...$this->validateCoordinates($data),
+                'source' => 'punch-in-page',
+            ]);
+        } catch (ValidationException $exception) {
+            $this->notifyPunchFailure($exception);
 
             return;
         }
-
-        $shift = $employee->currentShiftForDate(today());
-
-        if (! $shift) {
-            Notification::make()
-                ->title('Shift not assigned')
-                ->body('No active shift is assigned for today. Please contact HR.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $firstPunchIn = now()->format('H:i');
-
-        $attendance = DailyAttendance::create([
-            'employee_id' => $employee->id,
-            'shift_master_id' => $shift->id,
-            'attendance_date' => today(),
-            'first_punch_in' => $firstPunchIn,
-            'status_id' => EmployeeAttendanceStatus::where('status_code', 'SP')->value('id'),
-        ]);
-
-        AttendancePunch::create([
-            'employee_id' => $employee->id,
-            'punch_date' => today(),
-            'punch_time' => $firstPunchIn,
-            'punch_type' => 'in',
-            'source' => 'punch-in-page',
-            'raw_payload' => [
-                'ip' => Request::ip(),
-                'latitude' => $data['latitude'],
-                'longitude' => $data['longitude'],
-            ],
-        ]);
 
         Notification::make()
             ->title('Punch In Successfully!')
             ->success()
             ->send();
+
+        unset($this->punchState);
     }
 
     public function doPunchOut(array $data): void
     {
         abort_unless(Auth::user()?->canPunchAttendance(), 403);
 
-        $employee = Auth::user()->employee;
-
-        if (! isset($data['latitude'], $data['longitude'])) {
-            Notification::make()
-                ->title('Location permission not allowed')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $todayAttendance = DailyAttendance::where('employee_id', $employee->id)
-            ->whereDate('attendance_date', today())
-            ->first();
-
-        if (! $todayAttendance) {
-            Notification::make()
-                ->title('No attendance record found for today')
-                ->danger()
-                ->send();
+        try {
+            app(FieldAttendanceService::class)->punchOut(Auth::user(), [
+                ...$this->validateCoordinates($data),
+                'source' => 'punch-in-page',
+            ]);
+        } catch (ValidationException $exception) {
+            $this->notifyPunchFailure($exception);
 
             return;
         }
-
-        // Insert OUT punch
-        AttendancePunch::create([
-            'employee_id' => $employee->id,
-            'punch_date' => today(),
-            'punch_time' => now()->format('H:i'),
-            'punch_type' => 'out',
-            'source' => 'dashboard',
-            'raw_payload' => [
-                'ip' => Request::ip(),
-                'latitude' => $data['latitude'],
-                'longitude' => $data['longitude'],
-            ],
-        ]);
-
-        // Process attendance (calculate hours, status, etc.)
-        dispatch_sync(new ProcessDailyAttendanceJob($todayAttendance->id));
 
         Notification::make()
             ->title('Checked Out Successfully!')
             ->success()
             ->send();
 
-        // Refresh the dashboard to update button state
-        $this->dispatch('$refresh');
+        unset($this->punchState);
+    }
+
+    /** @return array{latitude: numeric, longitude: numeric} */
+    protected function validateCoordinates(array $data): array
+    {
+        return validator($data, [
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ])->validate();
+    }
+
+    protected function notifyPunchFailure(ValidationException $exception): void
+    {
+        Notification::make()
+            ->title('Unable to record attendance')
+            ->body(collect($exception->errors())->flatten()->implode("\n"))
+            ->danger()
+            ->send();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Attendance\AttendanceStatusResolver;
 use App\Traits\RequiresHrChangeApproval;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -121,9 +122,14 @@ class DailyAttendance extends BaseModel
         $this->status_id = $status->id;
     }
 
-    public function scopeOwnedBy($query, $user)
+    public function scopeApplyOwnVisibility(Builder $query, mixed $user): Builder
     {
-        return $query->where('employee_id', $user->employee->id);
+        return $query->ownedBy($user);
+    }
+
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('employee_id', $user->employee?->id);
     }
 
     public function isOwnedBy($user): bool

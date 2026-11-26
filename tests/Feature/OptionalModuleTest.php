@@ -1,7 +1,10 @@
 <?php
 
 use App\Filament\Pages\OptionalModules;
+use App\Filament\Pages\PunchIn;
+use App\Filament\Resources\DailyAttendances\DailyAttendanceResource;
 use App\Filament\Resources\Leads\LeadResource;
+use App\Filament\Resources\LeaveApplications\LeaveApplicationResource;
 use App\Filament\Resources\SalesDcrExpenses\SalesDcrExpenseResource;
 use App\Models\ExpenseConfiguration;
 use App\Models\ExpenseType;
@@ -56,6 +59,55 @@ it('rejects unknown modules and unauthorized activation', function () {
     app()->instance(CompanyOnboardingService::class, new CompanyOnboardingService);
     expect(fn () => $this->service->activate('expenses', true))
         ->toThrow(HttpException::class);
+});
+
+it('keeps existing attendance and leave available after company setup', function () {
+    $user = auth()->user();
+    grantPagePermissions($user, 'View:PunchIn', 'ViewAny:DailyAttendance', 'ViewAny:LeaveApplication');
+    reportingAssignShift($user, reportingShift('Existing HR Shift'));
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    expect($this->service->navigationEnabled('DailyAttendance'))->toBeTrue()
+        ->and($this->service->navigationEnabled('LeaveApplication'))->toBeTrue()
+        ->and($this->service->capabilities()['enabled']['hr'])->toBeTrue()
+        ->and($this->service->status()['hr']['enabled'])->toBeTrue()
+        ->and(DailyAttendanceResource::shouldRegisterNavigation())->toBeTrue()
+        ->and(DailyAttendanceResource::canViewAny())->toBeTrue()
+        ->and(LeaveApplicationResource::shouldRegisterNavigation())->toBeTrue()
+        ->and(LeaveApplicationResource::canViewAny())->toBeTrue()
+        ->and(PunchIn::canAccess())->toBeTrue();
+
+    $navigation = collect(Filament::getNavigation());
+    $hrItems = collect($navigation->first(fn ($group): bool => $group->getLabel() === 'HR & Attendance')->getItems())
+        ->map(fn ($item): string => $item->getLabel())->all();
+    $workspaceItems = collect($navigation->first(fn ($group): bool => $group->getLabel() === 'My Workspace')->getItems())
+        ->map(fn ($item): string => $item->getLabel())->all();
+
+    expect($hrItems)->toContain('Attendance', 'Leave Management')
+        ->and($workspaceItems)->toContain('Punch In/Out');
+});
+
+it('respects an explicit HR disable even when shifts are assigned', function () {
+    $user = grantPagePermissions(auth()->user(), 'View:PunchIn', 'ViewAny:DailyAttendance', 'ViewAny:LeaveApplication');
+    reportingAssignShift($user, reportingShift('Disabled HR Shift'));
+    $metadata = $this->organization->metadata;
+    $metadata['optional_modules']['hr']['enabled'] = false;
+    $this->organization->update(['metadata' => $metadata]);
+
+    expect($this->service->navigationEnabled('DailyAttendance'))->toBeFalse()
+        ->and($this->service->navigationEnabled('LeaveApplication'))->toBeFalse()
+        ->and($this->service->capabilities()['enabled']['hr'])->toBeFalse()
+        ->and($this->service->status()['hr']['enabled'])->toBeFalse()
+        ->and(DailyAttendanceResource::canViewAny())->toBeFalse()
+        ->and(LeaveApplicationResource::canViewAny())->toBeFalse()
+        ->and(PunchIn::canAccess())->toBeFalse();
+});
+
+it('keeps HR optional for new companies without an existing HR setup', function () {
+    expect($this->service->navigationEnabled('DailyAttendance'))->toBeFalse()
+        ->and($this->service->navigationEnabled('LeaveApplication'))->toBeFalse()
+        ->and($this->service->capabilities()['enabled']['hr'])->toBeFalse()
+        ->and($this->service->status()['hr']['enabled'])->toBeFalse();
 });
 
 it('publishes activation flags and rejects future or expired expense rules', function () {

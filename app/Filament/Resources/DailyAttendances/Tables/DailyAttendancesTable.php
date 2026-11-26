@@ -2,17 +2,18 @@
 
 namespace App\Filament\Resources\DailyAttendances\Tables;
 
+use App\Jobs\ProcessDailyAttendanceJob;
+use App\Models\DailyAttendance;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\Filter;
 use Filament\Forms\Components\DatePicker;
-use App\Models\DailyAttendance;
-use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 
 class DailyAttendancesTable
 {
@@ -24,9 +25,9 @@ class DailyAttendancesTable
                     ->date()
                     ->sortable(),
 
-                TextColumn::make('employee.FullName')
-                    ->searchable()
-                    ->sortable(),
+                TextColumn::make('employee.full_name')
+                    ->searchable(['first_name', 'last_name', 'employee_id'])
+                    ->sortable(['first_name', 'last_name']),
 
                 TextColumn::make('shift.name')
                     ->label('Shift')
@@ -61,11 +62,9 @@ class DailyAttendancesTable
                     ])
                     ->query(function ($query, array $data) {
                         return $query
-                            ->when($data['from'], fn ($q) =>
-                                $q->whereDate('attendance_date', '>=', $data['from'])
+                            ->when($data['from'], fn ($q) => $q->whereDate('attendance_date', '>=', $data['from'])
                             )
-                            ->when($data['to'], fn ($q) =>
-                                $q->whereDate('attendance_date', '<=', $data['to'])
+                            ->when($data['to'], fn ($q) => $q->whereDate('attendance_date', '<=', $data['to'])
                             );
                     }),
             ])
@@ -73,21 +72,15 @@ class DailyAttendancesTable
                 ViewAction::make(),
 
                 Action::make('recalculate')
-    ->label('Recalculate')
-    ->icon('heroicon-o-arrow-path')
-    ->color('warning')
-    ->button()
-    ->requiresConfirmation()
-    // Use 'record' as the parameter name clearly
-    ->action(function (DailyAttendance $record) {
-        self::recalculate($record);
-
-        // Optional: Show a success notification so you know it worked
-        Notification::make()
-            ->title('Recalculated successfully')
-            ->success()
-            ->send();
-    }),
+                    ->label('Recalculate')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->button()
+                    ->requiresConfirmation()
+                    ->authorize(fn (DailyAttendance $record): bool => auth()->user()->can('update', $record))
+                    ->action(function (DailyAttendance $record): void {
+                        self::recalculate($record);
+                    }),
 
             ])
             ->toolbarActions([
@@ -98,14 +91,12 @@ class DailyAttendancesTable
     }
 
     public static function recalculate(DailyAttendance $record): void
-{
-    dispatch_sync(
-        new \App\Jobs\ProcessDailyAttendanceJob($record->id)
-    );
+    {
+        app()->call([new ProcessDailyAttendanceJob($record->id), 'handle']);
 
-    \Filament\Notifications\Notification::make()
-        ->title('Attendance recalculated successfully')
-        ->success()
-        ->send();
-}
+        Notification::make()
+            ->title('Attendance recalculated successfully')
+            ->success()
+            ->send();
+    }
 }

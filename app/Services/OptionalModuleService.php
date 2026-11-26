@@ -3,9 +3,14 @@
 namespace App\Services;
 
 use App\Models\AccountMaster;
+use App\Models\DailyAttendance;
+use App\Models\EmployeeAttendance;
+use App\Models\EmployeeShift;
 use App\Models\ExpenseConfiguration;
 use App\Models\ExpenseType;
 use App\Models\ItemMaster;
+use App\Models\LeaveApplication;
+use App\Models\LeaveBalance;
 use App\Models\LeaveRule;
 use App\Models\LocationMaster;
 use App\Models\Organization;
@@ -37,7 +42,7 @@ class OptionalModuleService
                     return true;
                 }
 
-                return (bool) ($organization->metadata['optional_modules'][$module]['enabled'] ?? false);
+                return $this->moduleIsEnabled($organization, $module);
             }
         }
 
@@ -75,7 +80,7 @@ class OptionalModuleService
                 ...$checks[$key],
             ];
             $activation = $organization?->metadata['optional_modules'][$key] ?? [];
-            $result[$key] = ['label' => $label, 'enabled' => (bool) ($activation['enabled'] ?? false),
+            $result[$key] = ['label' => $label, 'enabled' => $this->moduleIsEnabled($organization, $key),
                 'checks' => $requirements, 'ready' => ! in_array(false, $requirements, true),
                 'activation' => $activation];
         }
@@ -89,10 +94,27 @@ class OptionalModuleService
         $configured = (bool) ($organization?->metadata['company_setup']['organization_saved'] ?? false);
         $enabled = [];
         foreach (self::MODULES as $key => $label) {
-            $enabled[$key] = ! $configured || (bool) ($organization->metadata['optional_modules'][$key]['enabled'] ?? false);
+            $enabled[$key] = ! $configured || $this->moduleIsEnabled($organization, $key);
         }
 
         return ['schema_version' => 1, 'enabled' => $enabled];
+    }
+
+    private function moduleIsEnabled(?Organization $organization, string $module): bool
+    {
+        $activation = $organization?->metadata['optional_modules'][$module] ?? [];
+
+        if (array_key_exists('enabled', $activation)) {
+            return (bool) $activation['enabled'];
+        }
+
+        return $module === 'hr' && (
+            EmployeeShift::query()->exists()
+            || DailyAttendance::query()->exists()
+            || EmployeeAttendance::query()->exists()
+            || LeaveApplication::query()->exists()
+            || LeaveBalance::query()->exists()
+        );
     }
 
     public function activate(string $module, bool $reviewed): void

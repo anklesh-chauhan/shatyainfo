@@ -7,6 +7,7 @@ use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\DailyAttendances\Pages\CreateDailyAttendance;
 use App\Filament\Resources\DailyAttendances\Pages\EditDailyAttendance;
 use App\Filament\Resources\DailyAttendances\Pages\ListDailyAttendances;
+use App\Filament\Resources\DailyAttendances\Pages\ViewDailyAttendances;
 use App\Filament\Resources\DailyAttendances\Schemas\DailyAttendanceForm;
 use App\Filament\Resources\DailyAttendances\Tables\DailyAttendancesTable;
 use App\Models\DailyAttendance;
@@ -36,15 +37,13 @@ class DailyAttendanceResource extends BaseResource
         $query = parent::getEloquentQuery();
         $user = Filament::auth()->user();
 
-        // OWN RECORDS ONLY
-        if ($user->can('ViewOwn:DailyAttendance')) {
+        if (! $user->hasAnyRole(['super_admin', 'administration_admin'])
+            && ! $user->can('AccessAllRecords')
+            && $user->can('ViewOwn:DailyAttendance')) {
             return $query->ownedBy($user);
-        } else {
-            return $query;
         }
 
-        // NO ACCESS
-        return $query->whereRaw('1 = 0');
+        return $query;
     }
 
     public static function form(Schema $schema): Schema
@@ -69,6 +68,7 @@ class DailyAttendanceResource extends BaseResource
         return [
             'index' => ListDailyAttendances::route('/'),
             'create' => CreateDailyAttendance::route('/create'),
+            'view' => ViewDailyAttendances::route('/{record}'),
             'edit' => EditDailyAttendance::route('/{record}/edit'),
         ];
     }
