@@ -18,7 +18,7 @@ it('shows the marketing page on the landlord host', function () {
     $this->get('/')
         ->assertOk()
         ->assertSee('Shatya Info')
-        ->assertSee('Start your free trial')
+        ->assertSee('Start free trial')
         ->assertSee('E-detailing library')
         ->assertSee('RCPA observations')
         ->assertSee('Secondary sales reconciliation')

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="@yield('description', 'Plan pharma field visits, record doctor calls and samples, and review sales, stock, and attendance in one company workspace. Start with a 30-day free trial.')">
+    <meta name="description" content="@yield('description', 'Manage pharma visits, calls, samples, sales, and attendance in one workspace. Try free for 30 days.')">
     <meta name="theme-color" content="#175cdb">
     <title>@yield('title', 'Shatya Info')</title>
     <link rel="icon" type="image/png" href="{{ asset('shatya-info-logo-transparent.png') }}">
@@ -230,7 +230,7 @@
         <main id="main-content">
             @yield('content')
         </main>
-        <footer class="site-footer"><span>Shatya Info · Pharma field work in one place.</span><span><a href="{{ route('home') }}#features">All features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Contact support</a><a href="{{ route('legal.show', 'service-agreement') }}">Service Agreement</a><a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a><a href="{{ route('legal.show', 'trial-terms') }}">Trial Terms</a><a href="{{ route('legal.show', 'data-processing-agreement') }}">DPA</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
+        <footer class="site-footer"><span>Shatya Info · Connected pharma teams.</span><span><a href="{{ route('home') }}#features">Features</a><a href="{{ route('help.index') }}">Help</a><a href="{{ route('support.create') }}">Support</a><a href="{{ route('legal.show', 'service-agreement') }}">Service Agreement</a><a href="{{ route('legal.show', 'privacy') }}">Privacy Notice</a><a href="{{ route('legal.show', 'trial-terms') }}">Trial Terms</a><a href="{{ route('legal.show', 'data-processing-agreement') }}">DPA</a><a href="{{ route('company.login') }}">Company sign in</a></span></footer>
     </div>
     <a class="back-to-top" href="#top" aria-label="Back to top" title="Back to top"><span aria-hidden="true">↑</span></a>
     @stack('scripts')
